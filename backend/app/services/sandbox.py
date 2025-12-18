@@ -1208,7 +1208,7 @@ class SandboxService:
         jq_filter = (
             'if .message.content and (.message.content | type) == "array" then '
             '.message.content |= [.[] | select((.type | IN("thinking", "redacted_thinking") | not) or ((.signature // "") | length) >= 10)] '
-            'else . end'
+            "else . end"
         )
 
         try:

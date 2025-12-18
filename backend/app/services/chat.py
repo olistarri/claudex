@@ -611,9 +611,7 @@ class ChatService(BaseDbService[Chat]):
         except Exception as e:
             logger.warning("Failed to resume sandbox for chat %s: %s", chat_id, e)
 
-    async def _needs_session_cleaning(
-        self, chat_id: UUID, new_model_id: str
-    ) -> bool:
+    async def _needs_session_cleaning(self, chat_id: UUID, new_model_id: str) -> bool:
         ai_model_service = AIModelService(session_factory=self._session_factory)
 
         new_provider = await ai_model_service.get_model_provider(new_model_id)
