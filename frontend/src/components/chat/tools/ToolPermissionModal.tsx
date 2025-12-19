@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
 import { Button, MarkDown } from '@/components/ui';
 import type { PermissionRequest } from '@/types';
 
@@ -26,7 +26,7 @@ export function ToolPermissionModal({
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [alternativeInstruction, setAlternativeInstruction] = useState('');
 
-  if (!request) return null;
+  if (!request || request.tool_name === 'AskUserQuestion') return null;
 
   const handleReject = () => {
     if (showRejectInput && alternativeInstruction.trim()) {
@@ -44,57 +44,62 @@ export function ToolPermissionModal({
     setAlternativeInstruction('');
   };
 
+  const hasParams = request.tool_input && Object.keys(request.tool_input).length > 0;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-strong dark:border-border-dark dark:bg-surface-dark">
-        <div className="border-b border-border px-4 py-3 dark:border-border-dark">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-md bg-yellow-100 p-1.5 dark:bg-yellow-900/30">
-              <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold text-text-primary dark:text-text-dark-primary">
-                Permission Required
-              </h2>
-              <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
-                Tool: <code className="font-mono">{request.tool_name}</code>
-              </p>
-            </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl dark:border-border-dark dark:bg-surface-dark">
+        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3 dark:border-border-dark">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-500">
+            <ShieldAlert className="h-4 w-4 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-text-primary dark:text-text-dark-primary">
+              Permission Required
+            </h2>
+            <p className="text-2xs text-text-secondary dark:text-text-dark-secondary">
+              Tool:{' '}
+              <code className="rounded bg-surface-tertiary px-1 py-0.5 font-mono dark:bg-surface-dark-tertiary">
+                {request.tool_name}
+              </code>
+            </p>
           </div>
         </div>
 
-        <div className="overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-3">
           <div className="space-y-3">
-            <div className="max-h-96 space-y-2 overflow-auto">
-              {!request.tool_input || Object.keys(request.tool_input).length === 0 ? (
-                <div className="py-2 text-sm italic text-text-secondary dark:text-text-dark-secondary">
-                  No parameters
+            <div className="rounded-lg border border-border bg-surface-secondary/50 p-3 dark:border-border-dark dark:bg-surface-dark-secondary/50">
+              {hasParams ? (
+                <div className="space-y-2">
+                  {Object.entries(request.tool_input).map(([key, value]) => (
+                    <div key={key} className="space-y-0.5">
+                      <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
+                        {key}
+                      </div>
+                      <div className="overflow-auto rounded-md bg-surface-tertiary px-2 py-1.5 text-xs text-text-primary dark:bg-surface-dark-tertiary dark:text-text-dark-primary">
+                        <MarkDown content={formatValue(value)} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                Object.entries(request.tool_input).map(([key, value]) => (
-                  <div key={key} className="space-y-0.5">
-                    <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                      {key}
-                    </div>
-                    <div className="overflow-auto rounded bg-surface-tertiary px-2 py-1.5 text-xs text-text-primary dark:bg-surface-dark-tertiary dark:text-text-dark-primary">
-                      <MarkDown content={formatValue(value)} />
-                    </div>
-                  </div>
-                ))
+                <p className="text-center text-xs italic text-text-tertiary dark:text-text-dark-tertiary">
+                  No parameters
+                </p>
               )}
             </div>
 
             {showRejectInput && (
-              <div>
-                <label className="text-xs font-medium text-text-tertiary dark:text-text-dark-tertiary">
+              <div className="rounded-lg border border-border bg-surface-secondary/50 p-3 dark:border-border-dark dark:bg-surface-dark-secondary/50">
+                <label className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
                   Alternative Instructions
                 </label>
                 <textarea
                   value={alternativeInstruction}
                   onChange={(e) => setAlternativeInstruction(e.target.value)}
                   placeholder="Tell the agent what to do instead..."
-                  className="mt-1.5 w-full rounded-md border border-border bg-surface-tertiary px-2.5 py-2 text-sm text-text-primary placeholder-text-quaternary focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-border-dark dark:bg-surface-dark-tertiary dark:text-text-dark-primary dark:placeholder-text-dark-tertiary"
-                  rows={3}
+                  className="mt-1.5 w-full resize-none rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary placeholder-text-quaternary transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-border-dark dark:bg-surface-dark dark:text-text-dark-primary dark:placeholder-text-dark-tertiary"
+                  rows={2}
                   disabled={isLoading}
                   autoFocus
                 />
@@ -112,7 +117,7 @@ export function ToolPermissionModal({
                 disabled={isLoading}
                 className="flex-1"
               >
-                <XCircle className="mr-2 h-4 w-4" />
+                <XCircle className="mr-1.5 h-3.5 w-3.5" />
                 Just Reject
               </Button>
               <Button
@@ -121,7 +126,7 @@ export function ToolPermissionModal({
                 disabled={isLoading || !alternativeInstruction.trim()}
                 className="flex-1"
               >
-                Send Instructions
+                Send
               </Button>
             </>
           ) : (
@@ -132,11 +137,11 @@ export function ToolPermissionModal({
                 disabled={isLoading}
                 className="flex-1"
               >
-                <XCircle className="mr-2 h-4 w-4" />
+                <XCircle className="mr-1.5 h-3.5 w-3.5" />
                 Reject
               </Button>
               <Button onClick={onApprove} variant="primary" disabled={isLoading} className="flex-1">
-                <CheckCircle className="mr-2 h-4 w-4" />
+                <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
                 Approve
               </Button>
             </>

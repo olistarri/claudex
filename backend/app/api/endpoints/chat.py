@@ -600,16 +600,33 @@ async def respond_to_permission(
     request_id: str,
     approved: bool = Form(...),
     alternative_instruction: str | None = Form(None),
+    user_answers: str | None = Form(None, max_length=50000),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> PermissionRespondResponse:
     await _ensure_chat_access(chat_id, chat_service, current_user)
 
+    parsed_answers = None
+    if user_answers:
+        try:
+            parsed_answers = json.loads(user_answers)
+        except json.JSONDecodeError as e:
+            logger.error("Invalid JSON in user_answers: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid JSON format for user_answers",
+            )
+        if not isinstance(parsed_answers, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="user_answers must be a JSON object",
+            )
+
     try:
         async with redis_connection() as redis:
             permission_manager = PermissionManager(redis)
             success = await permission_manager.respond_to_permission(
-                request_id, approved, alternative_instruction
+                request_id, approved, alternative_instruction, parsed_answers
             )
 
             if not success:

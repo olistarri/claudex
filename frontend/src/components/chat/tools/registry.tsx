@@ -4,6 +4,7 @@ import { WebSearch } from './WebSearch';
 import { TodoWrite } from './TodoWrite';
 import { MCPTool } from './MCPTool';
 import { WriteTool, ReadTool, EditTool } from './FileOperationTool';
+import { AskUserQuestion } from './AskUserQuestion';
 
 export const TOOL_COMPONENTS: Record<string, ToolComponent> = {
   Task: Task,
@@ -12,6 +13,7 @@ export const TOOL_COMPONENTS: Record<string, ToolComponent> = {
   Write: WriteTool,
   Read: ReadTool,
   Edit: EditTool,
+  AskUserQuestion: AskUserQuestion,
 };
 
 export const getToolComponent = (toolName: string): ToolComponent => {

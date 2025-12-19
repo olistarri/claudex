@@ -15,3 +15,4 @@ class PermissionRequestResponse(BaseModel):
 class PermissionResult(BaseModel):
     approved: bool
     alternative_instruction: str | None = None
+    user_answers: JSONDict | None = None

@@ -22,6 +22,24 @@ async function respondToPermission(
   });
 }
 
+async function respondWithAnswers(
+  chatId: string,
+  requestId: string,
+  answers: Record<string, string | string[]>,
+): Promise<void> {
+  validateId(chatId, 'Chat ID');
+  validateId(requestId, 'Request ID');
+
+  return serviceCall(async () => {
+    const formData = new FormData();
+    formData.append('approved', 'true');
+    formData.append('user_answers', JSON.stringify(answers));
+
+    await apiClient.postForm(`/chat/chats/${chatId}/permissions/${requestId}/respond`, formData);
+  });
+}
+
 export const permissionService = {
   respondToPermission,
+  respondWithAnswers,
 };

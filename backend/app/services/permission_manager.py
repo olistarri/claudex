@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 from redis.asyncio import Redis
 
@@ -15,6 +16,7 @@ class PermissionManager:
         request_id: str,
         approved: bool,
         alternative_instruction: str | None = None,
+        user_answers: dict[str, Any] | None = None,
     ) -> bool:
         request_data = await self.redis.get(f"permission_request:{request_id}")
         if not request_data:
@@ -25,6 +27,7 @@ class PermissionManager:
             response = {
                 "approved": approved,
                 "alternative_instruction": alternative_instruction,
+                "user_answers": user_answers,
             }
             await self.redis.publish(
                 f"permission_response:{request_id}", json.dumps(response)

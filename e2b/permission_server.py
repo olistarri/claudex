@@ -17,6 +17,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL")
 CHAT_TOKEN = os.environ.get("CHAT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 PLAN_MODE_TOOLS = ("EnterPlanMode", "ExitPlanMode")
+USER_INTERACTION_TOOLS = ("AskUserQuestion",)
 AUTO_APPROVE_MODES = ("plan", "auto")
 
 
@@ -64,13 +65,17 @@ async def handle_call_tool(
     tool_name = arguments.get("tool_name", "unknown")
     tool_input = arguments.get("input", {})
 
-    # Plan/Auto mode: Auto-approve all tools except plan mode tools
-    if PERMISSION_MODE in AUTO_APPROVE_MODES and tool_name not in PLAN_MODE_TOOLS:
+    requires_user_interaction = (
+        tool_name in PLAN_MODE_TOOLS or tool_name in USER_INTERACTION_TOOLS
+    )
+
+    # Plan/Auto mode: Auto-approve all tools except those requiring user interaction
+    if PERMISSION_MODE in AUTO_APPROVE_MODES and not requires_user_interaction:
         response = {"behavior": "allow", "updatedInput": tool_input}
         return [types.TextContent(type="text", text=json.dumps(response))]
 
-    # Ask mode or plan mode tools: Always request user approval via API
-    should_request_approval = PERMISSION_MODE == "ask" or tool_name in PLAN_MODE_TOOLS
+    # Ask mode or tools requiring user interaction: Request user approval via API
+    should_request_approval = PERMISSION_MODE == "ask" or requires_user_interaction
     if should_request_approval:
         if not API_BASE_URL or not CHAT_TOKEN or not CHAT_ID:
             response = {
@@ -126,10 +131,14 @@ async def handle_call_tool(
                 result_data = get_response.json()
                 approved = result_data.get("approved", False)
                 alternative_instruction = result_data.get("alternative_instruction")
+                user_answers = result_data.get("user_answers")
 
                 # Return MCP response
                 if approved:
-                    response = {"behavior": "allow", "updatedInput": tool_input}
+                    if user_answers is not None:
+                        response = {"behavior": "allow", "updatedInput": {"answers": user_answers}}
+                    else:
+                        response = {"behavior": "allow", "updatedInput": tool_input}
                 else:
                     message = "User denied permission"
                     if alternative_instruction:
