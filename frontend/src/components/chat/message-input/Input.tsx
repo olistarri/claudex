@@ -297,6 +297,7 @@ export const Input = memo(function Input({
               dropdownPosition={dropdownPosition}
               isLoading={isLoading}
               isEnhancing={isEnhancing}
+              hasMessage={hasMessage}
             />
 
             <div className="absolute bottom-2.5 right-3">

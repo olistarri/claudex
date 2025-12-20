@@ -12,6 +12,7 @@ export interface InputControlsProps {
   dropdownPosition?: 'top' | 'bottom';
   isLoading?: boolean;
   isEnhancing?: boolean;
+  hasMessage?: boolean;
 }
 
 export function InputControls({
@@ -22,6 +23,7 @@ export function InputControls({
   dropdownPosition = 'bottom',
   isLoading = false,
   isEnhancing = false,
+  hasMessage = false,
 }: InputControlsProps) {
   return (
     <div
@@ -31,7 +33,11 @@ export function InputControls({
       {onAttach && <AttachButton onAttach={onAttach} />}
 
       {onEnhance && (
-        <EnhanceButton onEnhance={onEnhance} isEnhancing={isEnhancing} disabled={isLoading} />
+        <EnhanceButton
+          onEnhance={onEnhance}
+          isEnhancing={isEnhancing}
+          disabled={isLoading || !hasMessage}
+        />
       )}
 
       <PermissionModeSelector dropdownPosition={dropdownPosition} disabled={isLoading} />
