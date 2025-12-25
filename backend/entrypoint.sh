@@ -51,7 +51,7 @@ fi
 
 if [ "$MODE" = "celery-beat" ]; then
     echo "Starting Celery Beat..."
-    exec gosu appuser celery -A app.core.celery beat --loglevel=${LOG_LEVEL:-DEBUG}
+    exec gosu appuser celery -A app.core.celery beat --schedule=/tmp/celerybeat-schedule --loglevel=${LOG_LEVEL:-DEBUG}
 fi
 
 echo "Unknown mode: $MODE"
