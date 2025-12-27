@@ -62,7 +62,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code
+    npm install -g @anthropic-ai/claude-code @openai/codex
 
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
