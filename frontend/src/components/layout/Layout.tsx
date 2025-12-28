@@ -35,7 +35,7 @@ export function Layout({
 
   return (
     <LayoutContext.Provider value={contextValue}>
-      <div className={cn('flex h-screen flex-col', className)}>
+      <div className={cn('h-viewport flex flex-col', className)}>
         {showHeader && <Header onLogout={onLogout} userName={userName} isAuthPage={isAuthPage} />}
 
         <div className="flex min-h-0 flex-1">
