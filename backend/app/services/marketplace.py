@@ -104,7 +104,9 @@ class MarketplaceService:
                         minutes_until_reset = max(
                             1,
                             int(
-                                (reset_time - datetime.now(timezone.utc)).total_seconds()
+                                (
+                                    reset_time - datetime.now(timezone.utc)
+                                ).total_seconds()
                                 / 60
                             ),
                         )
@@ -174,7 +176,9 @@ class MarketplaceService:
                 return False
             with open(self._cache_file, "r") as f:
                 cls._catalog_cache = json.load(f)
-            cls._catalog_cached_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+            cls._catalog_cached_at = datetime.fromtimestamp(
+                stat.st_mtime, tz=timezone.utc
+            )
             return True
         except Exception as e:
             logger.warning(f"Failed to load disk cache: {e}")
