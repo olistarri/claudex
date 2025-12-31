@@ -331,9 +331,8 @@ class TestGetMessages:
         assert response.status_code == 200
         data = response.json()
         assert "items" in data
-        assert "total" in data
-        assert "page" in data
-        assert "per_page" in data
+        assert "next_cursor" in data
+        assert "has_more" in data
         assert isinstance(data["items"], list)
 
 
@@ -425,9 +424,11 @@ class TestChatCompletion:
 
         assert messages_response.status_code == 200
         messages_data = messages_response.json()
-        assert messages_data["total"] >= 2
+        assert "items" in messages_data
+        assert "has_more" in messages_data
 
         items = messages_data["items"]
+        assert len(items) >= 2
         user_messages = [m for m in items if m["role"] == "user"]
         assistant_messages = [m for m in items if m["role"] == "assistant"]
 
