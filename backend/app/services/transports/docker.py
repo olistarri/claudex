@@ -127,9 +127,42 @@ class DockerSandboxTransport(BaseSandboxTransport):
     def _is_connection_ready(self) -> bool:
         return self._socket is not None
 
+    def _send_signal_to_pid(self, pid: int, signal: str) -> None:
+        try:
+            self._container.exec_run(["/bin/kill", f"-{signal}", str(pid)], user="root")
+        except Exception:
+            pass
+
+    async def _kill_exec_process(self) -> None:
+        exec_id = self._exec_id
+        container = self._container
+        if not exec_id or not container:
+            return
+        loop = asyncio.get_running_loop()
+        try:
+            info = await loop.run_in_executor(self._executor, self._get_exec_info)
+            if not info or not info.get("Running", False):
+                return
+            pid = info.get("Pid")
+            if not pid:
+                return
+            await loop.run_in_executor(
+                self._executor, self._send_signal_to_pid, pid, "TERM"
+            )
+            await asyncio.sleep(0.5)
+            info = await loop.run_in_executor(self._executor, self._get_exec_info)
+            if info and info.get("Running", False):
+                await loop.run_in_executor(
+                    self._executor, self._send_signal_to_pid, pid, "KILL"
+                )
+        except Exception as e:
+            logger.debug("Failed to kill exec process: %s", e)
+
     async def _cleanup_resources(self) -> None:
         await self._cancel_task(self._reader_task)
         self._reader_task = None
+
+        await self._kill_exec_process()
 
         if self._socket:
             with suppress(Exception):
