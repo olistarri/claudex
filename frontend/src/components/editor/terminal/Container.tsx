@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { FC } from 'react';
 import { TerminalTab } from './TerminalTab';
 
@@ -13,11 +13,16 @@ interface TerminalInstance {
   label: string;
 }
 
-export const Container: FC<ContainerProps> = ({ sandboxId, isVisible }) => {
+export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible }) => {
   const [terminals, setTerminals] = useState<TerminalInstance[]>([
     { id: 'terminal-1', label: 'Terminal 1' },
   ]);
   const [activeTerminalId, setActiveTerminalId] = useState<string>('terminal-1');
+
+  useEffect(() => {
+    setTerminals([{ id: 'terminal-1', label: 'Terminal 1' }]);
+    setActiveTerminalId('terminal-1');
+  }, [chatId]);
 
   const addTerminal = useCallback(() => {
     setTerminals((prev) => {
