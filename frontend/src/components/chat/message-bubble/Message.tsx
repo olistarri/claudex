@@ -5,7 +5,7 @@ import { MessageContent } from './MessageContent';
 import { UserAvatar, BotAvatar } from './MessageAvatars';
 import { useModelsQuery, useForkChatMutation, useRestoreCheckpointMutation } from '@/hooks/queries';
 import type { MessageAttachment } from '@/types';
-import { ConfirmDialog, LoadingOverlay, Button, Spinner, Badge, Tooltip } from '@/components/ui';
+import { ConfirmDialog, LoadingOverlay, Button, Spinner, Tooltip } from '@/components/ui';
 import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import toast from 'react-hot-toast';
 import { useChatContext } from '@/hooks/useChatContext';
@@ -47,6 +47,17 @@ export const Message = memo(function Message({
   const [isRestoring, setIsRestoring] = useState(false);
   const [isForking, setIsForking] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  const relativeTime = useMemo(() => (createdAt ? formatRelativeTime(createdAt) : ''), [createdAt]);
+  const fullTimestamp = useMemo(
+    () => (createdAt ? formatFullTimestamp(createdAt) : ''),
+    [createdAt],
+  );
+  const modelName = useMemo(() => {
+    if (!modelId) return null;
+    const model = models.find((m) => m.model_id === modelId);
+    return model?.name || modelId;
+  }, [modelId, models]);
 
   const restoreMutation = useRestoreCheckpointMutation({
     onSuccess: () => {
@@ -91,149 +102,101 @@ export const Message = memo(function Message({
     forkMutation.mutate({ chatId, messageId: id });
   }, [chatId, id, isForking, forkMutation]);
 
-  const relativeTime = useMemo(() => (createdAt ? formatRelativeTime(createdAt) : ''), [createdAt]);
-
-  const fullTimestamp = useMemo(
-    () => (createdAt ? formatFullTimestamp(createdAt) : ''),
-    [createdAt],
-  );
-
-  const modelName = useMemo(() => {
-    if (!modelId) return null;
-    const model = models.find((m) => m.model_id === modelId);
-    return model?.name || modelId;
-  }, [modelId, models]);
-
   return (
-    <div className="group rounded-lg px-4 py-2 sm:rounded-2xl sm:px-6 sm:py-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="flex-shrink-0">{isBot ? <BotAvatar /> : <UserAvatar />}</div>
-          <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-3">
-            <span
-              className={`${isBot ? 'font-medium text-text-secondary dark:text-text-dark-tertiary' : 'font-bold text-text-secondary dark:text-text-dark-tertiary'}`}
-            >
-              {isBot ? 'Claudex' : 'You'}
-            </span>
-            {relativeTime && (
-              <>
-                <span className="text-text-quaternary dark:text-text-dark-quaternary">•</span>
-                <Tooltip content={fullTimestamp} position="bottom">
-                  <span className="cursor-default text-text-tertiary dark:text-text-dark-tertiary">
-                    {relativeTime}
-                  </span>
-                </Tooltip>
-              </>
-            )}
-            {isBot && modelId && (
-              <>
-                <span className="text-text-quaternary dark:text-text-dark-quaternary">•</span>
-                <Badge>{modelName}</Badge>
-              </>
-            )}
-          </div>
-        </div>
+    <div className="group px-4 py-2 sm:px-6 sm:py-3">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="mt-1 flex-shrink-0">{isBot ? <BotAvatar /> : <UserAvatar />}</div>
 
-        <div className="min-w-0 space-y-2 sm:pl-14">
-          <div
-            className={`prose prose-sm max-w-none break-words ${
-              isBot
-                ? 'text-text-primary dark:text-text-dark-primary'
-                : 'font-semibold text-text-primary dark:text-text-dark-secondary'
-            }`}
-          >
-            <MessageContent
-              content={content}
-              isBot={isBot}
-              attachments={attachments}
-              isStreaming={isThisMessageStreaming}
-              chatId={chatId}
-            />
-          </div>
+        <div className="min-w-0 flex-1">
+          {isBot ? (
+            <div className="prose prose-sm max-w-none break-words text-text-primary dark:text-text-dark-primary">
+              <MessageContent
+                content={content}
+                isBot={isBot}
+                attachments={attachments}
+                isStreaming={isThisMessageStreaming}
+                chatId={chatId}
+              />
+            </div>
+          ) : (
+            <div className="inline-block max-w-full rounded-2xl border border-border bg-surface-secondary px-4 py-2.5 dark:border-border-dark dark:bg-surface-dark-secondary">
+              <div className="prose prose-sm max-w-none break-words text-text-primary dark:text-text-dark-primary">
+                <MessageContent
+                  content={content}
+                  isBot={isBot}
+                  attachments={attachments}
+                  isStreaming={isThisMessageStreaming}
+                  chatId={chatId}
+                />
+              </div>
+            </div>
+          )}
 
           {isBot && content.trim() && !isThisMessageStreaming && (
-            <div className="pt-2">
-              <div className="mt-2 flex items-center gap-2">
-                <Button
-                  onClick={() => onCopy(content, id)}
-                  variant="unstyled"
-                  className={`relative overflow-hidden rounded-xl px-1.5 py-0.5 transition-all duration-200 sm:px-1.5 sm:py-0.5 ${
-                    copiedMessageId === id
-                      ? 'bg-success-100 text-success-600 dark:bg-success-500/10 dark:text-success-400'
-                      : 'text-text-secondary opacity-70 hover:bg-surface-secondary hover:text-text-primary hover:opacity-100 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-                  }`}
-                >
-                  <div className="relative z-10 flex items-center gap-1.5">
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <Tooltip content={copiedMessageId === id ? 'Copied!' : 'Copy'} position="bottom">
+                  <Button
+                    onClick={() => onCopy(content, id)}
+                    variant="unstyled"
+                    className={`relative overflow-hidden rounded-lg p-1.5 transition-all duration-200 ${
+                      copiedMessageId === id
+                        ? 'bg-success-100 text-success-600 dark:bg-success-500/10 dark:text-success-400'
+                        : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                    }`}
+                  >
                     {copiedMessageId === id ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span className="hidden text-xs sm:inline">Copied!</span>
-                      </>
+                      <CheckCircle2 className="h-4 w-4" />
                     ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        <span className="hidden text-xs sm:inline">Copy</span>
-                      </>
+                      <Copy className="h-4 w-4" />
                     )}
-                  </div>
-                </Button>
+                  </Button>
+                </Tooltip>
 
                 {!isLastBotMessageWithCommit && (
                   <>
-                    <Button
-                      onClick={handleRestore}
-                      disabled={isRestoring || isGloballyStreaming}
-                      variant="unstyled"
-                      className={`relative rounded-xl px-1.5 py-0.5 transition-all duration-200 sm:px-1.5 sm:py-0.5 ${
-                        isRestoring || isGloballyStreaming
-                          ? 'cursor-not-allowed opacity-50'
-                          : 'text-text-secondary opacity-70 hover:bg-surface-secondary hover:text-text-primary hover:opacity-100 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-                      }`}
-                      title="Restore to this message"
-                    >
-                      <div className="relative z-10 flex items-center gap-1.5">
-                        {isRestoring ? (
-                          <>
-                            <Spinner size="md" />
-                            <span className="hidden text-xs sm:inline">Restoring...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RotateCcw className="h-4 w-4" />
-                            <span className="hidden text-xs sm:inline">Restore</span>
-                          </>
-                        )}
-                      </div>
-                    </Button>
+                    <Tooltip content={isRestoring ? 'Restoring...' : 'Restore'} position="bottom">
+                      <Button
+                        onClick={handleRestore}
+                        disabled={isRestoring || isGloballyStreaming}
+                        variant="unstyled"
+                        className={`relative rounded-lg p-1.5 transition-all duration-200 ${
+                          isRestoring || isGloballyStreaming
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                        }`}
+                      >
+                        {isRestoring ? <Spinner size="sm" /> : <RotateCcw className="h-4 w-4" />}
+                      </Button>
+                    </Tooltip>
 
                     {sandboxProvider === SandboxProvider.DOCKER && sandboxId && (
-                      <Button
-                        onClick={handleFork}
-                        disabled={isForking || isGloballyStreaming}
-                        variant="unstyled"
-                        className={`relative rounded-xl px-1.5 py-0.5 transition-all duration-200 sm:px-1.5 sm:py-0.5 ${
-                          isForking || isGloballyStreaming
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'text-text-secondary opacity-70 hover:bg-surface-secondary hover:text-text-primary hover:opacity-100 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-                        }`}
-                        title="Fork chat from this message"
-                      >
-                        <div className="relative z-10 flex items-center gap-1.5">
-                          {isForking ? (
-                            <>
-                              <Spinner size="md" />
-                              <span className="hidden text-xs sm:inline">Forking...</span>
-                            </>
-                          ) : (
-                            <>
-                              <GitFork className="h-4 w-4" />
-                              <span className="hidden text-xs sm:inline">Fork</span>
-                            </>
-                          )}
-                        </div>
-                      </Button>
+                      <Tooltip content={isForking ? 'Forking...' : 'Fork'} position="bottom">
+                        <Button
+                          onClick={handleFork}
+                          disabled={isForking || isGloballyStreaming}
+                          variant="unstyled"
+                          className={`relative rounded-lg p-1.5 transition-all duration-200 ${
+                            isForking || isGloballyStreaming
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                          }`}
+                        >
+                          {isForking ? <Spinner size="sm" /> : <GitFork className="h-4 w-4" />}
+                        </Button>
+                      </Tooltip>
                     )}
                   </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                {modelName && <span>{modelName}</span>}
+                {modelName && relativeTime && <span>•</span>}
+                {relativeTime && (
+                  <Tooltip content={fullTimestamp} position="bottom">
+                    <span className="cursor-default">{relativeTime}</span>
+                  </Tooltip>
                 )}
               </div>
             </div>
