@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import io
+import json
 import uuid
+import zipfile
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import get_password_hash
 from app.models.db_models import Chat, Message, MessageAttachment, User
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.sandbox import SandboxService
-from app.core.security import get_password_hash
-from tests.conftest import STREAMING_TEST_TIMEOUT
+from tests.conftest import (
+    STREAMING_TEST_TIMEOUT,
+    read_sandbox_file,
+    sandbox_file_exists,
+)
 
 
 class TestCreateChat:
@@ -905,3 +912,222 @@ class TestForkChat:
             headers=auth_headers,
         )
         assert response.status_code == 400
+
+
+class TestChatCreationSandboxState:
+    async def test_create_chat_with_auto_compact_disabled_sets_claude_json(
+        self,
+        docker_async_client: AsyncClient,
+        docker_integration_chat_fixture: tuple[User, Chat, SandboxService],
+        docker_auth_headers: dict[str, str],
+        seed_ai_models: None,
+    ) -> None:
+        _, _, sandbox_service = docker_integration_chat_fixture
+
+        await docker_async_client.patch(
+            "/api/v1/settings/",
+            json={"auto_compact_disabled": True},
+            headers=docker_auth_headers,
+        )
+
+        response = await docker_async_client.post(
+            "/api/v1/chat/chats",
+            json={"title": "Auto Compact Test Chat", "model_id": "claude-haiku-4-5"},
+            headers=docker_auth_headers,
+        )
+        assert response.status_code == 201
+        chat_data = response.json()
+        sandbox_id = chat_data["sandbox_id"]
+
+        content = await read_sandbox_file(
+            sandbox_service, sandbox_id, "/home/user/.claude.json"
+        )
+        assert content is not None
+        config = json.loads(content)
+        assert config["autoCompactEnabled"] is False
+
+    async def test_create_chat_with_enabled_agent_copies_to_sandbox(
+        self,
+        docker_async_client: AsyncClient,
+        docker_integration_chat_fixture: tuple[User, Chat, SandboxService],
+        docker_auth_headers: dict[str, str],
+        seed_ai_models: None,
+    ) -> None:
+        _, _, sandbox_service = docker_integration_chat_fixture
+
+        agent_content = """---
+name: chat-test-agent
+description: Test agent for chat creation
+allowed_tools: []
+model: inherit
+---
+You are a chat test agent."""
+
+        file = io.BytesIO(agent_content.encode())
+        upload_response = await docker_async_client.post(
+            "/api/v1/agents/upload",
+            files={"file": ("chat-test-agent.md", file, "text/markdown")},
+            headers=docker_auth_headers,
+        )
+        assert upload_response.status_code == 201
+
+        await docker_async_client.patch(
+            "/api/v1/settings/",
+            json={"custom_agents": [{"name": "chat-test-agent", "enabled": True}]},
+            headers=docker_auth_headers,
+        )
+
+        response = await docker_async_client.post(
+            "/api/v1/chat/chats",
+            json={"title": "Agent Test Chat", "model_id": "claude-haiku-4-5"},
+            headers=docker_auth_headers,
+        )
+        assert response.status_code == 201
+        chat_data = response.json()
+        sandbox_id = chat_data["sandbox_id"]
+
+        agent_path = "/home/user/.claude/agents/chat-test-agent.md"
+        exists = await sandbox_file_exists(sandbox_service, sandbox_id, agent_path)
+        assert exists is True
+
+        content = await read_sandbox_file(sandbox_service, sandbox_id, agent_path)
+        assert content is not None
+        assert "chat-test-agent" in content
+
+    async def test_create_chat_with_env_vars_sets_secrets(
+        self,
+        docker_async_client: AsyncClient,
+        docker_integration_chat_fixture: tuple[User, Chat, SandboxService],
+        docker_auth_headers: dict[str, str],
+        seed_ai_models: None,
+    ) -> None:
+        _, _, sandbox_service = docker_integration_chat_fixture
+
+        await docker_async_client.patch(
+            "/api/v1/settings/",
+            json={
+                "custom_env_vars": [
+                    {"key": "CHAT_TEST_VAR", "value": "chat_test_value"}
+                ]
+            },
+            headers=docker_auth_headers,
+        )
+
+        response = await docker_async_client.post(
+            "/api/v1/chat/chats",
+            json={"title": "Env Vars Test Chat", "model_id": "claude-haiku-4-5"},
+            headers=docker_auth_headers,
+        )
+        assert response.status_code == 201
+        chat_data = response.json()
+        sandbox_id = chat_data["sandbox_id"]
+
+        secrets = await sandbox_service.get_secrets(sandbox_id)
+        secret_dict = {s["key"]: s["value"] for s in secrets}
+
+        assert "CHAT_TEST_VAR" in secret_dict
+        assert secret_dict["CHAT_TEST_VAR"] == "chat_test_value"
+
+    async def test_create_chat_with_enabled_skill_copies_to_sandbox(
+        self,
+        docker_async_client: AsyncClient,
+        docker_integration_chat_fixture: tuple[User, Chat, SandboxService],
+        docker_auth_headers: dict[str, str],
+        seed_ai_models: None,
+    ) -> None:
+        _, _, sandbox_service = docker_integration_chat_fixture
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            skill_md = """---
+name: chat-test-skill
+description: Test skill for chat creation
+---
+# Chat Test Skill
+This is a test skill for chat creation."""
+            zf.writestr("SKILL.md", skill_md)
+            zf.writestr("main.py", "print('Hello from chat skill')")
+        zip_buffer.seek(0)
+
+        upload_response = await docker_async_client.post(
+            "/api/v1/skills/upload",
+            files={"file": ("chat-test-skill.zip", zip_buffer, "application/zip")},
+            headers=docker_auth_headers,
+        )
+        assert upload_response.status_code == 201
+
+        await docker_async_client.patch(
+            "/api/v1/settings/",
+            json={"custom_skills": [{"name": "chat-test-skill", "enabled": True}]},
+            headers=docker_auth_headers,
+        )
+
+        response = await docker_async_client.post(
+            "/api/v1/chat/chats",
+            json={"title": "Skill Test Chat", "model_id": "claude-haiku-4-5"},
+            headers=docker_auth_headers,
+        )
+        assert response.status_code == 201
+        chat_data = response.json()
+        sandbox_id = chat_data["sandbox_id"]
+
+        skill_path = "/home/user/.claude/skills/chat-test-skill/SKILL.md"
+        exists = await sandbox_file_exists(sandbox_service, sandbox_id, skill_path)
+        assert exists is True
+
+        content = await read_sandbox_file(sandbox_service, sandbox_id, skill_path)
+        assert content is not None
+        assert "chat-test-skill" in content
+
+    async def test_create_chat_with_enabled_command_copies_to_sandbox(
+        self,
+        docker_async_client: AsyncClient,
+        docker_integration_chat_fixture: tuple[User, Chat, SandboxService],
+        docker_auth_headers: dict[str, str],
+        seed_ai_models: None,
+    ) -> None:
+        _, _, sandbox_service = docker_integration_chat_fixture
+
+        command_content = """---
+name: chat-test-command
+description: Test command for chat creation
+argument_hint: <test_arg>
+allowed_tools: []
+model: null
+---
+Execute the chat test command."""
+
+        file = io.BytesIO(command_content.encode())
+        upload_response = await docker_async_client.post(
+            "/api/v1/commands/upload",
+            files={"file": ("chat-test-command.md", file, "text/markdown")},
+            headers=docker_auth_headers,
+        )
+        assert upload_response.status_code == 201
+
+        await docker_async_client.patch(
+            "/api/v1/settings/",
+            json={
+                "custom_slash_commands": [
+                    {"name": "chat-test-command", "enabled": True}
+                ]
+            },
+            headers=docker_auth_headers,
+        )
+
+        response = await docker_async_client.post(
+            "/api/v1/chat/chats",
+            json={"title": "Command Test Chat", "model_id": "claude-haiku-4-5"},
+            headers=docker_auth_headers,
+        )
+        assert response.status_code == 201
+        chat_data = response.json()
+        sandbox_id = chat_data["sandbox_id"]
+
+        command_path = "/home/user/.claude/commands/chat-test-command.md"
+        exists = await sandbox_file_exists(sandbox_service, sandbox_id, command_path)
+        assert exists is True
+
+        content = await read_sandbox_file(sandbox_service, sandbox_id, command_path)
+        assert content is not None
+        assert "chat-test-command" in content
