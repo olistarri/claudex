@@ -67,6 +67,49 @@ STREAMING_TEST_TIMEOUT = 180
 ChatServiceClass = type[ChatService]
 
 
+async def make_auth_headers(user: User) -> dict[str, str]:
+    strategy = get_jwt_strategy()
+    token = await strategy.write_token(user)
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def make_user(
+    db_session: AsyncSession,
+    *,
+    email_prefix: str = "test",
+    with_settings: bool = True,
+    claude_token: str | None = None,
+    commit: bool = False,
+) -> User:
+    unique_id = uuid.uuid4().hex[:8]
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{email_prefix}_{unique_id}@example.com",
+        username=f"{email_prefix}_{unique_id}",
+        hashed_password=get_password_hash(TEST_PASSWORD),
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+
+    if with_settings:
+        user_settings = UserSettings(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            claude_code_oauth_token=claude_token,
+        )
+        db_session.add(user_settings)
+
+    if commit:
+        await db_session.commit()
+        await db_session.refresh(user)
+    else:
+        await db_session.flush()
+        await db_session.refresh(user)
+
+    return user
+
+
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
     policy = asyncio.get_event_loop_policy()
@@ -442,28 +485,12 @@ async def docker_integration_user_fixture(
     seed_ai_models: None,
     claude_token: str,
 ) -> User:
-    user = User(
-        id=uuid.uuid4(),
-        email=f"docker_integration_{uuid.uuid4().hex[:8]}@example.com",
-        username=f"docker_integration_{uuid.uuid4().hex[:8]}",
-        hashed_password=get_password_hash(TEST_PASSWORD),
-        is_active=True,
-        is_verified=True,
+    return await make_user(
+        db_session,
+        email_prefix="docker_integration",
+        claude_token=claude_token,
+        commit=True,
     )
-    db_session.add(user)
-
-    user_settings = UserSettings(
-        id=uuid.uuid4(),
-        user_id=user.id,
-        claude_code_oauth_token=claude_token,
-    )
-    db_session.add(user_settings)
-
-    await db_session.commit()
-    await db_session.refresh(user)
-    await db_session.refresh(user_settings)
-
-    return user
 
 
 @pytest_asyncio.fixture
@@ -511,9 +538,7 @@ async def docker_async_client(docker_e2e_app) -> AsyncGenerator[AsyncClient, Non
 
 @pytest_asyncio.fixture
 async def docker_auth_headers(docker_integration_user_fixture: User) -> dict[str, str]:
-    strategy = get_jwt_strategy()
-    token = await strategy.write_token(docker_integration_user_fixture)
-    return {"Authorization": f"Bearer {token}"}
+    return await make_auth_headers(docker_integration_user_fixture)
 
 
 @pytest_asyncio.fixture
@@ -683,29 +708,35 @@ async def marketplace_user(
     db_session: AsyncSession,
     seed_ai_models: None,
 ) -> User:
-    user = User(
-        id=uuid.uuid4(),
-        email=f"marketplace_test_{uuid.uuid4().hex[:8]}@example.com",
-        username=f"marketplace_test_{uuid.uuid4().hex[:8]}",
-        hashed_password=get_password_hash(TEST_PASSWORD),
-        is_active=True,
-        is_verified=True,
+    return await make_user(
+        db_session,
+        email_prefix="marketplace_test",
+        commit=True,
     )
-    db_session.add(user)
-
-    user_settings = UserSettings(
-        id=uuid.uuid4(),
-        user_id=user.id,
-    )
-    db_session.add(user_settings)
-
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
 
 
 @pytest_asyncio.fixture
 async def marketplace_auth_headers(marketplace_user: User) -> dict[str, str]:
-    strategy = get_jwt_strategy()
-    token = await strategy.write_token(marketplace_user)
-    return {"Authorization": f"Bearer {token}"}
+    return await make_auth_headers(marketplace_user)
+
+
+async def read_sandbox_file(
+    sandbox_service: SandboxService, sandbox_id: str, path: str
+) -> str | None:
+    try:
+        result = await sandbox_service.provider.read_file(sandbox_id, path)
+        return result.content if not result.is_binary else None
+    except Exception:
+        return None
+
+
+async def sandbox_file_exists(
+    sandbox_service: SandboxService, sandbox_id: str, path: str
+) -> bool:
+    try:
+        result = await sandbox_service.execute_command(
+            sandbox_id, f"test -f {path} && echo 'exists'"
+        )
+        return "exists" in result.stdout
+    except Exception:
+        return False
