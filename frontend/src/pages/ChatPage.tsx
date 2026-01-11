@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { Sidebar, useLayoutSidebar } from '@/components/layout';
@@ -12,6 +12,8 @@ import {
   TerminalView,
   WebPreviewView,
 } from '@/components/views';
+import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
+import type { ViewType } from '@/types/ui.types';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { Editor } from '@/components/editor/editor-core/Editor';
 import { useQueryClient } from '@tanstack/react-query';
@@ -226,7 +228,95 @@ export function ChatPage() {
 
   useLayoutSidebar(sidebarContent);
 
-  const isTerminalView = currentView === 'terminal';
+  const renderView = useCallback(
+    (view: ViewType): ReactNode => {
+      switch (view) {
+        case 'terminal':
+          return <TerminalView currentChat={currentChat} isVisible={true} />;
+        case 'agent':
+          return (
+            <ChatComponent
+              messages={messages}
+              copiedMessageId={streamingState.copiedMessageId}
+              isLoading={isLoading}
+              isStreaming={isStreaming}
+              isInitialLoading={messagesQuery.isLoading}
+              error={error}
+              onCopy={streamingState.handleCopy}
+              inputMessage={streamingState.inputMessage}
+              setInputMessage={streamingState.setInputMessage}
+              onMessageSend={streamingState.handleMessageSend}
+              onStopStream={streamingState.handleStop}
+              onAttach={streamingState.setInputFiles}
+              selectedModelId={selectedModelId}
+              onModelChange={selectModel}
+              attachedFiles={streamingState.inputFiles}
+              contextUsage={contextUsage}
+              sandboxId={currentChat?.sandbox_id}
+              chatId={chatId}
+              onDismissError={streamingState.handleDismissError}
+              fetchNextPage={messagesQuery.fetchNextPage}
+              hasNextPage={messagesQuery.hasNextPage}
+              isFetchingNextPage={messagesQuery.isFetchingNextPage}
+              onRestoreSuccess={handleRestoreSuccess}
+              fileStructure={fileStructure}
+              customAgents={allAgents}
+              customSlashCommands={enabledSlashCommands}
+              customPrompts={customPrompts}
+            />
+          );
+        case 'editor':
+          return (
+            <Editor
+              files={fileStructure}
+              isExpanded={true}
+              selectedFile={selectedFile}
+              onFileSelect={handleFileSelect}
+              chatId={chatId}
+              currentChat={currentChat}
+              isSandboxSyncing={isFileMetadataLoading}
+              onRefresh={handleRefresh}
+              isRefreshing={isRefreshing}
+            />
+          );
+        case 'ide':
+          return <IDEView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+        case 'secrets':
+          return <SecretsView chatId={chatId} sandboxId={currentChat?.sandbox_id} />;
+        case 'webPreview':
+          return <WebPreviewView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+        case 'mobilePreview':
+          return <MobilePreviewView sandboxId={currentChat?.sandbox_id} />;
+        case 'browser':
+          return <BrowserView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+        default:
+          return null;
+      }
+    },
+    [
+      currentChat,
+      messages,
+      streamingState,
+      isLoading,
+      isStreaming,
+      messagesQuery,
+      error,
+      selectedModelId,
+      selectModel,
+      contextUsage,
+      chatId,
+      handleRestoreSuccess,
+      fileStructure,
+      allAgents,
+      enabledSlashCommands,
+      customPrompts,
+      selectedFile,
+      handleFileSelect,
+      isFileMetadataLoading,
+      handleRefresh,
+      isRefreshing,
+    ],
+  );
 
   if (!chatId) return <Navigate to="/" />;
 
@@ -234,68 +324,7 @@ export function ChatPage() {
     <div className="relative flex h-full">
       <ViewSwitcher />
       <div className="flex h-full flex-1 overflow-hidden bg-surface-secondary pl-12 text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary">
-        <div className={`${isTerminalView ? 'flex' : 'hidden'} h-full flex-1`}>
-          <TerminalView currentChat={currentChat} isVisible={isTerminalView} />
-        </div>
-        {currentView === 'agent' && (
-          <ChatComponent
-            messages={messages}
-            copiedMessageId={streamingState.copiedMessageId}
-            isLoading={isLoading}
-            isStreaming={isStreaming}
-            isInitialLoading={messagesQuery.isLoading}
-            error={error}
-            onCopy={streamingState.handleCopy}
-            inputMessage={streamingState.inputMessage}
-            setInputMessage={streamingState.setInputMessage}
-            onMessageSend={streamingState.handleMessageSend}
-            onStopStream={streamingState.handleStop}
-            onAttach={streamingState.setInputFiles}
-            selectedModelId={selectedModelId}
-            onModelChange={selectModel}
-            attachedFiles={streamingState.inputFiles}
-            contextUsage={contextUsage}
-            sandboxId={currentChat?.sandbox_id}
-            chatId={chatId}
-            onDismissError={streamingState.handleDismissError}
-            fetchNextPage={messagesQuery.fetchNextPage}
-            hasNextPage={messagesQuery.hasNextPage}
-            isFetchingNextPage={messagesQuery.isFetchingNextPage}
-            onRestoreSuccess={handleRestoreSuccess}
-            fileStructure={fileStructure}
-            customAgents={allAgents}
-            customSlashCommands={enabledSlashCommands}
-            customPrompts={customPrompts}
-          />
-        )}
-        {currentView === 'editor' && (
-          <Editor
-            files={fileStructure}
-            isExpanded={true}
-            selectedFile={selectedFile}
-            onFileSelect={handleFileSelect}
-            chatId={chatId}
-            currentChat={currentChat}
-            isSandboxSyncing={isFileMetadataLoading}
-            onRefresh={handleRefresh}
-            isRefreshing={isRefreshing}
-          />
-        )}
-        {currentView === 'ide' && (
-          <IDEView sandboxId={currentChat?.sandbox_id} isActive={currentView === 'ide'} />
-        )}
-        {currentView === 'secrets' && (
-          <SecretsView chatId={chatId} sandboxId={currentChat?.sandbox_id} />
-        )}
-        {currentView === 'webPreview' && (
-          <WebPreviewView sandboxId={currentChat?.sandbox_id} isActive={true} />
-        )}
-        {currentView === 'mobilePreview' && (
-          <MobilePreviewView sandboxId={currentChat?.sandbox_id} />
-        )}
-        {currentView === 'browser' && (
-          <BrowserView sandboxId={currentChat?.sandbox_id} isActive={currentView === 'browser'} />
-        )}
+        <SplitViewContainer renderView={renderView} />
       </div>
 
       <ToolPermissionModal

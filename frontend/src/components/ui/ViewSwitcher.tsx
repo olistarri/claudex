@@ -42,10 +42,27 @@ const buttons: ActivityBarButton[] = [
 
 export function ActivityBar() {
   const currentView = useUIStore((state) => state.currentView);
-  const setCurrentView = useUIStore((state) => state.setCurrentView);
+  const secondaryView = useUIStore((state) => state.secondaryView);
+  const isSplitMode = useUIStore((state) => state.isSplitMode);
+  const handleViewClick = useUIStore((state) => state.handleViewClick);
   const isMobile = useIsMobile();
 
   const visibleButtons = buttons.filter((btn) => !isMobile || !btn.hideOnMobile);
+
+  const getButtonState = (view: ViewType): 'primary' | 'secondary' | 'none' => {
+    if (view === currentView) return 'primary';
+    if (isSplitMode && view === secondaryView) return 'secondary';
+    return 'none';
+  };
+
+  const handleClick = (view: ViewType, event: React.MouseEvent) => {
+    handleViewClick(view, event.shiftKey);
+  };
+
+  const getTooltipContent = (label: string) => {
+    if (isMobile) return label;
+    return `${label} (Shift+click for split view)`;
+  };
 
   return (
     <div
@@ -54,23 +71,34 @@ export function ActivityBar() {
         LAYOUT_CLASSES.ACTIVITY_BAR_WIDTH,
       )}
     >
-      {visibleButtons.map(({ view, icon: Icon, label }) => (
-        <Tooltip key={view} content={label} position="right">
-          <button
-            onClick={() => setCurrentView(view)}
-            className={cn(
-              'flex h-12 w-full items-center justify-center border-l-2 transition-all duration-200',
-              currentView === view
-                ? 'border-brand-600 bg-surface text-brand-600 dark:border-brand-400 dark:bg-surface-dark dark:text-brand-400'
-                : 'border-transparent text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
-            )}
-            aria-label={`Switch to ${label.toLowerCase()} view`}
-            aria-pressed={currentView === view}
-          >
-            <Icon className="h-5 w-5" strokeWidth={2} />
-          </button>
-        </Tooltip>
-      ))}
+      {visibleButtons.map(({ view, icon: Icon, label }) => {
+        const buttonState = getButtonState(view);
+        const isPrimary = buttonState === 'primary';
+        const isSecondary = buttonState === 'secondary';
+
+        return (
+          <Tooltip key={view} content={getTooltipContent(label)} position="right">
+            <button
+              onClick={(e) => handleClick(view, e)}
+              className={cn(
+                'relative flex h-12 w-full items-center justify-center border-l-2 transition-all duration-200',
+                isPrimary
+                  ? 'border-brand-600 bg-surface text-brand-600 dark:border-brand-400 dark:bg-surface-dark dark:text-brand-400'
+                  : isSecondary
+                    ? 'border-emerald-500 bg-surface text-emerald-500 dark:border-emerald-400 dark:bg-surface-dark dark:text-emerald-400'
+                    : 'border-transparent text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
+              )}
+              aria-label={`Switch to ${label.toLowerCase()} view`}
+              aria-pressed={isPrimary || isSecondary}
+            >
+              <Icon className="h-5 w-5" strokeWidth={2} />
+              {isSecondary && (
+                <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+              )}
+            </button>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }

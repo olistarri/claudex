@@ -44,18 +44,29 @@ export type ViewType =
   | 'webPreview'
   | 'mobilePreview';
 
+export interface SplitViewState {
+  isSplitMode: boolean;
+  currentView: ViewType;
+  secondaryView: ViewType | null;
+}
+
+export interface SplitViewActions {
+  setCurrentView: (view: ViewType) => void;
+  setSecondaryView: (view: ViewType | null) => void;
+  exitSplitMode: () => void;
+  handleViewClick: (view: ViewType, isShiftClick: boolean) => void;
+}
+
 export interface UIState {
   currentChat: Chat | null;
   attachedFiles: File[];
   sidebarOpen: boolean;
-  currentView: ViewType;
 }
 
 export interface UIActions {
   setAttachedFiles: (files: File[]) => void;
   setCurrentChat: (chat: Chat | null) => void;
   setSidebarOpen: (isOpen: boolean) => void;
-  setCurrentView: (view: ViewType) => void;
 }
 
 export interface SlashCommand {

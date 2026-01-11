@@ -23,6 +23,7 @@ export { default as MarkDown } from './MarkDown';
 export { Mermaid } from './Mermaid';
 export { ListManagementTab } from './ListManagementTab';
 export { ViewSwitcher } from './ViewSwitcher';
+export { SplitViewContainer } from './SplitViewContainer';
 export { TimePicker } from './TimePicker';
 export { ErrorBoundary } from './ErrorBoundary';
 export { SettingsUploadModal } from './SettingsUploadModal';

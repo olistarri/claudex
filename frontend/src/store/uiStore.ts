@@ -6,14 +6,18 @@ import type {
   ThinkingModeState,
   UIState,
   UIActions,
+  SplitViewState,
+  SplitViewActions,
 } from '@/types';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 
 type UIStoreState = ThemeState &
   PermissionModeState &
   ThinkingModeState &
-  Pick<UIState, 'sidebarOpen' | 'currentView'> &
-  Pick<UIActions, 'setSidebarOpen' | 'setCurrentView'>;
+  Pick<UIState, 'sidebarOpen'> &
+  Pick<UIActions, 'setSidebarOpen'> &
+  SplitViewState &
+  SplitViewActions;
 
 const getInitialSidebarState = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -22,7 +26,7 @@ const getInitialSidebarState = (): boolean => {
 
 export const useUIStore = create<UIStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       theme: 'dark',
       toggleTheme: () =>
         set((state) => ({
@@ -33,9 +37,40 @@ export const useUIStore = create<UIStoreState>()(
       thinkingMode: null,
       setThinkingMode: (mode) => set({ thinkingMode: mode }),
       sidebarOpen: getInitialSidebarState(),
-      currentView: 'agent',
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
-      setCurrentView: (view) => set({ currentView: view }),
+
+      isSplitMode: false,
+      currentView: 'agent',
+      secondaryView: null,
+
+      setCurrentView: (view) => set({ currentView: view, isSplitMode: false, secondaryView: null }),
+
+      setSecondaryView: (view) => set({ secondaryView: view, isSplitMode: view !== null }),
+
+      exitSplitMode: () => set({ isSplitMode: false, secondaryView: null }),
+
+      handleViewClick: (view, isShiftClick) => {
+        const state = get();
+        if (
+          isShiftClick &&
+          typeof window !== 'undefined' &&
+          window.innerWidth >= MOBILE_BREAKPOINT
+        ) {
+          if (state.currentView === view) {
+            return;
+          }
+          set({
+            secondaryView: view,
+            isSplitMode: true,
+          });
+        } else {
+          set({
+            currentView: view,
+            isSplitMode: false,
+            secondaryView: null,
+          });
+        }
+      },
     }),
     {
       name: 'ui-storage',
@@ -44,15 +79,14 @@ export const useUIStore = create<UIStoreState>()(
         permissionMode: state.permissionMode,
         thinkingMode: state.thinkingMode,
         currentView: state.currentView,
+        secondaryView: state.secondaryView,
+        isSplitMode: state.isSplitMode,
         sidebarOpen: state.sidebarOpen,
       }),
-      merge: (persisted, current) => {
-        const persistedState = persisted as Partial<UIStoreState> | undefined;
-        return {
-          ...current,
-          ...persistedState,
-        };
-      },
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted || {}),
+      }),
     },
   ),
 );
