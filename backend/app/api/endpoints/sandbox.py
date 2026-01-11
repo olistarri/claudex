@@ -1,7 +1,3 @@
-from collections.abc import Awaitable, Callable
-from functools import wraps
-from typing import ParamSpec, TypeVar
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.deps import (
@@ -34,35 +30,6 @@ from app.services.sandbox import SandboxService
 
 router = APIRouter()
 
-P = ParamSpec("P")
-T = TypeVar("T")
-
-
-def handle_sandbox_errors(
-    operation: str,
-) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
-    def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            try:
-                return await func(*args, **kwargs)
-            except HTTPException:
-                raise
-            except SandboxException as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e),
-                ) from e
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to {operation}: {str(e)}",
-                ) from e
-
-        return wrapper
-
-    return decorator
-
 
 @router.get("/{sandbox_id}/preview-links", response_model=PreviewLinksResponse)
 async def get_preview_links(
@@ -92,24 +59,44 @@ async def get_vnc_url(
 
 
 @router.post("/{sandbox_id}/browser/start", response_model=BrowserStatusResponse)
-@handle_sandbox_errors("start browser")
 async def start_browser(
     request: StartBrowserRequest,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> BrowserStatusResponse:
-    await sandbox_service.start_browser(context.sandbox_id, request.url)
-    return BrowserStatusResponse(running=True, current_url=request.url)
+    try:
+        await sandbox_service.start_browser(context.sandbox_id, request.url)
+        return BrowserStatusResponse(running=True, current_url=request.url)
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start browser: {str(e)}",
+        )
 
 
 @router.post("/{sandbox_id}/browser/stop", response_model=MessageResponse)
-@handle_sandbox_errors("stop browser")
 async def stop_browser(
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> MessageResponse:
-    await sandbox_service.stop_browser(context.sandbox_id)
-    return MessageResponse(message="Browser stopped")
+    try:
+        await sandbox_service.stop_browser(context.sandbox_id)
+        return MessageResponse(message="Browser stopped")
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to stop browser: {str(e)}",
+        )
 
 
 @router.get("/{sandbox_id}/browser/status", response_model=BrowserStatusResponse)
@@ -159,88 +146,158 @@ async def get_file_content(
 
 
 @router.put("/{sandbox_id}/files", response_model=UpdateFileResponse)
-@handle_sandbox_errors("update file")
 async def update_file_in_sandbox(
     request: UpdateFileRequest,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> UpdateFileResponse:
-    await sandbox_service.write_file(
-        context.sandbox_id, request.file_path, request.content
-    )
-    return UpdateFileResponse(
-        success=True, message=f"File {request.file_path} updated successfully"
-    )
+    try:
+        await sandbox_service.write_file(
+            context.sandbox_id, request.file_path, request.content
+        )
+        return UpdateFileResponse(
+            success=True, message=f"File {request.file_path} updated successfully"
+        )
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update file: {str(e)}",
+        )
 
 
 @router.get("/{sandbox_id}/secrets", response_model=SecretsListResponse)
-@handle_sandbox_errors("get secrets")
 async def get_secrets(
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> SecretsListResponse:
-    secrets = await sandbox_service.get_secrets(context.sandbox_id)
-    return SecretsListResponse(secrets=[SecretResponse(**s) for s in secrets])
+    try:
+        secrets = await sandbox_service.get_secrets(context.sandbox_id)
+        return SecretsListResponse(secrets=[SecretResponse(**s) for s in secrets])
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get secrets: {str(e)}",
+        )
 
 
 @router.post("/{sandbox_id}/secrets", response_model=MessageResponse)
-@handle_sandbox_errors("add secret")
 async def add_secret(
     secret_data: AddSecretRequest,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> MessageResponse:
-    await sandbox_service.add_secret(
-        context.sandbox_id, secret_data.key, secret_data.value
-    )
-    return MessageResponse(message=f"Secret {secret_data.key} added successfully")
+    try:
+        await sandbox_service.add_secret(
+            context.sandbox_id, secret_data.key, secret_data.value
+        )
+        return MessageResponse(message=f"Secret {secret_data.key} added successfully")
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add secret: {str(e)}",
+        )
 
 
 @router.put("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
-@handle_sandbox_errors("update secret")
 async def update_secret(
     key: str,
     secret_data: UpdateSecretRequest,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> MessageResponse:
-    await sandbox_service.update_secret(context.sandbox_id, key, secret_data.value)
-    return MessageResponse(message=f"Secret {key} updated successfully")
+    try:
+        await sandbox_service.update_secret(context.sandbox_id, key, secret_data.value)
+        return MessageResponse(message=f"Secret {key} updated successfully")
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update secret: {str(e)}",
+        )
 
 
 @router.delete("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
-@handle_sandbox_errors("delete secret")
 async def delete_secret(
     key: str,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> MessageResponse:
-    await sandbox_service.delete_secret(context.sandbox_id, key)
-    return MessageResponse(message=f"Secret {key} deleted successfully")
+    try:
+        await sandbox_service.delete_secret(context.sandbox_id, key)
+        return MessageResponse(message=f"Secret {key} deleted successfully")
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete secret: {str(e)}",
+        )
 
 
 @router.put("/{sandbox_id}/ide-theme", response_model=MessageResponse)
-@handle_sandbox_errors("update IDE theme")
 async def update_ide_theme(
     request: UpdateIDEThemeRequest,
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> MessageResponse:
-    await sandbox_service.update_ide_theme(context.sandbox_id, request.theme)
-    return MessageResponse(message=f"IDE theme updated to {request.theme}")
+    try:
+        await sandbox_service.update_ide_theme(context.sandbox_id, request.theme)
+        return MessageResponse(message=f"IDE theme updated to {request.theme}")
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update IDE theme: {str(e)}",
+        )
 
 
 @router.get("/{sandbox_id}/download-zip")
-@handle_sandbox_errors("generate zip file")
 async def download_sandbox_files(
     context: SandboxContext = Depends(get_sandbox_context),
     sandbox_service: SandboxService = Depends(get_sandbox_service_for_context),
 ) -> Response:
-    zip_bytes = await sandbox_service.generate_zip_download(context.sandbox_id)
-    return Response(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="sandbox_{context.sandbox_id}.zip"'
-        },
-    )
+    try:
+        zip_bytes = await sandbox_service.generate_zip_download(context.sandbox_id)
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="sandbox_{context.sandbox_id}.zip"'
+            },
+        )
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate zip file: {str(e)}",
+        )
