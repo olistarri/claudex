@@ -71,7 +71,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
         <span
           aria-hidden="true"
           className={cn(
-            'rounded-full bg-surface-tertiary shadow-sm transition-all duration-200 dark:bg-surface-dark-tertiary',
+            'rounded-full bg-surface-secondary shadow-sm transition-all duration-200 dark:bg-text-dark-primary',
             knobSize[size],
             checked ? 'scale-100' : 'scale-75',
           )}
