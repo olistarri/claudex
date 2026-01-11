@@ -8,11 +8,11 @@ Your own Claude Code UI. Open source, self-hosted, runs entirely on your machine
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![Discord](https://img.shields.io/badge/Discord-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/5PKRqG7K)
+[![Discord](https://img.shields.io/badge/Discord-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/vSWJZBs5)
 
 ## Community
 
-Join our [Discord server](https://discord.gg/5PKRqG7K) to get help, share feedback, and connect with other users.
+Join our [Discord server](https://discord.gg/vSWJZBs5) to get help, share feedback, and connect with other users.
 
 ## Why Claudex?
 
