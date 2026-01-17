@@ -70,7 +70,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-claudex_default_secret_key_for_development_only}
       - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
   celery-worker:
     build:
@@ -99,7 +99,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-claudex_default_secret_key_for_development_only}
       - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-25}
     deploy:
       replicas: ${CELERY_WORKER_REPLICAS:-8}
@@ -125,7 +125,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-claudex_default_secret_key_for_development_only}
       - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
   frontend:
     build:

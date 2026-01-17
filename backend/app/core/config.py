@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     BLOCK_DISPOSABLE_EMAILS: bool = True
 
     # Logging configuration
-    LOG_LEVEL: str = "DEBUG"
+    LOG_LEVEL: str = "INFO"
 
     # Model context window (tokens)
     CONTEXT_WINDOW_TOKENS: int = 200_000

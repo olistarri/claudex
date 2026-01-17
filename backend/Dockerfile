@@ -36,7 +36,6 @@ ENV CLAUDE_CONFIG_DIR=/app/storage/claude-data
 ENV CLAUDE_HOME=/app/storage/claude-data
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ENV PYTHONUNBUFFERED=1
-ENV LOG_LEVEL=DEBUG
 
 RUN mkdir -p /app/storage/claude-data /app/storage/images /app/storage/pdfs /app/storage/xlsx /app/storage/chrome-profile
 

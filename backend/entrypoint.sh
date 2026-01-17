@@ -44,15 +44,15 @@ if [ "$MODE" = "celery-worker" ]; then
 
     if [ -S /var/run/docker.sock ]; then
         echo "Docker socket detected, running as current user for Docker access..."
-        exec celery -A app.core.celery worker --pool=threads --concurrency=$CELERY_CONCURRENCY --loglevel=${LOG_LEVEL:-DEBUG}
+        exec celery -A app.core.celery worker --pool=threads --concurrency=$CELERY_CONCURRENCY --loglevel=${LOG_LEVEL:-INFO}
     else
-        exec gosu appuser celery -A app.core.celery worker --pool=threads --concurrency=$CELERY_CONCURRENCY --loglevel=${LOG_LEVEL:-DEBUG}
+        exec gosu appuser celery -A app.core.celery worker --pool=threads --concurrency=$CELERY_CONCURRENCY --loglevel=${LOG_LEVEL:-INFO}
     fi
 fi
 
 if [ "$MODE" = "celery-beat" ]; then
     echo "Starting Celery Beat..."
-    exec gosu appuser celery -A app.core.celery beat --schedule=/tmp/celerybeat-schedule --loglevel=${LOG_LEVEL:-DEBUG}
+    exec gosu appuser celery -A app.core.celery beat --schedule=/tmp/celerybeat-schedule --loglevel=${LOG_LEVEL:-INFO}
 fi
 
 echo "Unknown mode: $MODE"
