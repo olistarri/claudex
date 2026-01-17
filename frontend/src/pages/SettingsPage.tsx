@@ -555,6 +555,7 @@ const SettingsPage: React.FC = () => {
                   <GeneralSettingsTab
                     fields={generalSecretFields}
                     settings={localSettings}
+                    savedSettings={settings}
                     revealedFields={revealedFields}
                     onSecretChange={handleSecretFieldChange}
                     onToggleVisibility={toggleFieldVisibility}

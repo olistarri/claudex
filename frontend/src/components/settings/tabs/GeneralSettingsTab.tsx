@@ -11,6 +11,7 @@ import { CodexAuthUpload } from '@/components/settings/inputs/CodexAuthUpload';
 interface GeneralSettingsTabProps {
   fields: GeneralSecretFieldConfig[];
   settings: UserSettings;
+  savedSettings: UserSettings | undefined;
   revealedFields: Record<ApiFieldKey, boolean>;
   onSecretChange: (field: ApiFieldKey, value: string) => void;
   onToggleVisibility: (field: ApiFieldKey) => void;
@@ -24,6 +25,7 @@ interface GeneralSettingsTabProps {
 export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   fields,
   settings,
+  savedSettings,
   revealedFields,
   onSecretChange,
   onToggleVisibility,
@@ -94,11 +96,11 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
                 value="e2b"
                 checked={settings.sandbox_provider === 'e2b'}
                 onChange={() => onSandboxProviderChange('e2b')}
-                disabled={!settings.e2b_api_key}
+                disabled={!savedSettings?.e2b_api_key}
                 className="border-border-light text-accent-primary focus:ring-accent-primary h-4 w-4 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border-dark"
               />
               <span
-                className={`text-sm ${settings.e2b_api_key ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-tertiary dark:text-text-dark-tertiary'}`}
+                className={`text-sm ${savedSettings?.e2b_api_key ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-tertiary dark:text-text-dark-tertiary'}`}
               >
                 E2B (Cloud)
               </span>
@@ -110,11 +112,11 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
                 value="modal"
                 checked={settings.sandbox_provider === 'modal'}
                 onChange={() => onSandboxProviderChange('modal')}
-                disabled={!settings.modal_api_key}
+                disabled={!savedSettings?.modal_api_key}
                 className="border-border-light text-accent-primary focus:ring-accent-primary h-4 w-4 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border-dark"
               />
               <span
-                className={`text-sm ${settings.modal_api_key ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-tertiary dark:text-text-dark-tertiary'}`}
+                className={`text-sm ${savedSettings?.modal_api_key ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-tertiary dark:text-text-dark-tertiary'}`}
               >
                 Modal (Cloud)
               </span>
