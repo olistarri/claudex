@@ -16,7 +16,7 @@ Join our [Discord server](https://discord.gg/vSWJZBs5) to get help, share feedba
 
 ## Why Claudex?
 
-- **Local sandbox** - Run locally with Docker, fully isolated code execution.
+- **Multiple sandboxes** - Docker (local), E2B (cloud), or Modal (cloud).
 - **Use your own plans** - Claude Max, Z.AI Coding, or OpenRouter.
 - **Full IDE experience** - VS Code in browser, terminal, file explorer.
 - **Extensible** - Skills, agents, slash commands, MCP servers.
@@ -40,7 +40,10 @@ Open http://localhost:3000
 ## Features
 
 ### Sandboxed Code Execution
-Run AI agents in isolated Docker containers. Fully local, no external dependencies.
+Run AI agents in isolated environments with multiple sandbox providers:
+- **Docker** - Fully local, no external dependencies
+- **E2B** - Cloud sandboxes with [e2b.dev](https://e2b.dev)
+- **Modal** - Serverless cloud sandboxes with [modal.com](https://modal.com)
 
 ### Full Development Environment
 - VS Code editor in the browser
@@ -48,6 +51,9 @@ Run AI agents in isolated Docker containers. Fully local, no external dependenci
 - File system management
 - Port forwarding for web previews
 - Environment checkpoints and snapshots
+
+### VNC Browser Control
+View and interact with a browser running inside the sandbox via VNC. Use Playwright MCP with Chrome DevTools Protocol (CDP) to let Claude control the browser programmatically.
 
 ### Multiple AI Providers
 Switch between providers in the same chat:
