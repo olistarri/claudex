@@ -16,7 +16,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.9
+RUN npm install -g @anthropic-ai/claude-code@2.1.11
 
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
