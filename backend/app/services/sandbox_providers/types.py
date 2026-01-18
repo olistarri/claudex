@@ -75,6 +75,7 @@ class DockerConfig:
     openvscode_port: int = 8765
     sandbox_domain: str = ""
     traefik_network: str = ""
+    traefik_entrypoint: str = "websecure"
 
 
 PtyDataCallbackType = Callable[[bytes], Coroutine[Any, Any, None]]
