@@ -67,6 +67,7 @@ def _get_runtime_context_section(
 - Sandbox Provider: {provider_label}
 - Available ports for dev servers: {ports_str}
 - IMPORTANT: Only use ports from the available ports list above. Other ports will not be accessible.
+- IMPORTANT: When running dev servers (Vite, Next.js, etc.), always use `--host 0.0.0.0` flag to bind to all interfaces. Example: `npm run dev -- --host 0.0.0.0` or `npx vite --host 0.0.0.0`. Without this, the preview panel cannot connect to the server.
 - IMPORTANT: Do NOT tell users specific localhost URLs. The actual port is dynamically mapped. Direct users to check the Preview panel for the correct URL.
 </runtime_context>"""
 
