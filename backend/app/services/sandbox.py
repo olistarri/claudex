@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import logging
+import secrets
 import shlex
 import uuid
 import zipfile
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 OPENVSCODE_PORT = 8765
 OPENVSCODE_SETTINGS_DIR = "/home/user/.openvscode-server/data/Machine"
 OPENVSCODE_SETTINGS_PATH = f"{OPENVSCODE_SETTINGS_DIR}/settings.json"
+OPENVSCODE_TOKEN_PATH = "/home/user/.ide_connection_token"
 OPENVSCODE_DEFAULT_SETTINGS: dict[str, object] = {
     "workbench.colorTheme": "Default Dark Modern",
     "window.autoDetectColorScheme": True,
@@ -56,6 +58,7 @@ class SandboxService:
         self.provider = provider
         self.session_factory = session_factory
         self._active_pty_sessions: dict[str, dict[str, Any]] = {}
+        self._ide_tokens: dict[str, str] = {}
 
     @staticmethod
     def _validate_message_id(message_id: str) -> None:
@@ -87,6 +90,7 @@ class SandboxService:
         asyncio.create_task(self._delete_sandbox_deferred(sandbox_id))
 
     async def _delete_sandbox_deferred(self, sandbox_id: str) -> None:
+        self._ide_tokens.pop(sandbox_id, None)
         try:
             await self.provider.delete_sandbox(sandbox_id)
         except Exception as e:
@@ -107,8 +111,8 @@ class SandboxService:
         command: str,
         background: bool = False,
     ) -> CommandResult:
-        secrets = await self.provider.get_secrets(sandbox_id)
-        envs = {s.key: s.value for s in secrets}
+        sandbox_secrets = await self.provider.get_secrets(sandbox_id)
+        envs = {s.key: s.value for s in sandbox_secrets}
 
         return await self.provider.execute_command(
             sandbox_id, command, background=background, envs=envs
@@ -122,7 +126,29 @@ class SandboxService:
         return [{"preview_url": link.preview_url, "port": link.port} for link in links]
 
     async def get_ide_url(self, sandbox_id: str) -> str | None:
-        return await self.provider.get_ide_url(sandbox_id)
+        base_url = await self.provider.get_ide_url(sandbox_id)
+        if not base_url:
+            return None
+
+        token = await self._get_ide_token(sandbox_id)
+        if token:
+            separator = "&" if "?" in base_url else "?"
+            return f"{base_url}{separator}tkn={token}"
+        return base_url
+
+    async def _get_ide_token(self, sandbox_id: str) -> str | None:
+        if sandbox_id in self._ide_tokens:
+            return self._ide_tokens[sandbox_id]
+
+        try:
+            content = await self.provider.read_file(sandbox_id, OPENVSCODE_TOKEN_PATH)
+            if not content.is_binary and content.content:
+                token = content.content.strip()
+                self._ide_tokens[sandbox_id] = token
+                return token
+        except Exception as e:
+            logger.warning("Failed to read IDE token for sandbox %s: %s", sandbox_id, e)
+        return None
 
     async def get_vnc_url(self, sandbox_id: str) -> str | None:
         return await self.provider.get_vnc_url(sandbox_id)
@@ -324,8 +350,8 @@ class SandboxService:
         self,
         sandbox_id: str,
     ) -> list[dict[str, Any]]:
-        secrets = await self.provider.get_secrets(sandbox_id)
-        return [{"key": s.key, "value": s.value} for s in secrets]
+        sandbox_secrets = await self.provider.get_secrets(sandbox_id)
+        return [{"key": s.key, "value": s.value} for s in sandbox_secrets]
 
     async def generate_zip_download(self, sandbox_id: str) -> bytes:
         metadata_items = await self.provider.list_files(sandbox_id)
@@ -501,13 +527,18 @@ class SandboxService:
                 sandbox_id, "OPENROUTER_API_KEY", openrouter_api_key
             )
 
-        start_cmd = f"OPENROUTER_API_KEY={shlex.quote(openrouter_api_key)} anthropic-bridge --port 3456 --host 0.0.0.0"
+        start_cmd = "anthropic-bridge --port 3456 --host 0.0.0.0"
         start_result = await self.execute_command(
             sandbox_id, start_cmd, background=True
         )
         logger.info("Anthropic Bridge started: %s", start_result.stdout)
 
     async def _start_openvscode_server(self, sandbox_id: str) -> None:
+        connection_token = secrets.token_urlsafe(32)
+        self._ide_tokens[sandbox_id] = connection_token
+
+        await self.write_file(sandbox_id, OPENVSCODE_TOKEN_PATH, connection_token)
+
         settings_content = json.dumps(OPENVSCODE_DEFAULT_SETTINGS, indent=2)
         escaped_settings = settings_content.replace("'", "'\"'\"'")
 
@@ -515,7 +546,7 @@ class SandboxService:
             f"mkdir -p {OPENVSCODE_SETTINGS_DIR} && "
             f"echo '{escaped_settings}' > {OPENVSCODE_SETTINGS_PATH} && "
             f"openvscode-server --host 0.0.0.0 --port {OPENVSCODE_PORT} "
-            "--without-connection-token --disable-telemetry &"
+            f"--connection-token-file {OPENVSCODE_TOKEN_PATH} --disable-telemetry"
         )
         await self.execute_command(sandbox_id, setup_and_start_cmd, background=True)
 
