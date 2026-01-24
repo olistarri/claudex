@@ -19,9 +19,7 @@ import { Editor } from '@/components/editor/editor-core/Editor';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatStreaming } from '@/hooks/useChatStreaming';
 import { usePermissionRequest } from '@/hooks/usePermissionRequest';
-import { useUserQuestion } from '@/hooks/useUserQuestion';
 import { ToolPermissionModal } from '@/components/chat/tools/ToolPermissionModal';
-import { AskUserQuestionModal } from '@/components/chat/tools/AskUserQuestionModal';
 import { useInitialPrompt } from '@/hooks/useInitialPrompt';
 import { useEditorState } from '@/hooks/useEditorState';
 import { useMessageInitialization } from '@/hooks/useMessageInitialization';
@@ -95,14 +93,6 @@ export function ChatPage() {
     handleApprove,
     handleReject,
   } = usePermissionRequest(chatId);
-
-  const {
-    pendingRequest: userQuestionRequest,
-    isLoading: isQuestionLoading,
-    error: questionError,
-    handleSubmitAnswers,
-    handleCancel: handleQuestionCancel,
-  } = useUserQuestion(chatId);
 
   const streamingState = useChatStreaming({
     chatId,
@@ -332,14 +322,6 @@ export function ChatPage() {
         onApprove={handleApprove}
         onReject={handleReject}
         isLoading={isPermissionLoading}
-      />
-
-      <AskUserQuestionModal
-        request={userQuestionRequest}
-        onSubmit={handleSubmitAnswers}
-        onCancel={handleQuestionCancel}
-        isLoading={isQuestionLoading}
-        error={questionError}
       />
     </div>
   );
