@@ -6,6 +6,7 @@ export * from './useClipboard';
 export * from './useContextUsageState';
 export * from './useCrudForm';
 export * from './useDragAndDrop';
+export * from './useExitPlanMode';
 export * from './useDropdown';
 export * from './useEditorState';
 export * from './useEditorTheme';

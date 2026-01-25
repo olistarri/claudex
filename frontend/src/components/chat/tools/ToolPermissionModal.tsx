@@ -26,7 +26,8 @@ export function ToolPermissionModal({
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [alternativeInstruction, setAlternativeInstruction] = useState('');
 
-  if (!request || request.tool_name === 'AskUserQuestion') return null;
+  if (!request || request.tool_name === 'AskUserQuestion' || request.tool_name === 'ExitPlanMode')
+    return null;
 
   const handleReject = () => {
     if (showRejectInput && alternativeInstruction.trim()) {
