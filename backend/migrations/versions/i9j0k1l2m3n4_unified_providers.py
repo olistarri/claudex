@@ -135,3 +135,4 @@ def downgrade() -> None:
     )
     op.create_index('idx_ai_models_provider_active', 'ai_models', ['provider', 'is_active'])
     op.create_index('idx_ai_models_sort_order', 'ai_models', ['sort_order'])
+    op.create_index(op.f('ix_ai_models_model_id'), 'ai_models', ['model_id'], unique=True)
