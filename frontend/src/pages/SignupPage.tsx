@@ -75,8 +75,7 @@ const validateForm = (values: SignupFormData): SignupFormErrors | null => {
   if (!values.password) {
     errors.password = 'Password is required';
   } else if (!isValidPassword(values.password)) {
-    errors.password =
-      'Password must be at least 8 characters with uppercase, lowercase, and number';
+    errors.password = 'Password must be at least 8 characters';
   }
 
   if (!values.confirmPassword) {

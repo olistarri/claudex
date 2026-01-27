@@ -53,9 +53,7 @@ async function signup(data: SignupRequest): Promise<User> {
   }
 
   if (!isValidPassword(data.password, 8)) {
-    throw new ValidationError(
-      'Password must be at least 8 characters and contain uppercase, lowercase, and a number',
-    );
+    throw new ValidationError('Password must be at least 8 characters');
   }
 
   return serviceCall(async () => {

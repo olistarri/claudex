@@ -42,11 +42,7 @@ export const isValidUsername = (username: string): boolean => {
 };
 
 export const isValidPassword = (password: string, minLength = 8): boolean => {
-  if (password.length < minLength) return false;
-  const hasUppercase = /[A-Z]/.test(password);
-  const hasLowercase = /[a-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  return hasUppercase && hasLowercase && hasNumber;
+  return password.length >= minLength;
 };
 
 export function validateRequired(value: unknown, fieldName: string): void {

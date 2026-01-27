@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     # E2B Sandbox configuration
     E2B_TEMPLATE_ID: str = "61kjt118n5mlnh5c00j9"
 
+    # Git configuration
+    GIT_AUTHOR_NAME: str = "Claudex"
+    GIT_AUTHOR_EMAIL: str = "noreply@claudex.pro"
+
     # Docker Sandbox configuration
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/claudex-sandbox:latest"
     DOCKER_NETWORK: str = "claudex-sandbox-net"

@@ -35,9 +35,9 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
-    "check-scheduled-tasks-every-5-minutes": {
+    "check-scheduled-tasks-every-minute": {
         "task": "check_scheduled_tasks",
-        "schedule": 300.0,
+        "schedule": 60.0,
     },
     "cleanup-expired-refresh-tokens-daily": {
         "task": "cleanup_expired_refresh_tokens",

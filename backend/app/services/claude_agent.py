@@ -487,10 +487,10 @@ class ClaudeAgentService:
         if user_settings.github_personal_access_token:
             env["GITHUB_TOKEN"] = user_settings.github_personal_access_token
             env["GIT_ASKPASS"] = SANDBOX_GIT_ASKPASS_PATH
-            env["GIT_AUTHOR_NAME"] = "Claudex"
-            env["GIT_AUTHOR_EMAIL"] = "noreply@claudex.com"
-            env["GIT_COMMITTER_NAME"] = "Claudex"
-            env["GIT_COMMITTER_EMAIL"] = "noreply@claudex.com"
+            env["GIT_AUTHOR_NAME"] = settings.GIT_AUTHOR_NAME
+            env["GIT_AUTHOR_EMAIL"] = settings.GIT_AUTHOR_EMAIL
+            env["GIT_COMMITTER_NAME"] = settings.GIT_AUTHOR_NAME
+            env["GIT_COMMITTER_EMAIL"] = settings.GIT_AUTHOR_EMAIL
 
         if user_settings.custom_env_vars:
             for env_var in user_settings.custom_env_vars:
