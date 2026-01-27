@@ -69,6 +69,12 @@ export function ChatPage() {
     chatId,
   );
 
+  useEffect(() => {
+    if (currentView === 'editor' && currentChat?.sandbox_id) {
+      refetchFilesMetadata();
+    }
+  }, [currentView, currentChat?.sandbox_id, refetchFilesMetadata]);
+
   const { contextUsage, updateContextUsage } = useContextUsageState(chatId, currentChat);
 
   const { data: settings } = useSettingsQuery();
