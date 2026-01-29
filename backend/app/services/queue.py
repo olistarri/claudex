@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
-from redis.asyncio import Redis
 from redis.exceptions import WatchError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
@@ -15,29 +14,9 @@ from app.constants import (
 from app.models.schemas.queue import QueuedMessage, QueueUpsertResponse
 
 if TYPE_CHECKING:
-    from app.models.db_models import Message
+    from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
-
-
-def serialize_message_attachments(
-    queued_msg: dict[str, Any],
-    user_message: "Message",
-) -> list[dict[str, Any]] | None:
-    if not queued_msg.get("attachments") or not user_message.attachments:
-        return None
-
-    return [
-        {
-            "id": str(att.id),
-            "message_id": str(att.message_id),
-            "file_url": att.file_url,
-            "file_type": att.file_type,
-            "filename": att.filename,
-            "created_at": att.created_at.isoformat(),
-        }
-        for att in user_message.attachments
-    ]
 
 
 class QueueService:
@@ -70,6 +49,10 @@ class QueueService:
             if raw:
                 data = json.loads(raw)
                 data["content"] = data["content"] + "\n" + content
+                data["model_id"] = model_id
+                data["permission_mode"] = permission_mode
+                if thinking_mode is not None:
+                    data["thinking_mode"] = thinking_mode
 
                 if attachments:
                     existing_attachments = data.get("attachments") or []

@@ -101,6 +101,7 @@ export interface UserSettings {
   e2b_api_key: string | null;
   modal_api_key: string | null;
   sandbox_provider: SandboxProviderType | null;
+  timezone: string;
   custom_instructions: string | null;
   custom_providers: CustomProvider[] | null;
   custom_agents: CustomAgent[] | null;

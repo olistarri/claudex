@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, select, update
@@ -10,9 +11,9 @@ from app.core.security import (
     get_refresh_token_expiry,
     hash_refresh_token,
 )
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, get_celery_session
 from app.models.db_models import RefreshToken, User
-from app.services.base import SessionFactoryType
+from app.services.db import SessionFactoryType
 from app.services.exceptions import AuthException
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,18 @@ class RefreshTokenService:
             result_db = await db.execute(delete_stmt)
             await db.commit()
             return int(getattr(result_db, "rowcount", 0))
+
+    @classmethod
+    async def cleanup_expired_tokens_job(cls) -> dict[str, Any]:
+        async with get_celery_session() as (session_factory, _):
+            try:
+                service = cls(session_factory=session_factory)
+                deleted_count = await service.cleanup_expired_tokens()
+                logger.info("Cleaned up %s expired refresh tokens", deleted_count)
+                return {"deleted_count": deleted_count}
+            except Exception as e:
+                logger.error("Error cleaning up expired refresh tokens: %s", e)
+                return {"error": str(e)}
 
 
 refresh_token_service = RefreshTokenService()

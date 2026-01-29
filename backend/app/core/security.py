@@ -124,11 +124,9 @@ def validate_chat_scoped_token(token: str, expected_chat_id: str) -> bool:
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
 
-        # Validate token purpose
         if payload.get("purpose") != "permission_server":
             return False
 
-        # Validate chat_id
         token_chat_id = payload.get("chat_id")
         if token_chat_id != expected_chat_id:
             return False

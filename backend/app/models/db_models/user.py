@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, JSON
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.models.types import (
@@ -25,24 +25,24 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(
-        String(length=320), unique=True, index=True, nullable=False
-    )
-    hashed_password: Mapped[str] = mapped_column(String(length=1024), nullable=False)
+    email: Mapped[str] = mapped_column(String(length=320), unique=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(length=256), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     username: Mapped[str] = mapped_column(
-        String, unique=True, index=True, nullable=False
+        String(length=64), unique=True, nullable=False
     )
-    verification_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    verification_token: Mapped[str | None] = mapped_column(
+        String(length=128), nullable=True
+    )
     verification_token_expires: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )
-    reset_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    reset_token: Mapped[str | None] = mapped_column(String(length=128), nullable=True)
     reset_token_expires: Mapped[datetime | None] = mapped_column(
-        DateTime, nullable=True
+        DateTime(timezone=True), nullable=True
     )
     daily_message_limit: Mapped[int | None] = mapped_column(
         Integer, default=None, nullable=True
@@ -54,8 +54,6 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-
-    __table_args__ = (Index("idx_user_email_verified", "email", "is_verified"),)
 
 
 class UserSettings(Base):
@@ -70,7 +68,12 @@ class UserSettings(Base):
     )
     e2b_api_key: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     modal_api_key: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
-    sandbox_provider: Mapped[str] = mapped_column(String, default="docker")
+    sandbox_provider: Mapped[str] = mapped_column(
+        String(32), default="docker", server_default="docker", nullable=False
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(64), default="UTC", server_default="UTC", nullable=False
+    )
     custom_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     custom_providers: Mapped[list[CustomProviderDict] | None] = mapped_column(
         EncryptedJSON, nullable=True
@@ -112,5 +115,5 @@ class UserSettings(Base):
     gmail_connected_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    gmail_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    gmail_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     user = relationship("User", back_populates="settings")

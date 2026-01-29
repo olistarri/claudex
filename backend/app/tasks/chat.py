@@ -2,7 +2,7 @@ import asyncio
 from typing import Any
 
 from app.core.celery import celery_app
-from app.services.streaming import ContextUsageTracker, initialize_and_run_chat
+from app.services.streaming import ContextUsageTracker, StreamOrchestrator
 
 
 @celery_app.task(bind=True)
@@ -26,7 +26,7 @@ def process_chat(
 
     try:
         return loop.run_until_complete(
-            initialize_and_run_chat(
+            StreamOrchestrator.initialize_and_run_chat(
                 task=self,
                 prompt=prompt,
                 system_prompt=system_prompt,

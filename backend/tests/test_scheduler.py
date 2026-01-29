@@ -16,7 +16,7 @@ class TestCreateScheduledTask:
         auth_headers: dict[str, str],
     ) -> None:
         response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Test Task",
                 "prompt_message": "Run daily health check",
@@ -32,7 +32,7 @@ class TestCreateScheduledTask:
         assert data["prompt_message"] == "Run daily health check"
         assert data["recurrence_type"] == "daily"
         assert data["scheduled_time"] == "09:00"
-        assert data["enabled"] is True
+        assert data["status"] == "active"
         assert "id" in data
         assert uuid.UUID(data["id"])
 
@@ -41,7 +41,7 @@ class TestCreateScheduledTask:
         async_client: AsyncClient,
     ) -> None:
         response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Test Task",
                 "prompt_message": "Run test",
@@ -61,7 +61,7 @@ class TestListScheduledTasks:
         auth_headers: dict[str, str],
     ) -> None:
         response = await async_client.get(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             headers=auth_headers,
         )
 
@@ -76,7 +76,7 @@ class TestListScheduledTasks:
         auth_headers: dict[str, str],
     ) -> None:
         await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "List Test Task",
                 "prompt_message": "Test prompt",
@@ -87,7 +87,7 @@ class TestListScheduledTasks:
         )
 
         response = await async_client.get(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             headers=auth_headers,
         )
 
@@ -105,7 +105,7 @@ class TestGetScheduledTask:
         auth_headers: dict[str, str],
     ) -> None:
         create_response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Get Test Task",
                 "prompt_message": "Test prompt",
@@ -118,7 +118,7 @@ class TestGetScheduledTask:
         task_id = create_response.json()["id"]
 
         response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{task_id}",
+            f"/api/v1/scheduler/tasks/{task_id}",
             headers=auth_headers,
         )
 
@@ -136,7 +136,7 @@ class TestGetScheduledTask:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{fake_id}",
+            f"/api/v1/scheduler/tasks/{fake_id}",
             headers=auth_headers,
         )
 
@@ -151,7 +151,7 @@ class TestDeleteScheduledTask:
         auth_headers: dict[str, str],
     ) -> None:
         create_response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Delete Test Task",
                 "prompt_message": "Test prompt",
@@ -164,14 +164,14 @@ class TestDeleteScheduledTask:
         task_id = create_response.json()["id"]
 
         response = await async_client.delete(
-            f"/api/v1/scheduling/tasks/{task_id}",
+            f"/api/v1/scheduler/tasks/{task_id}",
             headers=auth_headers,
         )
 
         assert response.status_code == 204
 
         get_response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{task_id}",
+            f"/api/v1/scheduler/tasks/{task_id}",
             headers=auth_headers,
         )
         assert get_response.status_code == 404
@@ -185,7 +185,7 @@ class TestToggleScheduledTask:
         auth_headers: dict[str, str],
     ) -> None:
         create_response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Toggle Test Task",
                 "prompt_message": "Test prompt",
@@ -195,16 +195,17 @@ class TestToggleScheduledTask:
             headers=auth_headers,
         )
         task_id = create_response.json()["id"]
-        initial_enabled = create_response.json()["enabled"]
+        initial_status = create_response.json()["status"]
+        assert initial_status == "active"
 
         response = await async_client.post(
-            f"/api/v1/scheduling/tasks/{task_id}/toggle",
+            f"/api/v1/scheduler/tasks/{task_id}/toggle",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["enabled"] is not initial_enabled
+        assert data["enabled"] is False
 
     async def test_toggle_task_not_found(
         self,
@@ -215,7 +216,7 @@ class TestToggleScheduledTask:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.post(
-            f"/api/v1/scheduling/tasks/{fake_id}/toggle",
+            f"/api/v1/scheduler/tasks/{fake_id}/toggle",
             headers=auth_headers,
         )
 
@@ -228,7 +229,7 @@ class TestToggleScheduledTask:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.post(
-            f"/api/v1/scheduling/tasks/{fake_id}/toggle",
+            f"/api/v1/scheduler/tasks/{fake_id}/toggle",
         )
 
         assert response.status_code == 401
@@ -242,7 +243,7 @@ class TestUpdateScheduledTask:
         auth_headers: dict[str, str],
     ) -> None:
         create_response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "Update Test Task",
                 "prompt_message": "Original prompt",
@@ -254,7 +255,7 @@ class TestUpdateScheduledTask:
         task_id = create_response.json()["id"]
 
         response = await async_client.put(
-            f"/api/v1/scheduling/tasks/{task_id}",
+            f"/api/v1/scheduler/tasks/{task_id}",
             json={
                 "task_name": "Updated Task Name",
                 "prompt_message": "Updated prompt",
@@ -280,7 +281,7 @@ class TestUpdateScheduledTask:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.put(
-            f"/api/v1/scheduling/tasks/{fake_id}",
+            f"/api/v1/scheduler/tasks/{fake_id}",
             json={
                 "task_name": "Test",
                 "prompt_message": "Test",
@@ -299,7 +300,7 @@ class TestUpdateScheduledTask:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.put(
-            f"/api/v1/scheduling/tasks/{fake_id}",
+            f"/api/v1/scheduler/tasks/{fake_id}",
             json={"task_name": "Test"},
         )
 
@@ -314,7 +315,7 @@ class TestTaskHistory:
         auth_headers: dict[str, str],
     ) -> None:
         create_response = await async_client.post(
-            "/api/v1/scheduling/tasks",
+            "/api/v1/scheduler/tasks",
             json={
                 "task_name": "History Test Task",
                 "prompt_message": "Test prompt",
@@ -326,7 +327,7 @@ class TestTaskHistory:
         task_id = create_response.json()["id"]
 
         response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{task_id}/history",
+            f"/api/v1/scheduler/tasks/{task_id}/history",
             headers=auth_headers,
         )
 
@@ -345,7 +346,7 @@ class TestTaskHistory:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{fake_id}/history",
+            f"/api/v1/scheduler/tasks/{fake_id}/history",
             headers=auth_headers,
         )
 
@@ -358,22 +359,22 @@ class TestTaskHistory:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.get(
-            f"/api/v1/scheduling/tasks/{fake_id}/history",
+            f"/api/v1/scheduler/tasks/{fake_id}/history",
         )
 
         assert response.status_code == 401
 
 
-class TestSchedulingUnauthorized:
+class TestSchedulerUnauthorized:
     @pytest.mark.parametrize(
         "method,endpoint",
         [
-            ("GET", "/api/v1/scheduling/tasks"),
-            ("DELETE", "/api/v1/scheduling/tasks/{task_id}"),
-            ("GET", "/api/v1/scheduling/tasks/{task_id}"),
+            ("GET", "/api/v1/scheduler/tasks"),
+            ("DELETE", "/api/v1/scheduler/tasks/{task_id}"),
+            ("GET", "/api/v1/scheduler/tasks/{task_id}"),
         ],
     )
-    async def test_scheduling_endpoints_unauthorized(
+    async def test_scheduler_endpoints_unauthorized(
         self,
         async_client: AsyncClient,
         method: str,
@@ -392,7 +393,7 @@ class TestSchedulingUnauthorized:
         assert response.status_code == 401
 
 
-class TestSchedulingNotFound:
+class TestSchedulerNotFound:
     async def test_delete_task_not_found(
         self,
         async_client: AsyncClient,
@@ -402,7 +403,7 @@ class TestSchedulingNotFound:
         fake_id = str(uuid.uuid4())
 
         response = await async_client.delete(
-            f"/api/v1/scheduling/tasks/{fake_id}",
+            f"/api/v1/scheduler/tasks/{fake_id}",
             headers=auth_headers,
         )
 

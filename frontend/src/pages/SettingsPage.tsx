@@ -81,6 +81,7 @@ const createFallbackSettings = (): UserSettings => ({
   e2b_api_key: null,
   modal_api_key: null,
   sandbox_provider: null,
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   custom_instructions: null,
   custom_providers: null,
   custom_agents: null,
@@ -102,9 +103,10 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
     'github_personal_access_token',
     'e2b_api_key',
     'modal_api_key',
+    'timezone',
     // Note: sandbox_provider, auto_compact_disabled, and attribution_disabled are
     // excluded because they are auto-saved immediately and shouldn't trigger the
-    // "unsaved changes" banner
+    // "unsaved changes" banner.
   ],
   providers: ['custom_providers'],
   integrations: [],
@@ -198,6 +200,7 @@ const SettingsPage: React.FC = () => {
         'e2b_api_key',
         'modal_api_key',
         'sandbox_provider',
+        'timezone',
         'custom_instructions',
         'custom_providers',
         'custom_agents',
@@ -477,6 +480,10 @@ const SettingsPage: React.FC = () => {
     persistSettings((prev) => ({ ...prev, sandbox_provider: provider }));
   };
 
+  const handleTimezoneChange = (timezone: string) => {
+    handleInputChange('timezone', timezone);
+  };
+
   const sidebarContent = useMemo(
     () => (
       <Sidebar
@@ -631,6 +638,7 @@ const SettingsPage: React.FC = () => {
                     onAutoCompactDisabledChange={handleAutoCompactDisabledChange}
                     onAttributionDisabledChange={handleAttributionDisabledChange}
                     onSandboxProviderChange={handleSandboxProviderChange}
+                    onTimezoneChange={handleTimezoneChange}
                   />
                 </div>
               )}

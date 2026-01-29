@@ -21,7 +21,6 @@ def create_docker_config() -> DockerConfig:
 def create_sandbox_provider(
     provider_type: SandboxProviderType | str,
     api_key: str | None = None,
-    docker_config: DockerConfig | None = None,
 ) -> SandboxProvider:
     if isinstance(provider_type, str):
         provider_type = SandboxProviderType(provider_type)
@@ -38,8 +37,7 @@ def create_sandbox_provider(
             LocalDockerProvider,
         )
 
-        config = docker_config or create_docker_config()
-        return LocalDockerProvider(config=config)
+        return LocalDockerProvider(config=create_docker_config())
 
     if provider_type == SandboxProviderType.MODAL:
         from app.services.sandbox_providers.modal_provider import ModalSandboxProvider

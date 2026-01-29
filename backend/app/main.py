@@ -15,7 +15,7 @@ from app.api.endpoints import (
     websocket,
     attachments,
     permissions,
-    scheduling,
+    scheduler,
     skills,
     commands,
     agents,
@@ -127,9 +127,9 @@ def create_application() -> FastAPI:
         tags=["Permissions"],
     )
     application.include_router(
-        scheduling.router,
-        prefix=f"{settings.API_V1_STR}/scheduling",
-        tags=["Scheduling"],
+        scheduler.router,
+        prefix=f"{settings.API_V1_STR}/scheduler",
+        tags=["Scheduler"],
     )
     application.include_router(
         ai_model.router,

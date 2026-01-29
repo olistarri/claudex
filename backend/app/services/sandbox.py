@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from fastapi import WebSocket
+from sqlalchemy import select
 
 from app.constants import (
     ANTHROPIC_BRIDGE_HOST,
@@ -24,6 +25,8 @@ from app.constants import (
     SANDBOX_IDE_SETTINGS_PATH,
     SANDBOX_IDE_TOKEN_PATH,
 )
+from app.db.session import get_celery_session
+from app.models.db_models import Chat
 from app.models.types import (
     CustomAgentDict,
     CustomEnvVarDict,
@@ -35,11 +38,14 @@ from app.models.schemas.settings import ProviderType
 from app.services.agent import AgentService
 from app.services.command import CommandService
 from app.services.exceptions import SandboxException
+from app.services.sandbox_providers import create_docker_config
 from app.services.sandbox_providers import (
     PtySize,
     SandboxProvider,
 )
+from app.services.sandbox_providers.docker_provider import LocalDockerProvider
 from app.services.sandbox_providers.types import CommandResult
+from app.services.sandbox_providers.types import SandboxProviderType
 from app.services.skill import SkillService
 from app.utils.queue import drain_queue, put_with_overflow
 
@@ -90,13 +96,68 @@ class SandboxService:
                     )
         await self.provider.cleanup()
 
+    @classmethod
+    async def cleanup_orphaned_sandboxes(cls) -> dict[str, Any]:
+        async with get_celery_session() as (session_factory, _):
+            async with session_factory() as db:
+                result = await db.execute(
+                    select(Chat.sandbox_id).where(
+                        Chat.sandbox_id.isnot(None),
+                        Chat.deleted_at.is_(None),
+                        Chat.sandbox_provider == SandboxProviderType.DOCKER.value,
+                    )
+                )
+                active_sandbox_ids = {row[0] for row in result.fetchall() if row[0]}
+
+        provider = LocalDockerProvider(create_docker_config())
+        orphaned_ids: list[str] = []
+        deleted_ids: list[str] = []
+        failed_ids: list[dict[str, str]] = []
+        containers: list[tuple[str, Any]] = []
+
+        try:
+            containers = await provider.list_sandboxes()
+            orphaned_ids = [
+                sandbox_id
+                for sandbox_id, _ in containers
+                if sandbox_id not in active_sandbox_ids
+            ]
+
+            for sandbox_id in orphaned_ids:
+                try:
+                    await provider.delete_sandbox(sandbox_id)
+                    deleted_ids.append(sandbox_id)
+                except Exception as exc:
+                    failed_ids.append({"sandbox_id": sandbox_id, "error": str(exc)})
+        except Exception as exc:
+            logger.error("Error cleaning up orphaned sandboxes: %s", exc, exc_info=True)
+            return {"error": str(exc)}
+        finally:
+            await provider.cleanup()
+
+        if deleted_ids or failed_ids:
+            logger.info(
+                "Orphaned sandbox cleanup deleted=%s failed=%s total=%s",
+                len(deleted_ids),
+                len(failed_ids),
+                len(orphaned_ids),
+            )
+
+        return {
+            "deleted_count": len(deleted_ids),
+            "failed_count": len(failed_ids),
+            "orphaned_count": len(orphaned_ids),
+            "active_count": len(active_sandbox_ids),
+            "container_count": len(containers),
+        }
+
     async def create_sandbox(self) -> str:
         return await self.provider.create_sandbox()
 
     async def delete_sandbox(self, sandbox_id: str) -> None:
         if not sandbox_id:
             return
-        asyncio.create_task(self._delete_sandbox_deferred(sandbox_id))
+        await self._delete_sandbox_deferred(sandbox_id)
 
     async def _delete_sandbox_deferred(self, sandbox_id: str) -> None:
         self._ide_tokens.pop(sandbox_id, None)
@@ -345,8 +406,35 @@ class SandboxService:
         key: str,
         value: str,
     ) -> None:
-        await self.provider.delete_secret(sandbox_id, key)
-        await self.provider.add_secret(sandbox_id, key, value)
+        existing_value: str | None = None
+        try:
+            sandbox_secrets = await self.provider.get_secrets(sandbox_id)
+            for secret in sandbox_secrets:
+                if secret.key == key:
+                    existing_value = secret.value
+                    break
+        except Exception as e:
+            raise SandboxException(f"Failed to read secrets for update: {str(e)}")
+
+        if existing_value is None:
+            await self.provider.add_secret(sandbox_id, key, value)
+            return
+
+        try:
+            await self.provider.delete_secret(sandbox_id, key)
+            await self.provider.add_secret(sandbox_id, key, value)
+        except Exception as e:
+            if existing_value is not None:
+                try:
+                    await self.provider.add_secret(sandbox_id, key, existing_value)
+                except Exception as restore_error:
+                    logger.warning(
+                        "Failed to restore secret %s for sandbox %s: %s",
+                        key,
+                        sandbox_id,
+                        restore_error,
+                    )
+            raise SandboxException(f"Failed to update secret {key}: {str(e)}")
 
     async def delete_secret(
         self,

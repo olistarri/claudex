@@ -916,39 +916,6 @@ class TestForkChat:
         )
         assert response.status_code == 401
 
-    async def test_fork_chat_no_sandbox_fails(
-        self,
-        async_client: AsyncClient,
-        integration_user_fixture: User,
-        auth_headers: dict[str, str],
-        db_session: AsyncSession,
-    ) -> None:
-        no_sandbox_chat = Chat(
-            id=uuid.uuid4(),
-            title="Chat without sandbox",
-            user_id=integration_user_fixture.id,
-            sandbox_id=None,
-        )
-        db_session.add(no_sandbox_chat)
-        await db_session.flush()
-
-        no_sandbox_message = Message(
-            id=uuid.uuid4(),
-            chat_id=no_sandbox_chat.id,
-            content="No sandbox message",
-            role=MessageRole.USER,
-            stream_status=MessageStreamStatus.COMPLETED,
-        )
-        db_session.add(no_sandbox_message)
-        await db_session.flush()
-
-        response = await async_client.post(
-            f"/api/v1/chat/chats/{no_sandbox_chat.id}/fork",
-            json={"message_id": str(no_sandbox_message.id)},
-            headers=auth_headers,
-        )
-        assert response.status_code == 400
-
 
 class TestChatCreationSandboxState:
     async def test_create_chat_with_auto_compact_disabled_sets_claude_json(

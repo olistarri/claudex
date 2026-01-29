@@ -31,6 +31,8 @@ from app.services.sandbox_providers.types import (
 
 logger = logging.getLogger(__name__)
 
+DOCKER_SANDBOX_CONTAINER_PREFIX = "claudex-sandbox-"
+
 
 class LocalDockerProvider(SandboxProvider):
     def __init__(self, config: DockerConfig) -> None:
@@ -108,7 +110,7 @@ class LocalDockerProvider(SandboxProvider):
         container = client.containers.run(
             self.config.image,
             command="/bin/bash",
-            name=f"claudex-sandbox-{sandbox_id}",
+            name=f"{DOCKER_SANDBOX_CONTAINER_PREFIX}{sandbox_id}",
             hostname="sandbox",
             user="user",
             working_dir=self.config.user_home,
@@ -170,10 +172,32 @@ class LocalDockerProvider(SandboxProvider):
         container.reload()
         return bool(container.status == DOCKER_STATUS_RUNNING)
 
+    async def list_sandboxes(self) -> list[tuple[str, Any]]:
+        client = self._get_docker_client()
+        loop = asyncio.get_running_loop()
+
+        containers = await loop.run_in_executor(
+            self._executor,
+            lambda: client.containers.list(
+                all=True,
+                filters={"name": DOCKER_SANDBOX_CONTAINER_PREFIX},
+            ),
+        )
+
+        sandboxes: list[tuple[str, Any]] = []
+        for container in containers:
+            name = getattr(container, "name", "")
+            if name.startswith(DOCKER_SANDBOX_CONTAINER_PREFIX):
+                sandbox_id = name[len(DOCKER_SANDBOX_CONTAINER_PREFIX) :]
+                sandboxes.append((sandbox_id, container))
+        return sandboxes
+
     def _get_container_by_id(self, sandbox_id: str) -> Any | None:
         client = self._get_docker_client()
         try:
-            return client.containers.get(f"claudex-sandbox-{sandbox_id}")
+            return client.containers.get(
+                f"{DOCKER_SANDBOX_CONTAINER_PREFIX}{sandbox_id}"
+            )
         except Exception:
             return None
 
@@ -547,7 +571,9 @@ class LocalDockerProvider(SandboxProvider):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             self._executor,
-            lambda: client.containers.get(f"claudex-sandbox-{sandbox_id}"),
+            lambda: client.containers.get(
+                f"{DOCKER_SANDBOX_CONTAINER_PREFIX}{sandbox_id}"
+            ),
         )
 
     async def _destroy_container(self, container: Any) -> None:
@@ -635,7 +661,7 @@ class LocalDockerProvider(SandboxProvider):
         container = client.containers.run(
             image,
             command="/bin/bash",
-            name=f"claudex-sandbox-{sandbox_id}",
+            name=f"{DOCKER_SANDBOX_CONTAINER_PREFIX}{sandbox_id}",
             hostname="sandbox",
             user="user",
             working_dir=self.config.user_home,

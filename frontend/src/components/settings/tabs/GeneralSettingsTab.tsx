@@ -1,4 +1,4 @@
-import { Button, Switch } from '@/components/ui';
+import { Button, Input, Switch } from '@/components/ui';
 import type {
   UserSettings,
   GeneralSecretFieldConfig,
@@ -19,6 +19,7 @@ interface GeneralSettingsTabProps {
   onAutoCompactDisabledChange: (disabled: boolean) => void;
   onAttributionDisabledChange: (disabled: boolean) => void;
   onSandboxProviderChange: (provider: SandboxProviderType) => void;
+  onTimezoneChange: (timezone: string) => void;
 }
 
 export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
@@ -33,6 +34,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   onAutoCompactDisabledChange,
   onAttributionDisabledChange,
   onSandboxProviderChange,
+  onTimezoneChange,
 }) => (
   <div className="space-y-6">
     <div>
@@ -122,6 +124,22 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
             </label>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div>
+      <h2 className="mb-4 text-sm font-medium text-text-primary dark:text-text-dark-primary">
+        Timezone
+      </h2>
+      <div className="space-y-2">
+        <p className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
+          Used for scheduled tasks. Example: America/Los_Angeles
+        </p>
+        <Input
+          value={settings.timezone}
+          onChange={(event) => onTimezoneChange(event.target.value)}
+          placeholder="America/Los_Angeles"
+        />
       </div>
     </div>
 

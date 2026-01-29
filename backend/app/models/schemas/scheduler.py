@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 
 from app.models.db_models import RecurrenceType, TaskExecutionStatus, TaskStatus
 from app.models.schemas.pagination import PaginatedResponse
-from app.models.types import JSONDict
 
 
 TIME_PATTERN = r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$"
@@ -27,7 +26,7 @@ class ScheduledTaskUpdate(BaseModel):
     scheduled_time: str | None = Field(None, pattern=TIME_PATTERN)
     scheduled_day: int | None = Field(None, ge=0, le=31)
     model_id: str | None = None
-    enabled: bool | None = None
+    status: TaskStatus | None = None
 
 
 class ScheduledTaskResponse(BaseModel):
@@ -39,13 +38,7 @@ class ScheduledTaskResponse(BaseModel):
     scheduled_time: str
     scheduled_day: int | None
     next_execution: datetime | None
-    last_execution: datetime | None
     status: TaskStatus
-    enabled: bool
-    execution_count: int
-    failure_count: int
-    max_retries: int
-    last_error: str | None
     model_id: str | None
     created_at: datetime
     updated_at: datetime
@@ -59,12 +52,9 @@ class TaskExecutionResponse(BaseModel):
     task_id: UUID
     executed_at: datetime
     completed_at: datetime | None
-    duration_ms: int | None
     status: TaskExecutionStatus
     chat_id: UUID | None
-    message_id: UUID | None
     error_message: str | None
-    result_data: JSONDict | None
     created_at: datetime
 
     class Config:

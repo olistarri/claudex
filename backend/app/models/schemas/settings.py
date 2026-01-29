@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -124,6 +125,7 @@ class UserSettingsBase(BaseModel):
     e2b_api_key: str | None = None
     modal_api_key: str | None = None
     sandbox_provider: Literal["docker", "e2b", "modal"] = "docker"
+    timezone: str = Field(default="UTC", max_length=64)
     custom_instructions: str | None = Field(default=None, max_length=1500)
     custom_providers: list[CustomProvider] | None = None
     custom_agents: list[CustomAgent] | None = None
@@ -153,6 +155,15 @@ class UserSettingsBase(BaseModel):
         if value is None:
             return None
         return normalize_json_list(value)
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Invalid timezone: {value}") from exc
+        return value
 
 
 class UserSettingsResponse(UserSettingsBase):

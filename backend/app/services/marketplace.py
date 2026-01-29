@@ -34,43 +34,6 @@ MAX_SKILL_FILES = 50
 SAFE_PATH_SEGMENT = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
 
 
-def _validate_path_segment(segment: str) -> bool:
-    if not segment:
-        return False
-    if segment in (".", ".."):
-        return False
-    if not SAFE_PATH_SEGMENT.match(segment):
-        return False
-    return True
-
-
-def _validate_source_path(source: str) -> str:
-    if source.startswith("./"):
-        source = source[2:]
-    if source.startswith("/"):
-        raise MarketplaceException(
-            "Invalid source path: absolute paths not allowed",
-            error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
-        )
-    segments = source.split("/")
-    for seg in segments:
-        if seg and not _validate_path_segment(seg):
-            raise MarketplaceException(
-                f"Invalid path segment: {seg}",
-                error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
-            )
-    return source
-
-
-def _validate_component_name(name: str) -> str:
-    if not _validate_path_segment(name):
-        raise MarketplaceException(
-            f"Invalid component name: {name}",
-            error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
-        )
-    return name
-
-
 class MarketplaceService:
     _catalog_cache: list[MarketplacePluginDict] | None = None
     _catalog_cached_at: datetime | None = None
@@ -80,6 +43,43 @@ class MarketplaceService:
         self.cache_path.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_path / "catalog.json"
         self._github_token = github_token
+
+    @staticmethod
+    def _validate_path_segment(segment: str) -> bool:
+        if not segment:
+            return False
+        if segment in (".", ".."):
+            return False
+        if not SAFE_PATH_SEGMENT.match(segment):
+            return False
+        return True
+
+    @staticmethod
+    def _validate_source_path(source: str) -> str:
+        if source.startswith("./"):
+            source = source[2:]
+        if source.startswith("/"):
+            raise MarketplaceException(
+                "Invalid source path: absolute paths not allowed",
+                error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
+            )
+        segments = source.split("/")
+        for seg in segments:
+            if seg and not MarketplaceService._validate_path_segment(seg):
+                raise MarketplaceException(
+                    f"Invalid path segment: {seg}",
+                    error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
+                )
+        return source
+
+    @staticmethod
+    def _validate_component_name(name: str) -> str:
+        if not MarketplaceService._validate_path_segment(name):
+            raise MarketplaceException(
+                f"Invalid component name: {name}",
+                error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
+            )
+        return name
 
     def _get_github_api_headers(self) -> dict[str, str]:
         headers = {"Accept": "application/vnd.github.v3+json"}
@@ -256,7 +256,7 @@ class MarketplaceService:
                 },
             }
 
-        source = _validate_source_path(source)
+        source = self._validate_source_path(source)
         readme = await self._fetch_readme(source)
         components = await self._discover_components(source)
 
@@ -306,7 +306,7 @@ class MarketplaceService:
             components["skills"] = [
                 d
                 for d in skills_dirs
-                if not d.startswith(".") and _validate_path_segment(d)
+                if not d.startswith(".") and self._validate_path_segment(d)
             ]
 
             mcp_servers = await self._fetch_mcp_config(client, source)
@@ -326,7 +326,7 @@ class MarketplaceService:
                 return [
                     item["name"]
                     for item in data
-                    if _validate_path_segment(item.get("name", ""))
+                    if self._validate_path_segment(item.get("name", ""))
                 ]
         except httpx.HTTPError:
             pass
@@ -347,25 +347,25 @@ class MarketplaceService:
             return [
                 k
                 for k in servers.keys()
-                if _validate_path_segment(k) and isinstance(servers[k], dict)
+                if self._validate_path_segment(k) and isinstance(servers[k], dict)
             ]
         except (httpx.HTTPError, ValueError):
             pass
         return []
 
     async def download_agent(self, source: str, agent_name: str) -> bytes:
-        source = _validate_source_path(source)
-        agent_name = _validate_component_name(agent_name)
+        source = self._validate_source_path(source)
+        agent_name = self._validate_component_name(agent_name)
         return await self._download_file(f"{source}/agents/{agent_name}.md")
 
     async def download_command(self, source: str, command_name: str) -> bytes:
-        source = _validate_source_path(source)
-        command_name = _validate_component_name(command_name)
+        source = self._validate_source_path(source)
+        command_name = self._validate_component_name(command_name)
         return await self._download_file(f"{source}/commands/{command_name}.md")
 
     async def download_skill_as_zip(self, source: str, skill_name: str) -> bytes:
-        source = _validate_source_path(source)
-        skill_name = _validate_component_name(skill_name)
+        source = self._validate_source_path(source)
+        skill_name = self._validate_component_name(skill_name)
 
         skill_path = f"{source}/skills/{skill_name}"
         zip_buffer = io.BytesIO()
@@ -379,6 +379,7 @@ class MarketplaceService:
                     error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
                 )
 
+            failed_files: list[str] = []
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                 for file_path in files:
                     url = f"{REPO_RAW_BASE}/{file_path}"
@@ -388,7 +389,18 @@ class MarketplaceService:
                         relative = file_path.replace(f"{skill_path}/", "")
                         zf.writestr(relative, response.content)
                     except httpx.HTTPError as e:
+                        failed_files.append(file_path)
                         logger.warning(f"Failed to download {file_path}: {e}")
+
+            if failed_files:
+                raise MarketplaceException(
+                    f"Failed to download {len(failed_files)} of {len(files)} files",
+                    error_code=ErrorCode.MARKETPLACE_INSTALL_FAILED,
+                    details={
+                        "failed_count": str(len(failed_files)),
+                        "failed_files": ", ".join(failed_files[:10]),
+                    },
+                )
 
         zip_buffer.seek(0)
         return zip_buffer.read()
@@ -427,7 +439,7 @@ class MarketplaceService:
                     logger.warning(f"Max total file count ({MAX_SKILL_FILES}) reached")
                     break
                 name = item.get("name", "")
-                if not _validate_path_segment(name):
+                if not self._validate_path_segment(name):
                     continue
                 if item["type"] == "file":
                     files.append(item["path"])
@@ -442,7 +454,7 @@ class MarketplaceService:
         return files
 
     async def download_mcp_config(self, source: str) -> dict[str, Any] | None:
-        source = _validate_source_path(source)
+        source = self._validate_source_path(source)
         url = f"{REPO_RAW_BASE}/{source}/.mcp.json"
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager, suppress
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, AsyncIterator, Callable
@@ -17,14 +17,14 @@ from app.models.db_models import Chat, Message, MessageRole, MessageStreamStatus
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.exceptions import ClaudeAgentException, UserException
 from app.services.message import MessageService
-from app.services.queue import QueueService, serialize_message_attachments
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
 from app.services.streaming.cancellation import CancellationHandler, StreamCancelled
 from app.services.streaming.events import StreamEvent
 from app.services.streaming.publisher import StreamPublisher
 from app.services.streaming.queue_injector import QueueInjector
-from app.services.streaming.session import SessionUpdateCallback, hydrate_chat
+from app.services.streaming.session import SessionUpdateCallback
 from app.services.user import UserService
 from app.utils.redis import redis_connection
 
@@ -66,6 +66,16 @@ class StreamOrchestrator:
     ) -> None:
         self.publisher = publisher
         self.cancellation = cancellation
+
+    @staticmethod
+    def hydrate_chat(chat_data: dict[str, Any]) -> Chat:
+        return Chat(
+            id=UUID(chat_data["id"]),
+            user_id=UUID(chat_data["user_id"]),
+            title=chat_data["title"],
+            sandbox_id=chat_data.get("sandbox_id"),
+            session_id=chat_data.get("session_id"),
+        )
 
     async def process_stream(self, ctx: StreamContext) -> StreamOutcome:
         try:
@@ -366,7 +376,7 @@ class StreamOrchestrator:
             assistant_message_id=str(assistant_message.id),
             content=next_msg["content"],
             model_id=next_msg["model_id"],
-            attachments=serialize_message_attachments(next_msg, user_message),
+            attachments=MessageService.serialize_attachments(next_msg, user_message),
         )
 
     async def _spawn_queue_continuation_task(
@@ -375,7 +385,7 @@ class StreamOrchestrator:
         next_msg: dict[str, Any],
         assistant_message: Message,
     ) -> None:
-        from app.tasks.chat_processor import process_chat
+        from app.tasks.chat import process_chat
 
         user_service = UserService(session_factory=ctx.session_factory)
         user_settings = await user_service.get_user_settings(ctx.chat.user_id, db=None)
@@ -408,51 +418,39 @@ class StreamOrchestrator:
             is_queue_continuation=True,
         )
 
+    @staticmethod
+    async def run_chat_stream(
+        task: Task[Any, Any],
+        prompt: str,
+        system_prompt: str,
+        custom_instructions: str | None,
+        chat_data: dict[str, Any],
+        model_id: str,
+        sandbox_service: SandboxService,
+        session_factory: SessionFactoryType,
+        context_usage_trigger: Callable[..., Any] | None = None,
+        permission_mode: str = "auto",
+        session_id: str | None = None,
+        assistant_message_id: str | None = None,
+        thinking_mode: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        is_custom_prompt: bool = False,
+        is_queue_continuation: bool = False,
+    ) -> str:
+        from app.services.claude_agent import ClaudeAgentService
 
-@asynccontextmanager
-async def _get_session_factory(
-    session_factory: SessionFactoryType | None,
-) -> AsyncIterator[SessionFactoryType]:
-    if session_factory is not None:
-        yield session_factory
-    else:
-        async with get_celery_session() as (session_local, _):
-            yield session_local
+        chat = StreamOrchestrator.hydrate_chat(chat_data)
 
+        chat_id = str(chat.id)
+        session_container: dict[str, Any] = {"session_id": session_id}
+        events: list[StreamEvent] = []
 
-async def run_chat_stream(
-    task: Task[Any, Any],
-    prompt: str,
-    system_prompt: str,
-    custom_instructions: str | None,
-    chat_data: dict[str, Any],
-    model_id: str,
-    sandbox_service: SandboxService,
-    context_usage_trigger: Callable[..., Any] | None = None,
-    permission_mode: str = "auto",
-    session_id: str | None = None,
-    assistant_message_id: str | None = None,
-    thinking_mode: str | None = None,
-    attachments: list[dict[str, Any]] | None = None,
-    is_custom_prompt: bool = False,
-    session_factory: SessionFactoryType | None = None,
-    is_queue_continuation: bool = False,
-) -> str:
-    from app.services.claude_agent import ClaudeAgentService
+        publisher = StreamPublisher(chat_id)
+        result: str = ""
 
-    chat = hydrate_chat(chat_data)
+        try:
+            await publisher.connect(task, skip_stream_delete=is_queue_continuation)
 
-    chat_id = str(chat.id)
-    session_container: dict[str, Any] = {"session_id": session_id}
-    events: list[StreamEvent] = []
-
-    publisher = StreamPublisher(chat_id)
-    result: str = ""
-
-    try:
-        await publisher.connect(task, skip_stream_delete=is_queue_continuation)
-
-        async with _get_session_factory(session_factory) as session_local:
             cancellation = CancellationHandler(chat_id, publisher.redis)
             orchestrator = StreamOrchestrator(publisher, cancellation)
 
@@ -460,11 +458,13 @@ async def run_chat_stream(
                 state="PROGRESS", meta={"status": "Starting AI processing"}
             )
 
-            async with ClaudeAgentService(session_factory=session_local) as ai_service:
+            async with ClaudeAgentService(
+                session_factory=session_factory
+            ) as ai_service:
                 session_callback = SessionUpdateCallback(
                     chat_id=chat_id,
                     assistant_message_id=assistant_message_id,
-                    session_factory=session_local,
+                    session_factory=session_factory,
                     session_container=session_container,
                     sandbox_id=str(chat.sandbox_id) if chat.sandbox_id else "",
                     user_id=str(chat.user_id),
@@ -507,7 +507,7 @@ async def run_chat_stream(
                     assistant_message_id=assistant_message_id,
                     sandbox_service=sandbox_service,
                     chat=chat,
-                    session_factory=session_local,
+                    session_factory=session_factory,
                     events=events,
                 )
 
@@ -526,69 +526,70 @@ async def run_chat_stream(
                 )
 
                 result = outcome.final_content
-    finally:
-        await publisher.cleanup()
-
-    return result
-
-
-async def initialize_and_run_chat(
-    task: Task[Any, Any],
-    prompt: str,
-    system_prompt: str,
-    custom_instructions: str | None,
-    chat_data: dict[str, Any],
-    model_id: str,
-    permission_mode: str,
-    session_id: str | None,
-    assistant_message_id: str | None,
-    thinking_mode: str | None,
-    attachments: list[dict[str, Any]] | None,
-    context_usage_trigger: Callable[..., Any] | None = None,
-    is_custom_prompt: bool = False,
-    is_queue_continuation: bool = False,
-) -> str:
-    async with get_celery_session() as (SessionFactory, _):
-        async with SessionFactory() as db:
-            user_id = UUID(chat_data["user_id"])
-            user_service = UserService(session_factory=SessionFactory)
-
-            try:
-                user_settings = await user_service.get_user_settings(user_id, db=db)
-            except UserException:
-                raise UserException("User settings not found")
-
-            provider_type = user_settings.sandbox_provider
-            api_key = None
-            if provider_type == SandboxProviderType.E2B.value:
-                api_key = user_settings.e2b_api_key
-            elif provider_type == SandboxProviderType.MODAL.value:
-                api_key = user_settings.modal_api_key
-            provider = create_sandbox_provider(
-                provider_type=provider_type,
-                api_key=api_key,
-            )
-
-        sandbox_service = SandboxService(
-            provider=provider, session_factory=SessionFactory
-        )
-        try:
-            return await run_chat_stream(
-                task,
-                prompt=prompt,
-                system_prompt=system_prompt,
-                custom_instructions=custom_instructions,
-                chat_data=chat_data,
-                model_id=model_id,
-                sandbox_service=sandbox_service,
-                context_usage_trigger=context_usage_trigger,
-                permission_mode=permission_mode,
-                session_id=session_id,
-                assistant_message_id=assistant_message_id,
-                thinking_mode=thinking_mode,
-                attachments=attachments,
-                is_custom_prompt=is_custom_prompt,
-                is_queue_continuation=is_queue_continuation,
-            )
         finally:
-            await sandbox_service.cleanup()
+            await publisher.cleanup()
+
+        return result
+
+    @staticmethod
+    async def initialize_and_run_chat(
+        task: Task[Any, Any],
+        prompt: str,
+        system_prompt: str,
+        custom_instructions: str | None,
+        chat_data: dict[str, Any],
+        model_id: str,
+        permission_mode: str,
+        session_id: str | None,
+        assistant_message_id: str | None,
+        thinking_mode: str | None,
+        attachments: list[dict[str, Any]] | None,
+        context_usage_trigger: Callable[..., Any] | None = None,
+        is_custom_prompt: bool = False,
+        is_queue_continuation: bool = False,
+    ) -> str:
+        async with get_celery_session() as (SessionFactory, _):
+            async with SessionFactory() as db:
+                user_id = UUID(chat_data["user_id"])
+                user_service = UserService(session_factory=SessionFactory)
+
+                try:
+                    user_settings = await user_service.get_user_settings(user_id, db=db)
+                except UserException:
+                    raise UserException("User settings not found")
+
+                provider_type = user_settings.sandbox_provider
+                api_key = None
+                if provider_type == SandboxProviderType.E2B.value:
+                    api_key = user_settings.e2b_api_key
+                elif provider_type == SandboxProviderType.MODAL.value:
+                    api_key = user_settings.modal_api_key
+                provider = create_sandbox_provider(
+                    provider_type=provider_type,
+                    api_key=api_key,
+                )
+
+            sandbox_service = SandboxService(
+                provider=provider, session_factory=SessionFactory
+            )
+            try:
+                return await StreamOrchestrator.run_chat_stream(
+                    task,
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    custom_instructions=custom_instructions,
+                    chat_data=chat_data,
+                    model_id=model_id,
+                    sandbox_service=sandbox_service,
+                    session_factory=SessionFactory,
+                    context_usage_trigger=context_usage_trigger,
+                    permission_mode=permission_mode,
+                    session_id=session_id,
+                    assistant_message_id=assistant_message_id,
+                    thinking_mode=thinking_mode,
+                    attachments=attachments,
+                    is_custom_prompt=is_custom_prompt,
+                    is_queue_continuation=is_queue_continuation,
+                )
+            finally:
+                await sandbox_service.cleanup()

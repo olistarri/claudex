@@ -123,7 +123,6 @@ class Settings(BaseSettings):
     CONTEXT_WINDOW_TOKENS: int = 200_000
 
     # Sandbox configuration
-    SANDBOX_PROVIDER: str = "docker"  # "docker" or "e2b"
 
     # E2B Sandbox configuration
     E2B_TEMPLATE_ID: str = "61kjt118n5mlnh5c00j9"

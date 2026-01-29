@@ -12,16 +12,6 @@ from app.models.db_models import Chat, Message
 logger = logging.getLogger(__name__)
 
 
-def hydrate_chat(chat_data: dict[str, Any]) -> Chat:
-    return Chat(
-        id=UUID(chat_data["id"]),
-        user_id=UUID(chat_data["user_id"]),
-        title=chat_data["title"],
-        sandbox_id=chat_data.get("sandbox_id"),
-        session_id=chat_data.get("session_id"),
-    )
-
-
 class SessionUpdateCallback:
     def __init__(
         self,

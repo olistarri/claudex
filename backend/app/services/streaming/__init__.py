@@ -5,12 +5,11 @@ from app.services.streaming.orchestrator import (
     StreamContext,
     StreamOrchestrator,
     StreamOutcome,
-    initialize_and_run_chat,
 )
 from app.services.streaming.processor import StreamProcessor
 from app.services.streaming.publisher import StreamPublisher
 from app.services.streaming.queue_injector import QueueInjector
-from app.services.streaming.session import SessionUpdateCallback, hydrate_chat
+from app.services.streaming.session import SessionUpdateCallback
 
 __all__ = [
     "ActiveToolState",
@@ -26,6 +25,4 @@ __all__ = [
     "StreamProcessor",
     "StreamPublisher",
     "ToolPayload",
-    "hydrate_chat",
-    "initialize_and_run_chat",
 ]

@@ -7,7 +7,7 @@ from uuid import UUID
 from app.constants import SANDBOX_HOME_DIR
 from app.models.db_models import Message, MessageRole, MessageStreamStatus
 from app.services.message import MessageService
-from app.services.queue import QueueService, serialize_message_attachments
+from app.services.queue import QueueService
 from app.services.streaming.events import StreamEvent
 from app.utils.redis import redis_connection
 
@@ -88,7 +88,7 @@ class QueueInjector:
             assistant_message_id=str(assistant_message.id),
             content=queued_msg["content"],
             model_id=queued_msg["model_id"],
-            attachments=serialize_message_attachments(queued_msg, user_message),
+            attachments=MessageService.serialize_attachments(queued_msg, user_message),
             injected_inline=True,
         )
 

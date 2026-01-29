@@ -51,11 +51,11 @@ from app.services.provider import ProviderService
 from app.services.chat import ChatService
 from app.services.claude_agent import ClaudeAgentService
 from app.services.sandbox import SandboxService
-from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
+from app.services.sandbox_providers.docker_provider import LocalDockerProvider
 from app.services.sandbox_providers.types import DockerConfig
 from app.services.storage import StorageService
 from app.services.streaming.context_usage import ContextUsageTracker
-from app.services.streaming.orchestrator import run_chat_stream
+from app.services.streaming.orchestrator import StreamOrchestrator
 from app.services.user import UserService
 
 settings = get_settings()
@@ -365,7 +365,7 @@ class TestChatService(ChatService):
             "session_id": chat.session_id,
         }
 
-        await run_chat_stream(
+        await StreamOrchestrator.run_chat_stream(
             task=mock_task,
             prompt=prompt,
             system_prompt=system_prompt,
@@ -416,10 +416,7 @@ class DockerSandboxManager:
     def __init__(self, config: DockerConfig):
         self.config = config
         self.sandbox_id: str | None = None
-        provider = create_sandbox_provider(
-            provider_type=SandboxProviderType.DOCKER,
-            docker_config=config,
-        )
+        provider = LocalDockerProvider(config=config)
         self.service = SandboxService(provider)
 
     async def get_sandbox(self) -> str:

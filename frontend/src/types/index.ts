@@ -2,7 +2,7 @@ export * from './chat.types';
 export * from './file-system.types';
 export * from './user.types';
 export * from './tools.types';
-export * from './scheduling.types';
+export * from './scheduler.types';
 export * from './ui.types';
 export * from './api.types';
 export * from './settings.types';

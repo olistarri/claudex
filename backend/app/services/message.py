@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select, delete, update, or_, and_
@@ -16,7 +16,7 @@ from app.models.db_models import (
 )
 from app.models.schemas import CursorPaginatedMessages
 from app.models.types import MessageAttachmentDict
-from app.services.base import BaseDbService, SessionFactoryType
+from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import MessageException, ErrorCode
 from app.utils.cursor import encode_cursor, decode_cursor, InvalidCursorError
 
@@ -27,6 +27,26 @@ logger = logging.getLogger(__name__)
 class MessageService(BaseDbService[Message]):
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         super().__init__(session_factory)
+
+    @staticmethod
+    def serialize_attachments(
+        queued_msg: dict[str, Any],
+        user_message: Message,
+    ) -> list[dict[str, Any]] | None:
+        if not queued_msg.get("attachments") or not user_message.attachments:
+            return None
+
+        return [
+            {
+                "id": str(att.id),
+                "message_id": str(att.message_id),
+                "file_url": att.file_url,
+                "file_type": att.file_type,
+                "filename": att.filename,
+                "created_at": att.created_at.isoformat(),
+            }
+            for att in user_message.attachments
+        ]
 
     async def create_message(
         self,

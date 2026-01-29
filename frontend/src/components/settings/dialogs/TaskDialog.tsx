@@ -195,7 +195,7 @@ export const TaskDialog: React.FC<TaskDialogProps> = ({
               className="text-sm"
             />
             <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-              Time is in your browser's local timezone
+              Time uses your account timezone
             </p>
           </div>
         </div>

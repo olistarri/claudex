@@ -246,19 +246,14 @@ class PluginInstallerService:
         package: str | None = None
         filtered_args: list[str] = []
 
-        skip_next = False
-        for i, arg in enumerate(args):
-            if skip_next:
-                skip_next = False
-                continue
+        for arg in args:
             if arg == "-y":
-                skip_next = True
-                if i + 1 < len(args):
-                    package = args[i + 1]
-            elif arg.startswith("@") or (not arg.startswith("-") and not package):
+                # build_mcp_config already applies -y for npx; drop redundant -y from marketplace configs
+                continue
+            if package is None and (arg.startswith("@") or not arg.startswith("-")):
                 package = arg
-            else:
-                filtered_args.append(arg)
+                continue
+            filtered_args.append(arg)
 
         return {
             "name": name,

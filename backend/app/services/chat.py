@@ -2,10 +2,9 @@ import asyncio
 import logging
 import math
 from datetime import datetime, timezone
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from uuid import UUID
 
-from celery.result import AsyncResult
 from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import selectinload
 
@@ -32,20 +31,23 @@ from app.models.schemas import (
 )
 from app.models.types import ChatCompletionResult, MessageAttachmentDict
 from app.prompts.system_prompt import build_system_prompt_for_chat
-from app.services.base import BaseDbService, SessionFactoryType
+from app.services.db import BaseDbService, SessionFactoryType
 from app.services.provider import ProviderService
 from app.services.claude_agent import ClaudeAgentService
 from app.services.exceptions import ChatException, ErrorCode
 from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import (
-    DockerConfig,
     LocalDockerProvider,
     SandboxProviderType,
+    create_docker_config,
 )
 from app.services.storage import StorageService
 from app.services.user import UserService
-from app.tasks.chat_processor import process_chat
+from app.tasks.chat import process_chat
+
+if TYPE_CHECKING:
+    from celery.result import AsyncResult
 from app.utils.message_events import extract_user_prompt_and_reviews
 from app.utils.redis import redis_connection
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys
@@ -557,15 +559,7 @@ class ChatService(BaseDbService[Chat]):
                 status_code=400,
             )
 
-        docker_config = DockerConfig(
-            image=settings.DOCKER_IMAGE,
-            network=settings.DOCKER_NETWORK,
-            host=settings.DOCKER_HOST,
-            preview_base_url=settings.DOCKER_PREVIEW_BASE_URL,
-            sandbox_domain=settings.DOCKER_SANDBOX_DOMAIN,
-            traefik_network=settings.DOCKER_TRAEFIK_NETWORK,
-        )
-        provider = LocalDockerProvider(config=docker_config)
+        provider = LocalDockerProvider(config=create_docker_config())
         fork_sandbox_service = SandboxService(provider)
 
         try:

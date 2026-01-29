@@ -19,10 +19,10 @@ export const queryKeys = {
     browserStatus: (sandboxId: string) => ['sandbox', sandboxId, 'browser-status'] as const,
   },
   models: 'models',
-  scheduling: {
-    tasks: ['scheduling', 'tasks'] as const,
-    task: (taskId: string) => ['scheduling', 'tasks', taskId] as const,
-    history: (taskId: string) => ['scheduling', 'tasks', taskId, 'history'] as const,
+  scheduler: {
+    tasks: ['scheduler', 'tasks'] as const,
+    task: (taskId: string) => ['scheduler', 'tasks', taskId] as const,
+    history: (taskId: string) => ['scheduler', 'tasks', taskId, 'history'] as const,
   },
   marketplace: {
     catalog: ['marketplace', 'catalog'] as const,

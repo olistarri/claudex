@@ -10,14 +10,14 @@ import { validateId } from '@/utils/validation';
 
 async function createTask(data: CreateScheduledTaskRequest): Promise<ScheduledTask> {
   return withAuth(async () => {
-    const response = await apiClient.post<ScheduledTask>('/scheduling/tasks', data);
+    const response = await apiClient.post<ScheduledTask>('/scheduler/tasks', data);
     return ensureResponse(response, 'Invalid response from server');
   });
 }
 
 async function getTasks(): Promise<ScheduledTask[]> {
   return withAuth(async () => {
-    const response = await apiClient.get<ScheduledTask[]>('/scheduling/tasks');
+    const response = await apiClient.get<ScheduledTask[]>('/scheduler/tasks');
     return response ?? [];
   });
 }
@@ -29,7 +29,7 @@ async function updateTask(
   validateId(taskId, 'Task ID');
 
   return withAuth(async () => {
-    const response = await apiClient.put<ScheduledTask>(`/scheduling/tasks/${taskId}`, data);
+    const response = await apiClient.put<ScheduledTask>(`/scheduler/tasks/${taskId}`, data);
     return ensureResponse(response, 'Invalid response from server');
   });
 }
@@ -38,7 +38,7 @@ async function deleteTask(taskId: string): Promise<void> {
   validateId(taskId, 'Task ID');
 
   return withAuth(async () => {
-    await apiClient.delete(`/scheduling/tasks/${taskId}`);
+    await apiClient.delete(`/scheduler/tasks/${taskId}`);
   });
 }
 
@@ -46,12 +46,12 @@ async function toggleTask(taskId: string): Promise<TaskToggleResponse> {
   validateId(taskId, 'Task ID');
 
   return withAuth(async () => {
-    const response = await apiClient.post<TaskToggleResponse>(`/scheduling/tasks/${taskId}/toggle`);
+    const response = await apiClient.post<TaskToggleResponse>(`/scheduler/tasks/${taskId}/toggle`);
     return ensureResponse(response, 'Invalid response from server');
   });
 }
 
-export const schedulingService = {
+export const schedulerService = {
   createTask,
   getTasks,
   updateTask,

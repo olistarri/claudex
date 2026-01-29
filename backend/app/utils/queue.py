@@ -1,7 +1,9 @@
-import asyncio
 from asyncio import QueueEmpty, QueueFull
 from contextlib import suppress
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    import asyncio
 
 T = TypeVar("T")
 

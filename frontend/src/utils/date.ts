@@ -1,3 +1,6 @@
+import type { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
+
 const padTimeUnit = (value: number): string => value.toString().padStart(2, '0');
 
 const parseTimeParts = (time: string): { hours: number; minutes: number; seconds: number } => {
@@ -13,39 +16,33 @@ const parseTimeParts = (time: string): { hours: number; minutes: number; seconds
   };
 };
 
-export const localTimeInputToUtc = (time: string): string => {
+const toUtcDate = (time: string): Date => {
   const { hours, minutes, seconds } = parseTimeParts(time);
-  const local = new Date();
-  local.setHours(hours, minutes, seconds, 0);
-
-  const utcHours = padTimeUnit(local.getUTCHours());
-  const utcMinutes = padTimeUnit(local.getUTCMinutes());
-  const utcSeconds = padTimeUnit(local.getUTCSeconds());
-
-  return `${utcHours}:${utcMinutes}:${utcSeconds}`;
+  return new Date(Date.UTC(1970, 0, 1, hours, minutes, seconds, 0));
 };
 
-export const utcTimeToLocalInput = (time: string): string => {
+export const normalizeLocalTimeInput = (time: string): string => {
   const { hours, minutes, seconds } = parseTimeParts(time);
-  const now = new Date();
-  const utcDate = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hours, minutes, seconds),
-  );
-
-  return `${padTimeUnit(utcDate.getHours())}:${padTimeUnit(utcDate.getMinutes())}`;
+  const hasSeconds = time.split(':').length === 3;
+  if (hasSeconds) {
+    return `${padTimeUnit(hours)}:${padTimeUnit(minutes)}:${padTimeUnit(seconds)}`;
+  }
+  return `${padTimeUnit(hours)}:${padTimeUnit(minutes)}`;
 };
 
-export const formatLocalTimeFromUtc = (time: string): string => {
-  const { hours, minutes, seconds } = parseTimeParts(time);
-  const now = new Date();
-  const utcDate = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hours, minutes, seconds),
-  );
+export const parseScheduledTime = (time: string): Dayjs => {
+  const normalized = normalizeLocalTimeInput(time);
+  const { hours, minutes, seconds } = parseTimeParts(normalized);
 
+  return dayjs().hour(hours).minute(minutes).second(seconds).millisecond(0);
+};
+
+export const formatLocalTime = (time: string): string => {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
-  }).format(utcDate);
+    timeZone: 'UTC',
+  }).format(toUtcDate(time));
 };
 
 export const formatRelativeTime = (date: string | Date): string => {

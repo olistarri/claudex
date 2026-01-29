@@ -2,7 +2,7 @@ from typing import Literal, cast
 
 from app.models.types import CustomAgentDict, YamlMetadata
 
-from app.services.base_resource import BaseMarkdownResourceService
+from app.services.resource import BaseMarkdownResourceService
 from app.services.exceptions import AgentException
 
 AgentModel = Literal["sonnet", "opus", "haiku", "inherit"]

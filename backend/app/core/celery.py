@@ -1,9 +1,8 @@
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from celery import Celery
-from redis.asyncio import Redis
 
 from app.constants import REDIS_KEY_CHAT_STREAM
 from app.core.config import get_settings
@@ -11,11 +10,18 @@ from app.core.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
+
 celery_app = Celery(
     "claudex",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks.chat_processor", "app.tasks.scheduler"],
+    include=[
+        "app.tasks.chat",
+        "app.tasks.scheduler",
+        "app.tasks.cleanup",
+    ],
 )
 
 celery_app.conf.update(
@@ -42,6 +48,10 @@ celery_app.conf.beat_schedule = {
     "cleanup-expired-refresh-tokens-daily": {
         "task": "cleanup_expired_refresh_tokens",
         "schedule": 86400.0,
+    },
+    "cleanup-orphaned-sandboxes-hourly": {
+        "task": "cleanup_orphaned_sandboxes",
+        "schedule": 3600.0,
     },
 }
 

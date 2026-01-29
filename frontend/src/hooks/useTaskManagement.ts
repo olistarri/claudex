@@ -3,7 +3,7 @@ import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import type { RecurrenceType, ScheduledTask } from '@/types';
 import { useCreateScheduledTaskMutation, useUpdateScheduledTaskMutation } from '@/hooks/queries';
-import { localTimeInputToUtc, utcTimeToLocalInput } from '@/utils/date';
+import { normalizeLocalTimeInput, parseScheduledTime } from '@/utils/date';
 
 interface TaskFormType {
   task_name: string;
@@ -50,12 +50,11 @@ export const useTaskManagement = (defaultModelId: string) => {
 
   const handleEditTask = useCallback((task: ScheduledTask) => {
     setEditingTaskId(task.id);
-    const localTime = utcTimeToLocalInput(task.scheduled_time);
     setTaskForm({
       task_name: task.task_name,
       prompt_message: task.prompt_message,
       recurrence_type: task.recurrence_type,
-      scheduled_time: dayjs(localTime, 'HH:mm'),
+      scheduled_time: parseScheduledTime(task.scheduled_time),
       scheduled_day: task.scheduled_day !== null ? task.scheduled_day : undefined,
       model_id: task.model_id || '',
     });
@@ -101,12 +100,12 @@ export const useTaskManagement = (defaultModelId: string) => {
       return;
     }
 
-    const timeString = taskForm.scheduled_time.format('HH:mm');
+    const timeString = normalizeLocalTimeInput(taskForm.scheduled_time.format('HH:mm'));
     const taskData = {
       task_name: taskForm.task_name,
       prompt_message: taskForm.prompt_message,
       recurrence_type: taskForm.recurrence_type,
-      scheduled_time: localTimeInputToUtc(timeString),
+      scheduled_time: timeString,
       scheduled_day: taskForm.scheduled_day,
       model_id: taskForm.model_id,
     };

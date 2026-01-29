@@ -2,12 +2,11 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID
 
 from celery.exceptions import NotRegistered
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status, Request
-from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 from sse_starlette.sse import EventSourceResponse
@@ -59,6 +58,9 @@ from app.services.exceptions import (
 from app.services.permission_manager import PermissionManager
 from app.services.queue import QueueService
 from app.utils.redis import redis_connection, redis_pubsub
+
+if TYPE_CHECKING:
+    from redis.asyncio import Redis
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

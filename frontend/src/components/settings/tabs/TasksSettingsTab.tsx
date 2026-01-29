@@ -9,7 +9,6 @@ import {
   Loader2,
   Clock,
   Calendar,
-  History,
   Play,
   Pause,
   Edit2,
@@ -19,11 +18,10 @@ import {
   useDeleteScheduledTaskMutation,
   useScheduledTasksQuery,
   useToggleScheduledTaskMutation,
-} from '@/hooks/queries/useScheduling';
-import { MAX_TASKS_LIMIT } from '@/config/constants';
+} from '@/hooks/queries/useScheduler';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { formatLocalTimeFromUtc } from '@/utils/date';
+import { formatLocalTime } from '@/utils/date';
 
 interface TasksSettingsTabProps {
   onAddTask: () => void;
@@ -48,8 +46,10 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
 
   const tasksList = useMemo(() => tasks || [], [tasks]);
   const total = tasksList.length;
-  const activeCount = useMemo(() => tasksList.filter((t) => t.enabled).length, [tasksList]);
-  const isLimitReached = total >= MAX_TASKS_LIMIT;
+  const activeCount = useMemo(
+    () => tasksList.filter((t) => t.status === TaskStatus.ACTIVE).length,
+    [tasksList],
+  );
 
   const handleToggleTask = useCallback(
     async (task: ScheduledTask) => {
@@ -90,7 +90,7 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
   }, [taskPendingDelete, deleteTask]);
 
   const getRecurrenceDisplay = (task: ScheduledTask) => {
-    const timeLabel = formatLocalTimeFromUtc(task.scheduled_time);
+    const timeLabel = formatLocalTime(task.scheduled_time);
 
     switch (task.recurrence_type) {
       case RecurrenceType.ONCE:
@@ -132,19 +132,17 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
   };
 
   const getStatusBadge = (task: ScheduledTask) => {
-    if (!task.enabled) {
-      return (
-        <span className="rounded-full bg-text-quaternary/10 px-2 py-1 text-xs text-text-secondary dark:bg-text-dark-quaternary/10 dark:text-text-dark-secondary">
-          Paused
-        </span>
-      );
-    }
-
     switch (task.status) {
       case TaskStatus.ACTIVE:
         return (
           <span className="rounded-full bg-success-100 px-2 py-1 text-xs text-success-700 dark:bg-success-900/30 dark:text-success-400">
             Active
+          </span>
+        );
+      case TaskStatus.PAUSED:
+        return (
+          <span className="rounded-full bg-text-quaternary/10 px-2 py-1 text-xs text-text-secondary dark:bg-text-dark-quaternary/10 dark:text-text-dark-secondary">
+            Paused
           </span>
         );
       case TaskStatus.FAILED:
@@ -211,8 +209,6 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
             variant="outline"
             size="sm"
             className="flex w-full shrink-0 items-center justify-center gap-1.5 sm:w-auto"
-            disabled={isLimitReached}
-            title={isLimitReached ? `Maximum of ${MAX_TASKS_LIMIT} tasks reached` : undefined}
             aria-label="Add new scheduled task"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -239,7 +235,7 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
           <>
             {total > 0 && (
               <p className="mb-3 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                {total} / {MAX_TASKS_LIMIT} tasks • {activeCount} active
+                {total} tasks • {activeCount} active
               </p>
             )}
             <div className="space-y-3">
@@ -267,28 +263,13 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                           <span>{getRecurrenceDisplay(task)}</span>
                         </div>
 
-                        {task.next_execution && task.enabled && (
+                        {task.next_execution && task.status === TaskStatus.ACTIVE && (
                           <div className="flex items-center gap-1.5">
                             <Calendar className="h-4 w-4" />
                             <span>Next: {getNextExecutionDisplay(task)}</span>
                           </div>
                         )}
-
-                        {task.execution_count > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <History className="h-4 w-4" />
-                            <span>
-                              Ran {task.execution_count} time{task.execution_count !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                        )}
                       </div>
-
-                      {task.last_error && (
-                        <div className="mt-2 rounded bg-error-50 p-2 text-xs text-error-600 dark:bg-error-900/20 dark:text-error-400">
-                          Error: {task.last_error}
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -298,13 +279,15 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         size="icon"
                         onClick={() => handleToggleTask(task)}
                         className="h-8 w-8 text-text-secondary dark:text-text-dark-secondary"
-                        title={task.enabled ? 'Pause task' : 'Resume task'}
-                        aria-label={task.enabled ? 'Pause task' : 'Resume task'}
+                        title={task.status === TaskStatus.ACTIVE ? 'Pause task' : 'Resume task'}
+                        aria-label={
+                          task.status === TaskStatus.ACTIVE ? 'Pause task' : 'Resume task'
+                        }
                         disabled={togglingTaskId === task.id}
                       >
                         {togglingTaskId === task.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : task.enabled ? (
+                        ) : task.status === TaskStatus.ACTIVE ? (
                           <Pause className="h-4 w-4" />
                         ) : (
                           <Play className="h-4 w-4" />

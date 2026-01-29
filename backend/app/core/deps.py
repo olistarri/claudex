@@ -4,7 +4,6 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.security import get_current_user
 from app.core.user_manager import optional_current_active_user
 from app.db.session import SessionLocal, get_db
@@ -18,11 +17,7 @@ from app.services.exceptions import UserException
 from app.services.message import MessageService
 from app.services.refresh_token import RefreshTokenService
 from app.services.sandbox import SandboxService
-from app.services.sandbox_providers import (
-    SandboxProviderType,
-    create_docker_config,
-    create_sandbox_provider,
-)
+from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
 from app.services.scheduler import SchedulerService
 from app.services.marketplace import MarketplaceService
 from app.services.plugin_installer import PluginInstallerService
@@ -115,8 +110,7 @@ async def get_sandbox_service(
     db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> AsyncIterator[SandboxService]:
-    settings = get_settings()
-    provider_type = SandboxProviderType(settings.SANDBOX_PROVIDER)
+    provider_type = SandboxProviderType.DOCKER
     e2b_api_key = None
     modal_api_key = None
 
@@ -167,7 +161,6 @@ async def get_sandbox_service(
     provider = create_sandbox_provider(
         provider_type=provider_type,
         api_key=api_key,
-        docker_config=create_docker_config(),
     )
     try:
         yield SandboxService(provider)

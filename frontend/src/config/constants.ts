@@ -7,7 +7,6 @@ export const SandboxProvider = {
 export type SandboxProviderType = (typeof SandboxProvider)[keyof typeof SandboxProvider];
 
 export const CONTEXT_WINDOW_TOKENS = 200_000;
-export const MAX_TASKS_LIMIT = 10;
 
 export const MAX_MESSAGE_SIZE_BYTES = 100000;
 

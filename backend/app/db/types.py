@@ -3,7 +3,7 @@ import uuid as uuid_module
 from typing import Any
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import JSON, String
+from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
@@ -52,7 +52,7 @@ class EncryptedString(TypeDecorator[str]):
 
 
 class EncryptedJSON(TypeDecorator[Any]):
-    impl = JSON
+    impl = String
     cache_ok = True
 
     def process_bind_param(self, value: Any, dialect: Dialect) -> Any:

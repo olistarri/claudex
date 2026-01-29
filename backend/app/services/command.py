@@ -1,5 +1,5 @@
 from app.models.types import CustomSlashCommandDict, YamlMetadata
-from app.services.base_resource import BaseMarkdownResourceService
+from app.services.resource import BaseMarkdownResourceService
 from app.services.exceptions import CommandException
 
 

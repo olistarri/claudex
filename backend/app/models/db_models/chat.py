@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,14 +16,18 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    sandbox_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    sandbox_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    session_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    context_token_usage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sandbox_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    sandbox_provider: Mapped[str] = mapped_column(
+        String(32), default="docker", server_default="docker", nullable=False
+    )
+    session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    context_token_usage: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -37,11 +41,9 @@ class Chat(Base):
     )
 
     __table_args__ = (
-        Index("idx_chats_user_id_id", "user_id", "id"),
         Index("idx_chats_user_id_sandbox_id", "user_id", "sandbox_id"),
         Index("idx_chats_user_id_deleted_at", "user_id", "deleted_at"),
         Index("idx_chats_user_id_updated_at_desc", "user_id", "updated_at"),
-        Index("idx_chats_user_id_pinned_at", "user_id", "pinned_at"),
     )
 
 
@@ -50,9 +52,9 @@ class Message(Base):
 
     id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     chat_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False, index=True
+        GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
     )
-    content: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[MessageRole] = mapped_column(
         SQLAlchemyEnum(
             MessageRole,
@@ -61,11 +63,11 @@ class Message(Base):
         ),
         nullable=False,
     )
-    model_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     checkpoint_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    session_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     total_cost_usd: Mapped[float | None] = mapped_column(
-        Float, nullable=True, default=0.0
+        Float, nullable=True, default=0.0, server_default="0.0"
     )
     stream_status: Mapped[MessageStreamStatus] = mapped_column(
         SQLAlchemyEnum(
@@ -74,7 +76,8 @@ class Message(Base):
             values_callable=lambda obj: [entry.value for entry in obj],
         ),
         nullable=False,
-        default=MessageStreamStatus.COMPLETED,
+        default=MessageStreamStatus.IN_PROGRESS,
+        server_default="in_progress",
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -88,7 +91,6 @@ class Message(Base):
     __table_args__ = (
         Index("idx_messages_chat_id_created_at", "chat_id", "created_at"),
         Index("idx_messages_role_created", "role", "created_at"),
-        Index("idx_messages_stream_status", "stream_status"),
         Index("idx_messages_chat_id_deleted_at", "chat_id", "deleted_at"),
         Index("idx_messages_chat_id_role_deleted", "chat_id", "role", "deleted_at"),
     )
@@ -104,8 +106,8 @@ class MessageAttachment(Base):
         nullable=False,
         index=True,
     )
-    file_url: Mapped[str] = mapped_column(String, nullable=False)
-    file_path: Mapped[str] = mapped_column(String, nullable=False)
+    file_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     file_type: Mapped[AttachmentType] = mapped_column(
         SQLAlchemyEnum(
             AttachmentType,
@@ -114,7 +116,8 @@ class MessageAttachment(Base):
         ),
         nullable=False,
         default=AttachmentType.IMAGE,
+        server_default="image",
     )
-    filename: Mapped[str | None] = mapped_column(String, nullable=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
 
     message = relationship("Message", back_populates="attachments")

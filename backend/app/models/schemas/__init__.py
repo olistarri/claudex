@@ -51,7 +51,7 @@ from .sandbox import (
     UpdateSecretRequest,
     VNCUrlResponse,
 )
-from .scheduling import (
+from .scheduler import (
     PaginatedTaskExecutions,
     ScheduledTaskBase,
     ScheduledTaskResponse,
@@ -138,7 +138,7 @@ __all__ = [
     "UpdateIDEThemeRequest",
     "UpdateSecretRequest",
     "VNCUrlResponse",
-    # scheduling
+    # scheduler
     "PaginatedTaskExecutions",
     "ScheduledTaskBase",
     "ScheduledTaskResponse",

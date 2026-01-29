@@ -12,17 +12,17 @@ from app.services.streaming.events import ActiveToolState, StreamEvent
 logger = logging.getLogger(__name__)
 
 
-def _default_tool_title(tool_name: str) -> str:
-    if tool_name.startswith("mcp__"):
-        parts = tool_name.split("__", maxsplit=2)
-        if len(parts) == 3:
-            return parts[2].replace("_", " ")
-    return tool_name
-
-
 class ToolHandlerRegistry:
     def __init__(self) -> None:
         self._active: dict[str, ActiveToolState] = {}
+
+    @staticmethod
+    def _default_tool_title(tool_name: str) -> str:
+        if tool_name.startswith("mcp__"):
+            parts = tool_name.split("__", maxsplit=2)
+            if len(parts) == 3:
+                return parts[2].replace("_", " ")
+        return tool_name
 
     def start_tool(
         self,
@@ -43,7 +43,7 @@ class ToolHandlerRegistry:
         tool_state = ActiveToolState(
             id=content_block.id,
             name=content_block.name,
-            title=_default_tool_title(content_block.name),
+            title=self._default_tool_title(content_block.name),
             parent_id=parent_tool_id,
             input=input_copy,
         )

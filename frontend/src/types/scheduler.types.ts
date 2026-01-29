@@ -22,13 +22,7 @@ export interface ScheduledTask {
   scheduled_time: string;
   scheduled_day: number | null;
   next_execution: string | null;
-  last_execution: string | null;
   status: TaskStatus;
-  enabled: boolean;
-  execution_count: number;
-  failure_count: number;
-  max_retries: number;
-  last_error: string | null;
   model_id: string | null;
   created_at: string;
   updated_at: string;
@@ -50,7 +44,7 @@ export interface UpdateScheduledTaskRequest {
   scheduled_time?: string;
   scheduled_day?: number;
   model_id?: string;
-  enabled?: boolean;
+  status?: TaskStatus;
 }
 
 export interface TaskToggleResponse {

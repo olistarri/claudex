@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
-import { schedulingService } from '@/services/schedulingService';
+import { schedulerService } from '@/services/schedulerService';
 import type {
   ScheduledTask,
   CreateScheduledTaskRequest,
@@ -11,8 +11,8 @@ import { queryKeys } from './queryKeys';
 
 export const useScheduledTasksQuery = (options?: Partial<UseQueryOptions<ScheduledTask[]>>) => {
   return useQuery({
-    queryKey: queryKeys.scheduling.tasks,
-    queryFn: () => schedulingService.getTasks(),
+    queryKey: queryKeys.scheduler.tasks,
+    queryFn: () => schedulerService.getTasks(),
     ...options,
   });
 };
@@ -24,9 +24,9 @@ export const useCreateScheduledTaskMutation = (
   const { onSuccess, ...restOptions } = options ?? {};
 
   return useMutation({
-    mutationFn: (data: CreateScheduledTaskRequest) => schedulingService.createTask(data),
+    mutationFn: (data: CreateScheduledTaskRequest) => schedulerService.createTask(data),
     onSuccess: async (data, variables, context, mutation) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.tasks });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.tasks });
       if (onSuccess) {
         await onSuccess(data, variables, context, mutation);
       }
@@ -48,10 +48,10 @@ export const useUpdateScheduledTaskMutation = (
 
   return useMutation({
     mutationFn: ({ taskId, data }: UpdateScheduledTaskParams) =>
-      schedulingService.updateTask(taskId, data),
+      schedulerService.updateTask(taskId, data),
     onSuccess: async (data, variables, context, mutation) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.task(variables.taskId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.tasks });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.task(variables.taskId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.tasks });
       if (onSuccess) {
         await onSuccess(data, variables, context, mutation);
       }
@@ -67,9 +67,9 @@ export const useDeleteScheduledTaskMutation = (
   const { onSuccess, ...restOptions } = options ?? {};
 
   return useMutation({
-    mutationFn: (taskId: string) => schedulingService.deleteTask(taskId),
+    mutationFn: (taskId: string) => schedulerService.deleteTask(taskId),
     onSuccess: async (data, taskId, context, mutation) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.tasks });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.tasks });
       if (onSuccess) {
         await onSuccess(data, taskId, context, mutation);
       }
@@ -85,10 +85,10 @@ export const useToggleScheduledTaskMutation = (
   const { onSuccess, ...restOptions } = options ?? {};
 
   return useMutation({
-    mutationFn: (taskId: string) => schedulingService.toggleTask(taskId),
+    mutationFn: (taskId: string) => schedulerService.toggleTask(taskId),
     onSuccess: async (data, taskId, context, mutation) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.tasks });
-      queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.task(taskId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.tasks });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scheduler.task(taskId) });
       if (onSuccess) {
         await onSuccess(data, taskId, context, mutation);
       }
