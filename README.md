@@ -86,6 +86,19 @@ Automate recurring tasks with Celery workers.
 ### Secrets Management
 - Environment variables for sandbox execution
 
+### Integrations
+- **Gmail** - Read, send, and manage emails via [Gmail MCP Server](https://github.com/GongRzhe/Gmail-MCP-Server)
+
+#### Gmail Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project and enable the Gmail API
+3. Create OAuth credentials (Desktop app for localhost, Web application for hosted URLs)
+4. If using Web application, add redirect URI: `https://YOUR_DOMAIN/api/v1/integrations/gmail/callback`
+5. Download the JSON credentials file
+6. In Claudex Settings → Integrations, upload your credentials file
+7. Click Connect Gmail to authorize
+
 ### Custom Instructions
 - System prompts for global context
 - Custom instructions injected with each message
@@ -105,13 +118,14 @@ All providers use Claude Code under the hood. Non-Anthropic providers work throu
 
 This means all providers share the same conversation history stored in `~/.claude` JSONL files, plus the same slash commands, skills, agents, and MCP servers. You can develop a feature with Claude, then switch to GPT-5.2 Codex for review—it already has the full context without needing to re-read files.
 
-### Built-in Providers
+### Supported Providers
 
 | Provider | Auth Method | Models |
 |----------|-------------|--------|
-| Anthropic | OAuth token from `claude setup-token` | Claude Sonnet 4, Opus 4 |
+| Anthropic | OAuth token from `claude setup-token` | Sonnet 4.5, Opus 4.5, Haiku 4.5 |
 | OpenAI | Auth file from `codex login` | GPT-5.2 Codex, GPT-5.2 |
 | OpenRouter | API key | Multiple providers |
+| Custom | API key | Any Anthropic-compatible endpoint |
 
 ### OpenAI Setup (ChatGPT Pro)
 
@@ -120,11 +134,17 @@ Use OpenAI models with your ChatGPT Pro subscription:
 1. Install [Codex CLI](https://github.com/openai/codex)
 2. Run `codex login` and authenticate with your ChatGPT account
 3. In Claudex Settings → Providers, add an OpenAI provider
-4. Upload your `~/.codex/auth.json` file or paste its contents
+4. Upload your `~/.codex/auth.json` file
 
 ### Custom Providers
 
-Add any Anthropic-compatible API endpoint as a custom provider. Compatible coding plans:
+Use any Anthropic-compatible API endpoint:
+
+1. Get your API key from your provider
+2. In Claudex Settings → Providers, add a Custom provider
+3. Enter your API endpoint URL and API key
+
+Compatible coding plans:
 - [GLM Coding Plan](https://z.ai/subscribe)
 - [Kimi Coding Plan](https://www.kimi.com/code)
 - [MiniMax Coding Plan](https://platform.minimax.io/subscribe/coding-plan)
