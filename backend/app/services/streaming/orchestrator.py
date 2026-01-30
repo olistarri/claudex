@@ -21,6 +21,7 @@ from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
 from app.services.streaming.cancellation import CancellationHandler, StreamCancelled
+from app.services.streaming.context_usage import ContextUsageTracker
 from app.services.streaming.events import StreamEvent
 from app.services.streaming.publisher import StreamPublisher
 from app.services.streaming.queue_injector import QueueInjector
@@ -48,6 +49,10 @@ class StreamContext:
     sandbox_service: SandboxService | None
     chat: Chat
     session_factory: Any
+    session_container: dict[str, Any] | None = None
+    user_id: str | None = None
+    model_id: str | None = None
+    sandbox_id: str | None = None
     events: list[StreamEvent] = field(default_factory=list)
 
 
@@ -215,8 +220,10 @@ class StreamOrchestrator:
             )
             queue_processed = await self._process_queue_if_available(ctx)
             if not queue_processed:
+                await self._publish_final_context_usage(ctx)
                 await self.publisher.publish_complete()
         else:
+            await self._publish_final_context_usage(ctx)
             await self.publisher.publish_complete()
 
         return StreamOutcome(
@@ -224,6 +231,37 @@ class StreamOrchestrator:
             final_content=final_content,
             total_cost=total_cost,
         )
+
+    async def _publish_final_context_usage(self, ctx: StreamContext) -> None:
+        session_id = (
+            ctx.session_container.get("session_id")
+            if ctx.session_container
+            else ctx.chat.session_id
+        )
+        if (
+            not session_id
+            or not ctx.sandbox_id
+            or not ctx.user_id
+            or not ctx.model_id
+            or not self.publisher.redis
+        ):
+            return
+
+        try:
+            tracker = ContextUsageTracker(
+                chat_id=ctx.chat_id,
+                session_id=str(session_id),
+                sandbox_id=ctx.sandbox_id,
+                user_id=ctx.user_id,
+                model_id=ctx.model_id,
+            )
+            await tracker.fetch_and_broadcast(
+                ctx.ai_service, self.publisher.redis, ctx.session_factory
+            )
+        except Exception as exc:
+            logger.debug(
+                "Final context usage fetch failed for chat %s: %s", ctx.chat_id, exc
+            )
 
     async def _update_message_status(
         self,
@@ -398,9 +436,9 @@ class StreamOrchestrator:
         process_chat.delay(
             prompt=next_msg["content"],
             system_prompt=system_prompt,
-            custom_instructions=user_settings.custom_instructions
-            if user_settings
-            else None,
+            custom_instructions=(
+                user_settings.custom_instructions if user_settings else None
+            ),
             chat_data={
                 "id": ctx.chat_id,
                 "user_id": str(ctx.chat.user_id),
@@ -508,6 +546,10 @@ class StreamOrchestrator:
                     sandbox_service=sandbox_service,
                     chat=chat,
                     session_factory=session_factory,
+                    session_container=session_container,
+                    user_id=str(chat.user_id),
+                    model_id=model_id,
+                    sandbox_id=sandbox_id_str,
                     events=events,
                 )
 
