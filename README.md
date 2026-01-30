@@ -55,9 +55,10 @@ View and interact with a browser running inside the sandbox via VNC. Use Playwri
 
 ### Multiple AI Providers
 Switch between providers in the same chat:
-- **Anthropic** - Use your [Max plan](https://claude.com/pricing/max)
-- **Z.AI** - Use your [Coding plan](https://z.ai/subscribe)
+- **Anthropic** - Use your [Max plan](https://claude.ai/upgrade)
+- **OpenAI** - Use your [ChatGPT Pro subscription](https://openai.com/chatgpt/pricing/) (GPT-5.2 Codex, GPT-5.2)
 - **OpenRouter** - Access to multiple model providers
+- **Custom** - Any Anthropic-compatible API endpoint
 
 ### Extend with Skills & Agents
 - **Custom Skills** - ZIP packages with YAML metadata
@@ -91,15 +92,44 @@ Automate recurring tasks with Celery workers.
 
 ## Configuration
 
-Configure in the Settings UI after login:
+Configure providers in Settings → Providers after login.
 
-| Setting | Description |
-|---------|-------------|
-| Claude OAuth Token | For Max plan |
-| Z.AI API Key | For Coding plan |
-| OpenRouter API Key | For OpenRouter models |
+All providers use Claude Code under the hood. Non-Anthropic providers work through [Anthropic Bridge](https://github.com/Mng-dev-ai/anthropic-bridge), which translates Anthropic API calls to other providers.
 
-You only need one AI provider key.
+```
+┌─────────────┐     ┌───────────────────┐     ┌───────────────────────┐
+│   Claudex   │────▶│  Anthropic Bridge │────▶│  OpenAI / OpenRouter  │
+│             │     │  (API Translator) │     │  / Custom             │
+└─────────────┘     └───────────────────┘     └───────────────────────┘
+```
+
+This means all providers share the same conversation history stored in `~/.claude` JSONL files, plus the same slash commands, skills, agents, and MCP servers. You can develop a feature with Claude, then switch to GPT-5.2 Codex for review—it already has the full context without needing to re-read files.
+
+### Built-in Providers
+
+| Provider | Auth Method | Models |
+|----------|-------------|--------|
+| Anthropic | OAuth token from `claude setup-token` | Claude Sonnet 4, Opus 4 |
+| OpenAI | Auth file from `codex login` | GPT-5.2 Codex, GPT-5.2 |
+| OpenRouter | API key | Multiple providers |
+
+### OpenAI Setup (ChatGPT Pro)
+
+Use OpenAI models with your ChatGPT Pro subscription:
+
+1. Install [Codex CLI](https://github.com/openai/codex)
+2. Run `codex login` and authenticate with your ChatGPT account
+3. In Claudex Settings → Providers, add an OpenAI provider
+4. Upload your `~/.codex/auth.json` file or paste its contents
+
+### Custom Providers
+
+Add any Anthropic-compatible API endpoint as a custom provider. Compatible coding plans:
+- [GLM Coding Plan](https://z.ai/subscribe)
+- [Kimi Coding Plan](https://www.kimi.com/code)
+- [MiniMax Coding Plan](https://platform.minimax.io/subscribe/coding-plan)
+
+You only need one AI provider configured.
 
 ## Architecture
 
