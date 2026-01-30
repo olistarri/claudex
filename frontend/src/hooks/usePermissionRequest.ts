@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { permissionService } from '@/services/permissionService';
 import { usePermissionStore, useUIStore } from '@/store';
 import { addResolvedRequestId, isRequestResolved } from '@/utils/permissionStorage';
@@ -6,12 +6,22 @@ import type { PermissionRequest } from '@/types';
 
 type ApiError = Error & { status?: number };
 
+export interface UsePermissionRequestReturn {
+  pendingRequest: PermissionRequest | null;
+  isLoading: boolean;
+  error: string | null;
+  handlePermissionRequest: (request: PermissionRequest) => void;
+  handleApprove: () => Promise<void>;
+  handleReject: (alternativeInstruction?: string) => Promise<void>;
+}
+
 function isExpiredRequestError(error: unknown): boolean {
   return (error as ApiError)?.status === 404;
 }
 
-export function usePermissionRequest(chatId: string | undefined) {
+export function usePermissionRequest(chatId: string | undefined): UsePermissionRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const pendingRequests = usePermissionStore((state) => state.pendingRequests);
   const setPermissionRequest = usePermissionStore((state) => state.setPermissionRequest);
@@ -19,6 +29,10 @@ export function usePermissionRequest(chatId: string | undefined) {
   const setPermissionMode = useUIStore((state) => state.setPermissionMode);
 
   const pendingRequest = chatId ? (pendingRequests.get(chatId) ?? null) : null;
+
+  useEffect(() => {
+    setError(null);
+  }, [pendingRequest?.request_id]);
 
   const handlePermissionRequest = useCallback(
     (request: PermissionRequest) => {
@@ -35,6 +49,7 @@ export function usePermissionRequest(chatId: string | undefined) {
     }
 
     setIsLoading(true);
+    setError(null);
     try {
       await permissionService.respondToPermission(chatId, pendingRequest.request_id, true);
       addResolvedRequestId(pendingRequest.request_id);
@@ -42,10 +57,12 @@ export function usePermissionRequest(chatId: string | undefined) {
       if (pendingRequest.tool_name === 'ExitPlanMode') {
         setPermissionMode('auto');
       }
-    } catch (error) {
-      if (isExpiredRequestError(error)) {
+    } catch (err) {
+      if (isExpiredRequestError(err)) {
         addResolvedRequestId(pendingRequest.request_id);
         clearPermissionRequest(chatId);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to approve permission');
       }
     } finally {
       setIsLoading(false);
@@ -59,6 +76,7 @@ export function usePermissionRequest(chatId: string | undefined) {
       }
 
       setIsLoading(true);
+      setError(null);
       try {
         await permissionService.respondToPermission(
           chatId,
@@ -68,10 +86,12 @@ export function usePermissionRequest(chatId: string | undefined) {
         );
         addResolvedRequestId(pendingRequest.request_id);
         clearPermissionRequest(chatId);
-      } catch (error) {
-        if (isExpiredRequestError(error)) {
+      } catch (err) {
+        if (isExpiredRequestError(err)) {
           addResolvedRequestId(pendingRequest.request_id);
           clearPermissionRequest(chatId);
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to reject permission');
         }
       } finally {
         setIsLoading(false);
@@ -83,6 +103,7 @@ export function usePermissionRequest(chatId: string | undefined) {
   return {
     pendingRequest,
     isLoading,
+    error,
     handlePermissionRequest,
     handleApprove,
     handleReject,

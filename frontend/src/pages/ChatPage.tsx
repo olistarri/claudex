@@ -19,7 +19,6 @@ import { Editor } from '@/components/editor/editor-core/Editor';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatStreaming } from '@/hooks/useChatStreaming';
 import { usePermissionRequest } from '@/hooks/usePermissionRequest';
-import { ToolPermissionModal } from '@/components/chat/tools/ToolPermissionModal';
 import { useInitialPrompt } from '@/hooks/useInitialPrompt';
 import { useEditorState } from '@/hooks/useEditorState';
 import { useMessageInitialization } from '@/hooks/useMessageInitialization';
@@ -124,6 +123,7 @@ export function ChatPage() {
   const {
     pendingRequest,
     isLoading: isPermissionLoading,
+    error: permissionError,
     handlePermissionRequest,
     handleApprove,
     handleReject,
@@ -288,6 +288,11 @@ export function ChatPage() {
               customAgents={allAgents}
               customSlashCommands={enabledSlashCommands}
               customPrompts={customPrompts}
+              pendingPermissionRequest={pendingRequest}
+              onPermissionApprove={handleApprove}
+              onPermissionReject={handleReject}
+              isPermissionLoading={isPermissionLoading}
+              permissionError={permissionError}
             />
           );
         case 'editor':
@@ -340,6 +345,11 @@ export function ChatPage() {
       isFileMetadataLoading,
       handleRefresh,
       isRefreshing,
+      pendingRequest,
+      handleApprove,
+      handleReject,
+      isPermissionLoading,
+      permissionError,
     ],
   );
 
@@ -351,13 +361,6 @@ export function ChatPage() {
       <div className="flex h-full flex-1 overflow-hidden bg-surface-secondary pl-12 text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary">
         <SplitViewContainer renderView={renderView} />
       </div>
-
-      <ToolPermissionModal
-        request={pendingRequest}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        isLoading={isPermissionLoading}
-      />
     </div>
   );
 }
