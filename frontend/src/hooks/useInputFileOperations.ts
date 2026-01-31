@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { logger } from '@/utils/logger';
-import { convertDataUrlToUploadedFile } from '@/utils/file';
-import { isSupportedUploadedFile } from '@/utils/fileTypes';
+import { convertDataUrlToUploadedFile, filterChatAttachmentFiles } from '@/utils/file';
 
 interface UseInputFileOperationsProps {
   attachedFiles?: File[] | null;
@@ -16,17 +15,19 @@ export const useInputFileOperations = ({
   const [showDrawingModal, setShowDrawingModal] = useState(false);
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
 
+  const filterValidFiles = useCallback((files: File[]) => filterChatAttachmentFiles(files), []);
+
   const handleFileSelect = useCallback(
     (files: File[]) => {
       if (onAttach) {
-        const validFiles = files.filter(isSupportedUploadedFile);
+        const validFiles = filterValidFiles(files);
         if (validFiles.length > 0) {
           onAttach(validFiles);
         }
       }
       setShowFileUpload(false);
     },
-    [onAttach],
+    [filterValidFiles, onAttach],
   );
 
   const handleRemoveFile = useCallback(
@@ -62,9 +63,10 @@ export const useInputFileOperations = ({
           originalFile?.name || 'edited-image.png',
         );
 
-        if (onAttach) {
+        const [validFile] = filterValidFiles([file]);
+        if (onAttach && validFile) {
           const newFiles = [...attachedFiles];
-          newFiles[editingImageIndex] = file;
+          newFiles[editingImageIndex] = validFile;
           onAttach(newFiles);
         }
       } catch (error) {
@@ -74,21 +76,21 @@ export const useInputFileOperations = ({
         setEditingImageIndex(null);
       }
     },
-    [editingImageIndex, attachedFiles, onAttach],
+    [editingImageIndex, attachedFiles, onAttach, filterValidFiles],
   );
 
   const handleDroppedFiles = useCallback(
     (droppedFiles: File[]) => {
       if (!onAttach) return;
 
-      const validFiles = droppedFiles.filter(isSupportedUploadedFile);
+      const validFiles = filterValidFiles(droppedFiles);
 
       if (validFiles.length > 0) {
         const existingFiles = attachedFiles || [];
         onAttach([...existingFiles, ...validFiles]);
       }
     },
-    [onAttach, attachedFiles],
+    [filterValidFiles, onAttach, attachedFiles],
   );
 
   const closeDrawingModal = useCallback(() => {

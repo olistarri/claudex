@@ -1,5 +1,8 @@
 import type { FileStructure } from '@/types';
+import toast from 'react-hot-toast';
 import { logger } from '@/utils/logger';
+import { isSupportedUploadedFile } from '@/utils/fileTypes';
+import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
 
 const LANGUAGE_MAP: Record<string, string> = {
   ts: 'typescript',
@@ -79,8 +82,34 @@ export function detectLanguage(path: string): string {
   return LANGUAGE_MAP[extension] || 'plaintext';
 }
 
-// Builds a flat path→file lookup map from a nested file structure.
-// Enables O(1) file lookups during file structure construction.
+export function filterChatAttachmentFiles(
+  files: File[],
+  { toastOnError = true }: { toastOnError?: boolean } = {},
+): File[] {
+  const supportedFiles = files.filter(isSupportedUploadedFile);
+  const validFiles: File[] = [];
+  const oversizedFiles: File[] = [];
+
+  for (const file of supportedFiles) {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES.CHAT_ATTACHMENT) {
+      oversizedFiles.push(file);
+    } else {
+      validFiles.push(file);
+    }
+  }
+
+  if (toastOnError && oversizedFiles.length > 0) {
+    const maxSizeMB = MAX_UPLOAD_SIZE_BYTES.CHAT_ATTACHMENT / (1024 * 1024);
+    if (oversizedFiles.length === 1) {
+      toast.error(`File "${oversizedFiles[0].name}" exceeds ${maxSizeMB}MB limit`);
+    } else {
+      toast.error(`${oversizedFiles.length} files exceed ${maxSizeMB}MB limit`);
+    }
+  }
+
+  return validFiles;
+}
+
 const buildPathMap = (files: FileStructure[], pathToFile: Map<string, FileStructure>) => {
   files.forEach((file) => {
     pathToFile.set(file.path, file);
@@ -90,9 +119,6 @@ const buildPathMap = (files: FileStructure[], pathToFile: Map<string, FileStruct
   });
 };
 
-// Creates all intermediate directories for a given path, similar to `mkdir -p`.
-// For path "a/b/c", creates directories "a", "a/b", "a/b/c" if they don't exist,
-// properly linking each child folder to its parent.
 const createDirectoryPath = (
   dirPath: string,
   pathToFile: Map<string, FileStructure>,
@@ -104,7 +130,6 @@ const createDirectoryPath = (
   const pathParts = normalizedDirPath.split('/').filter((part) => part);
   let currentPath = '';
 
-  // Incrementally build path, creating missing directories at each level
   pathParts.forEach((part) => {
     const parentPath = currentPath;
     currentPath = currentPath ? `${currentPath}/${part}` : part;
@@ -119,7 +144,6 @@ const createDirectoryPath = (
 
       pathToFile.set(currentPath, newDir);
 
-      // Attach to parent if exists, otherwise add to root level
       if (parentPath) {
         const parent = pathToFile.get(parentPath);
         if (parent && parent.children) {
@@ -132,9 +156,6 @@ const createDirectoryPath = (
   });
 };
 
-// Converts a flat array of sandbox files into a nested tree structure.
-// Merges with existing structure if provided, creating intermediate directories as needed.
-// Algorithm: Build path lookup map → Process each file → Create parent dirs → Attach to tree → Sort.
 export function buildFileStructureFromSandboxFiles(
   sandboxFiles: Array<{
     path: string;
@@ -150,14 +171,12 @@ export function buildFileStructureFromSandboxFiles(
     return existingFileStructure;
   }
 
-  // Deep clone to avoid mutating the existing structure
   const newFileStructure: FileStructure[] =
     typeof structuredClone === 'function'
       ? structuredClone(existingFileStructure)
       : JSON.parse(JSON.stringify(existingFileStructure));
   const pathToFile: Map<string, FileStructure> = new Map();
 
-  // Index existing files for O(1) lookups
   buildPathMap(newFileStructure, pathToFile);
 
   sandboxFiles.forEach((file) => {
@@ -220,9 +239,6 @@ export function hasActualFiles(files: FileStructure[]): boolean {
   return false;
 }
 
-// Generic depth-first traversal of file structure with transformation.
-// Applies processor to each item and collects non-null results.
-// Useful for flattening, searching, or transforming the tree.
 export function traverseFileStructure<T>(
   items: FileStructure[],
   processor: (item: FileStructure, parentPath: string) => T | null,

@@ -31,6 +31,7 @@ export const FileUploadDialog = memo(function FileUploadDialog({
       const fileList = Array.from(e.target.files);
       addFiles(fileList);
     }
+    e.currentTarget.value = '';
   };
 
   const handleUpload = () => {

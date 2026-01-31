@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { logger } from '@/utils/logger';
-import { isSupportedUploadedFile, isUploadedImageFile } from '@/utils/fileTypes';
+import { isUploadedImageFile } from '@/utils/fileTypes';
+import { filterChatAttachmentFiles } from '@/utils/file';
 
 interface UseFileHandlingOptions {
   initialFiles?: File[] | null;
@@ -51,25 +52,26 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
 
   const addFiles = useCallback(
     (newFiles: File[]) => {
-      const supportedFiles = newFiles.filter(isSupportedUploadedFile);
-      if (supportedFiles.length > 0) {
+      const validFiles = filterChatAttachmentFiles(newFiles);
+
+      if (validFiles.length > 0) {
         setFiles((current) => {
-          const updated = [...current, ...supportedFiles];
+          const updated = [...current, ...validFiles];
           onChange?.(updated);
           return updated;
         });
       }
-      return supportedFiles.length;
+      return validFiles.length;
     },
     [onChange],
   );
 
   const setFileList = useCallback(
     (newFiles: File[]) => {
-      const supportedFiles = newFiles.filter(isSupportedUploadedFile);
-      setFiles(supportedFiles);
-      onChange?.(supportedFiles);
-      return supportedFiles.length;
+      const validFiles = filterChatAttachmentFiles(newFiles);
+      setFiles(validFiles);
+      onChange?.(validFiles);
+      return validFiles.length;
     },
     [onChange],
   );
@@ -95,13 +97,14 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
 
   const replaceFile = useCallback(
     (index: number, newFile: File) => {
-      if (!isSupportedUploadedFile(newFile)) {
+      const [validFile] = filterChatAttachmentFiles([newFile]);
+      if (!validFile) {
         return;
       }
       setFiles((current) => {
         if (index >= 0 && index < current.length) {
           const updated = [...current];
-          updated[index] = newFile;
+          updated[index] = validFile;
           onChange?.(updated);
           return updated;
         }

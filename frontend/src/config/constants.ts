@@ -14,6 +14,7 @@ export const MAX_UPLOAD_SIZE_BYTES = {
   AGENT: 100 * 1024,
   COMMAND: 100 * 1024,
   SKILL: 10 * 1024 * 1024,
+  CHAT_ATTACHMENT: 5 * 1024 * 1024,
 } as const;
 
 export const DROPDOWN_WIDTH = 128;
