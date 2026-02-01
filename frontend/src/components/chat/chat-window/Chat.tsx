@@ -16,7 +16,7 @@ import { ChatSkeleton } from './ChatSkeleton';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ScrollButton } from './ScrollButton';
 import { ErrorMessage } from './ErrorMessage';
-import { Spinner } from '@/components/ui';
+import { Spinner, LoadingOverlay } from '@/components/ui';
 import type {
   Message as MessageType,
   FileStructure,
@@ -462,6 +462,7 @@ export const Chat = memo(function Chat({
           </div>
         </div>
       </div>
+      <LoadingOverlay isOpen={isLoading && !isStreaming} message="Uploading files..." />
     </ChatProvider>
   );
 });

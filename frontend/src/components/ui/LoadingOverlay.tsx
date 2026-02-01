@@ -49,7 +49,7 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-brand-400" aria-hidden="true" />
         <p
-          className="text-text-dark-quaternary"
+          className="text-sm text-text-dark-quaternary"
           role="status"
           aria-live="polite"
           aria-atomic="true"
