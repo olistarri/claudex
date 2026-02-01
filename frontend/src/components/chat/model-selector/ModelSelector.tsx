@@ -2,7 +2,7 @@ import { memo, useMemo, useEffect } from 'react';
 import { Bot, ChevronDown } from 'lucide-react';
 import { Dropdown } from '@/components/ui';
 import type { DropdownItemType } from '@/components/ui';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useUIStore } from '@/store';
 import { useModelSelection } from '@/hooks/queries';
 import type { Model } from '@/types/chat.types';
 
@@ -37,6 +37,7 @@ export const ModelSelector = memo(function ModelSelector({
   disabled = false,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isSplitMode = useUIStore((state) => state.isSplitMode);
   const { models, isLoading } = useModelSelection({ enabled: isAuthenticated });
 
   const groupedItems = useMemo(() => {
@@ -93,6 +94,7 @@ export const ModelSelector = memo(function ModelSelector({
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
+      forceCompact={isSplitMode}
       searchable
       searchPlaceholder="Search models..."
       renderItem={(model, isSelected) => (

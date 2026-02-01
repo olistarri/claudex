@@ -26,6 +26,7 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
 }: PermissionModeSelectorProps) {
   const permissionMode = useUIStore((state) => state.permissionMode);
   const setPermissionMode = useUIStore((state) => state.setPermissionMode);
+  const isSplitMode = useUIStore((state) => state.isSplitMode);
 
   const selectedMode =
     PERMISSION_MODES.find((m) => m.value === permissionMode) || PERMISSION_MODES[2];
@@ -43,6 +44,7 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
+      forceCompact={isSplitMode}
       renderItem={(mode, isSelected) => (
         <>
           <span

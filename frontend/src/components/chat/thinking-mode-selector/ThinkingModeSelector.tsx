@@ -28,6 +28,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
 }: ThinkingModeSelectorProps) {
   const thinkingMode = useUIStore((state) => state.thinkingMode);
   const setThinkingMode = useUIStore((state) => state.setThinkingMode);
+  const isSplitMode = useUIStore((state) => state.isSplitMode);
 
   const selectedMode = THINKING_MODES.find((m) => m.value === thinkingMode) || THINKING_MODES[0];
 
@@ -43,6 +44,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
+      forceCompact={isSplitMode}
       renderItem={(mode, isSelected) => (
         <div className="flex w-full items-center justify-between">
           <span

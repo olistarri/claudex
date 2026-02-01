@@ -21,6 +21,7 @@ export interface DropdownProps<T> {
   dropdownPosition?: 'top' | 'bottom';
   disabled?: boolean;
   compactOnMobile?: boolean;
+  forceCompact?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
 }
@@ -47,6 +48,7 @@ function DropdownInner<T>({
   dropdownPosition = 'bottom',
   disabled = false,
   compactOnMobile = false,
+  forceCompact = false,
   searchable = false,
   searchPlaceholder = 'Search...',
 }: DropdownProps<T>) {
@@ -118,12 +120,16 @@ function DropdownInner<T>({
     ? getFilteredGroupedItems()
     : filterItems(items as readonly T[]);
 
-  const showIconOnly = compactOnMobile && LeftIcon;
+  const showIconOnly = (compactOnMobile || forceCompact) && LeftIcon;
   const labelClasses = showIconOnly
-    ? 'hidden sm:inline whitespace-nowrap text-xs font-medium text-text-primary dark:text-text-dark-secondary'
+    ? forceCompact
+      ? 'hidden whitespace-nowrap text-xs font-medium text-text-primary dark:text-text-dark-secondary'
+      : 'hidden lg:inline whitespace-nowrap text-xs font-medium text-text-primary dark:text-text-dark-secondary'
     : 'whitespace-nowrap text-xs font-medium text-text-primary dark:text-text-dark-secondary';
   const chevronClasses = showIconOnly
-    ? 'hidden sm:block h-3.5 w-3.5 flex-shrink-0 text-text-quaternary'
+    ? forceCompact
+      ? 'hidden h-3.5 w-3.5 flex-shrink-0 text-text-quaternary'
+      : 'hidden lg:block h-3.5 w-3.5 flex-shrink-0 text-text-quaternary'
     : 'h-3.5 w-3.5 flex-shrink-0 text-text-quaternary';
 
   return (
