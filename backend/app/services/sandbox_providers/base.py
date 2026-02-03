@@ -273,6 +273,7 @@ class SandboxProvider(ABC):
         sandbox_id: str,
         rows: int,
         cols: int,
+        tmux_session: str,
         on_data: PtyDataCallbackType | None = None,
     ) -> PtySession:
         pass

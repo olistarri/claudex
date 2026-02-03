@@ -253,11 +253,9 @@ export function ChatPage() {
 
   useLayoutSidebar(sidebarContent);
 
-  const renderView = useCallback(
+  const renderNonTerminalView = useCallback(
     (view: ViewType): ReactNode => {
       switch (view) {
-        case 'terminal':
-          return <TerminalView currentChat={currentChat} isVisible={true} />;
         case 'agent':
           return (
             <ChatComponent
@@ -324,7 +322,6 @@ export function ChatPage() {
       }
     },
     [
-      currentChat,
       messages,
       streamingState,
       isLoading,
@@ -334,6 +331,7 @@ export function ChatPage() {
       selectedModelId,
       selectModel,
       contextUsage,
+      currentChat,
       chatId,
       handleRestoreSuccess,
       fileStructure,
@@ -351,6 +349,23 @@ export function ChatPage() {
       isPermissionLoading,
       permissionError,
     ],
+  );
+
+  const renderView = useCallback(
+    (view: ViewType, slot: 'single' | 'primary' | 'secondary'): ReactNode => {
+      const isTerminal = view === 'terminal';
+      return (
+        <div className="relative flex h-full w-full">
+          <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
+            <TerminalView currentChat={currentChat} isVisible={isTerminal} panelKey={slot} />
+          </div>
+          <div className={isTerminal ? 'hidden' : 'flex h-full w-full'}>
+            {renderNonTerminalView(view)}
+          </div>
+        </div>
+      );
+    },
+    [currentChat, renderNonTerminalView],
   );
 
   if (!chatId) return <Navigate to="/" />;

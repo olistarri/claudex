@@ -260,7 +260,11 @@ class SandboxService:
         return {"running": running}
 
     async def create_pty_session(
-        self, sandbox_id: str, rows: int = 24, cols: int = 80
+        self,
+        sandbox_id: str,
+        rows: int,
+        cols: int,
+        tmux_session: str,
     ) -> dict[str, Any]:
         output_queue: "asyncio.Queue[str]" = asyncio.Queue(
             maxsize=PTY_OUTPUT_QUEUE_SIZE
@@ -270,6 +274,7 @@ class SandboxService:
             sandbox_id,
             rows,
             cols,
+            tmux_session,
             on_data=lambda data: self._enqueue_pty_output(data, output_queue),
         )
 

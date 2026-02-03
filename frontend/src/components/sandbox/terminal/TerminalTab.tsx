@@ -14,19 +14,29 @@ export interface TerminalTabProps {
   isVisible: boolean;
   sandboxId?: string;
   terminalId?: string;
+  shouldClose?: boolean;
+  onClosed?: () => void;
 }
 
 type SessionState = 'idle' | 'connecting' | 'ready' | 'error';
 
 const encoder = new TextEncoder();
 
-export const TerminalTab: FC<TerminalTabProps> = ({ isVisible, sandboxId, terminalId }) => {
+export const TerminalTab: FC<TerminalTabProps> = ({
+  isVisible,
+  sandboxId,
+  terminalId,
+  shouldClose = false,
+  onClosed,
+}) => {
   const theme = useUIStore((state) => state.theme);
   const [sessionState, setSessionState] = useState<SessionState>('idle');
 
   const lastSentSizeRef = useRef<TerminalSize | null>(null);
   const hasSentInitRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const isClosingRef = useRef(false);
+  const shouldCloseRef = useRef(false);
 
   const backgroundClass = useMemo(() => getTerminalBackgroundClass(theme), [theme]);
 
@@ -61,6 +71,10 @@ export const TerminalTab: FC<TerminalTabProps> = ({ isVisible, sandboxId, termin
     },
     onFit: handleFit,
   });
+
+  useEffect(() => {
+    shouldCloseRef.current = shouldClose;
+  }, [shouldClose]);
 
   useEffect(() => {
     if (!sandboxId || !isReady) return;
@@ -149,7 +163,7 @@ export const TerminalTab: FC<TerminalTabProps> = ({ isVisible, sandboxId, termin
 
     const handleBeforeUnload = () => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'close' }));
+        ws.send(JSON.stringify({ type: 'detach' }));
       }
       ws.close();
     };
@@ -167,10 +181,9 @@ export const TerminalTab: FC<TerminalTabProps> = ({ isVisible, sandboxId, termin
       ws.removeEventListener('error', handleError);
       ws.removeEventListener('close', handleClose);
 
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'close' }));
+      if (!shouldCloseRef.current && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'detach' }));
       }
-
       ws.close();
       wsRef.current = null;
       hasSentInitRef.current = false;
@@ -178,6 +191,24 @@ export const TerminalTab: FC<TerminalTabProps> = ({ isVisible, sandboxId, termin
       setSessionState('idle');
     };
   }, [sandboxId, terminalId, isReady, fitTerminal, terminalRef]);
+
+  useEffect(() => {
+    if (!shouldClose || isClosingRef.current) {
+      return;
+    }
+
+    isClosingRef.current = true;
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'close' }));
+    }
+    ws?.close();
+    wsRef.current = null;
+    hasSentInitRef.current = false;
+    lastSentSizeRef.current = null;
+    setSessionState('idle');
+    onClosed?.();
+  }, [shouldClose, onClosed]);
 
   useEffect(() => {
     if (!isVisible) {

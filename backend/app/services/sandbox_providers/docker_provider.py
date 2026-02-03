@@ -382,10 +382,18 @@ class LocalDockerProvider(SandboxProvider):
             is_binary=is_binary,
         )
 
-    def _create_pty_exec(self, container: Any) -> tuple[dict[str, Any], Any]:
+    def _create_pty_exec(
+        self, container: Any, tmux_session: str
+    ) -> tuple[dict[str, Any], Any]:
+        cmd = [
+            "bash",
+            "-c",
+            f"command -v tmux >/dev/null && tmux new -A -s {tmux_session} \\; set -g status off || exec bash",
+        ]
+
         exec_id = container.client.api.exec_create(
             container.id,
-            cmd="/bin/bash",
+            cmd=cmd,
             stdin=True,
             tty=True,
             environment={"TERM": TERMINAL_TYPE},
@@ -403,6 +411,7 @@ class LocalDockerProvider(SandboxProvider):
         sandbox_id: str,
         rows: int,
         cols: int,
+        tmux_session: str,
         on_data: PtyDataCallbackType | None = None,
     ) -> PtySession:
         container = await self._get_container(sandbox_id)
@@ -410,7 +419,7 @@ class LocalDockerProvider(SandboxProvider):
         loop = asyncio.get_running_loop()
 
         exec_info, socket = await loop.run_in_executor(
-            self._executor, lambda: self._create_pty_exec(container)
+            self._executor, lambda: self._create_pty_exec(container, tmux_session)
         )
 
         self._register_pty_session(

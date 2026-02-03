@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     vim \
     nano \
     htop \
+    tmux \
     tree \
     jq \
     python3 \

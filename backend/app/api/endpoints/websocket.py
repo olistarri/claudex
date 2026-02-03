@@ -2,9 +2,6 @@ import asyncio
 import errno
 import json
 import logging
-from contextlib import suppress
-from dataclasses import dataclass
-from typing import Any
 
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
@@ -12,12 +9,12 @@ from starlette.websockets import WebSocketDisconnect
 from app.constants import (
     DEFAULT_PTY_COLS,
     DEFAULT_PTY_ROWS,
-    PTY_INPUT_QUEUE_SIZE,
     WS_CLOSE_API_KEY_REQUIRED,
     WS_CLOSE_AUTH_FAILED,
     WS_CLOSE_SANDBOX_NOT_FOUND,
     WS_MSG_AUTH,
     WS_MSG_CLOSE,
+    WS_MSG_DETACH,
     WS_MSG_INIT,
     WS_MSG_PING,
     WS_MSG_RESIZE,
@@ -29,13 +26,11 @@ from sqlalchemy import select
 
 from app.models.db_models import Chat, User
 from app.services.exceptions import UserException
-from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import (
     SandboxProviderType,
-    create_sandbox_provider,
 )
+from app.services.terminal import terminal_session_registry
 from app.services.user import UserService
-from app.utils.queue import drain_queue, put_with_overflow
 
 settings = get_settings()
 router = APIRouter()
@@ -95,113 +90,6 @@ async def wait_for_auth(
     return await authenticate_user(token)
 
 
-@dataclass
-class TerminalSession:
-    sandbox_service: SandboxService
-    sandbox_id: str
-    websocket: WebSocket
-    pty_session: dict[str, Any] | None = None
-    output_task: asyncio.Task[None] | None = None
-    input_task: asyncio.Task[None] | None = None
-    input_queue: asyncio.Queue[bytes] | None = None
-
-    async def start(self, rows: int, cols: int) -> dict[str, Any]:
-        await self.stop()
-
-        self.pty_session = await self.sandbox_service.create_pty_session(
-            self.sandbox_id, rows, cols
-        )
-
-        self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
-        self.input_task = asyncio.create_task(self.input_worker(self.pty_session["id"]))
-        self.input_task.add_done_callback(self._handle_input_task_done)
-
-        self.output_task = asyncio.create_task(
-            self.sandbox_service.forward_pty_output(
-                self.sandbox_id, self.pty_session["id"], self.websocket
-            )
-        )
-
-        return self.pty_session
-
-    def enqueue_input(self, data: Any) -> None:
-        # Queue overflow handling: drops oldest input when full to ensure newest keystrokes
-        # aren't lost. Double-try pattern handles race condition where another item may arrive
-        # between get_nowait and put_nowait, causing the second put to also fail (silently ignored).
-        if not self.pty_session or not self.input_queue:
-            return
-
-        if not isinstance(data, (bytes, bytearray)):
-            return
-
-        put_with_overflow(self.input_queue, bytes(data))
-
-    async def resize(self, rows: int, cols: int) -> None:
-        if not self.pty_session:
-            return
-
-        await self.sandbox_service.resize_pty_session(
-            self.sandbox_id,
-            self.pty_session["id"],
-            rows,
-            cols,
-        )
-
-    async def stop(self) -> None:
-        if self.input_task:
-            self.input_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self.input_task
-            self.input_task = None
-
-        self.input_queue = None
-
-        if self.output_task:
-            self.output_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self.output_task
-            self.output_task = None
-
-        if self.pty_session:
-            await self.sandbox_service.cleanup_pty_session(
-                self.sandbox_id, self.pty_session["id"]
-            )
-            self.pty_session = None
-
-    async def close_websocket(self) -> None:
-        try:
-            await self.websocket.close()
-        except OSError as exc:
-            if exc.errno != errno.EPIPE:
-                logger.error("Failed to close websocket cleanly: %s", exc)
-
-    async def input_worker(self, session_id: str) -> None:
-        # Batches queued input to reduce round-trips to the sandbox. After receiving the first
-        # item, drains all immediately available items with get_nowait() and sends them together.
-        # This improves performance for rapid typing or paste operations.
-        if self.input_queue is None:
-            return
-
-        try:
-            while True:
-                buffer = await drain_queue(self.input_queue)
-                payload = b"".join(buffer)
-                await self.sandbox_service.send_pty_input(
-                    self.sandbox_id, session_id, payload
-                )
-        except asyncio.CancelledError:
-            raise
-
-    @staticmethod
-    def _handle_input_task_done(task: asyncio.Task[None]) -> None:
-        try:
-            task.result()
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.error("Error in input task: %s", e)
-
-
 @router.websocket("/{sandbox_id}/terminal")
 async def terminal_websocket(
     websocket: WebSocket,
@@ -252,10 +140,14 @@ async def terminal_websocket(
     elif provider_type == SandboxProviderType.MODAL:
         api_key = modal_api_key
 
-    provider = create_sandbox_provider(provider_type, api_key)
-
-    sandbox_service = SandboxService(provider)
-    session = TerminalSession(sandbox_service, sandbox_id, websocket)
+    terminal_id = websocket.query_params.get("terminalId") or "terminal-1"
+    session = await terminal_session_registry.get_or_create(
+        user_id=str(user.id),
+        sandbox_id=sandbox_id,
+        terminal_id=terminal_id,
+        provider_type=provider_type,
+        api_key=api_key,
+    )
 
     try:
         while True:
@@ -283,15 +175,16 @@ async def terminal_websocket(
                 rows = int(data.get("rows") or DEFAULT_PTY_ROWS)
                 cols = int(data.get("cols") or DEFAULT_PTY_COLS)
 
-                pty_session = await session.start(rows, cols)
+                size = await session.ensure_started(rows, cols)
+                await session.attach(websocket)
 
                 await websocket.send_text(
                     json.dumps(
                         {
                             "type": WS_MSG_INIT,
-                            "id": pty_session["id"],
-                            "rows": pty_session["rows"],
-                            "cols": pty_session["cols"],
+                            "id": session.pty_id,
+                            "rows": size["rows"],
+                            "cols": size["cols"],
                         }
                     )
                 )
@@ -301,12 +194,21 @@ async def terminal_websocket(
                 cols = int(data.get("cols") or 0)
                 await session.resize(rows, cols)
             elif data_type == WS_MSG_CLOSE:
+                await session.kill_tmux_session()
+                await session.close()
+                break
+            elif data_type == WS_MSG_DETACH:
+                await session.detach()
                 break
     except WebSocketDisconnect:
-        pass
+        await session.detach()
     except Exception as e:
         logger.error("Error in terminal websocket: %s", e)
     finally:
-        await session.stop()
-        await session.close_websocket()
-        await sandbox_service.cleanup()
+        if session.active_websocket is websocket and session.pty_id:
+            await session.detach()
+        try:
+            await websocket.close()
+        except OSError as exc:
+            if exc.errno != errno.EPIPE:
+                logger.error("Failed to close websocket cleanly: %s", exc)

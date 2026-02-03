@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import { TerminalTab } from './TerminalTab';
 
@@ -6,6 +6,7 @@ export interface ContainerProps {
   sandboxId?: string;
   chatId?: string;
   isVisible: boolean;
+  panelKey: 'single' | 'primary' | 'secondary';
 }
 
 interface TerminalInstance {
@@ -13,20 +14,76 @@ interface TerminalInstance {
   label: string;
 }
 
-export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible }) => {
+export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible, panelKey }) => {
+  const defaultTerminalId = `terminal-${panelKey}-1`;
+  const storageKey = chatId ? `terminal:${chatId}:${panelKey}` : null;
   const [terminals, setTerminals] = useState<TerminalInstance[]>([
-    { id: 'terminal-1', label: 'Terminal 1' },
+    { id: defaultTerminalId, label: 'Terminal 1' },
   ]);
-  const [activeTerminalId, setActiveTerminalId] = useState<string>('terminal-1');
+  const [activeTerminalId, setActiveTerminalId] = useState<string>(defaultTerminalId);
+  const [closingTerminalIds, setClosingTerminalIds] = useState<Set<string>>(new Set());
+  const readyToSave = useRef(false);
 
   useEffect(() => {
-    setTerminals([{ id: 'terminal-1', label: 'Terminal 1' }]);
-    setActiveTerminalId('terminal-1');
-  }, [chatId]);
+    readyToSave.current = false;
+
+    if (!storageKey) {
+      setTerminals([{ id: defaultTerminalId, label: 'Terminal 1' }]);
+      setActiveTerminalId(defaultTerminalId);
+      Promise.resolve().then(() => {
+        readyToSave.current = true;
+      });
+      return;
+    }
+
+    const stored = localStorage.getItem(storageKey);
+    if (!stored) {
+      setTerminals([{ id: defaultTerminalId, label: 'Terminal 1' }]);
+      setActiveTerminalId(defaultTerminalId);
+      Promise.resolve().then(() => {
+        readyToSave.current = true;
+      });
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as {
+        terminals?: TerminalInstance[];
+        activeTerminalId?: string;
+      };
+      const parsedTerminals =
+        parsed.terminals?.filter((terminal) => terminal.id && terminal.label) ?? [];
+      const nextTerminals =
+        parsedTerminals.length > 0
+          ? parsedTerminals
+          : [{ id: defaultTerminalId, label: 'Terminal 1' }];
+      const nextActiveId =
+        parsed.activeTerminalId &&
+        nextTerminals.some((terminal) => terminal.id === parsed.activeTerminalId)
+          ? parsed.activeTerminalId
+          : (nextTerminals[0]?.id ?? defaultTerminalId);
+      setTerminals(nextTerminals);
+      setActiveTerminalId(nextActiveId);
+    } catch {
+      setTerminals([{ id: defaultTerminalId, label: 'Terminal 1' }]);
+      setActiveTerminalId(defaultTerminalId);
+    }
+    Promise.resolve().then(() => {
+      readyToSave.current = true;
+    });
+  }, [chatId, storageKey, defaultTerminalId]);
+
+  useEffect(() => {
+    if (!storageKey || !readyToSave.current) {
+      return;
+    }
+    const payload = JSON.stringify({ terminals, activeTerminalId });
+    localStorage.setItem(storageKey, payload);
+  }, [storageKey, terminals, activeTerminalId]);
 
   const addTerminal = useCallback(() => {
     setTerminals((prev) => {
-      const existingNumbers = new Set(prev.map((t) => parseInt(t.id.split('-')[1], 10)));
+      const existingNumbers = new Set(prev.map((t) => parseInt(t.id.split('-').pop() || '0', 10)));
 
       let nextNumber = 1;
       while (existingNumbers.has(nextNumber)) {
@@ -34,35 +91,51 @@ export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible }) 
       }
 
       const newTerminal: TerminalInstance = {
-        id: `terminal-${nextNumber}`,
+        id: `terminal-${panelKey}-${nextNumber}`,
         label: `Terminal ${nextNumber}`,
       };
 
       setActiveTerminalId(newTerminal.id);
       return [...prev, newTerminal];
     });
-  }, []);
+  }, [panelKey]);
 
   const closeTerminal = useCallback((terminalId: string) => {
-    setTerminals((prev) => {
-      const filtered = prev.filter((t) => t.id !== terminalId);
-      if (filtered.length === 0) {
-        setActiveTerminalId('terminal-1');
-        return [{ id: 'terminal-1', label: 'Terminal 1' }];
-      }
-
-      setActiveTerminalId((current) => {
-        if (current === terminalId) {
-          const currentIndex = prev.findIndex((t) => t.id === terminalId);
-          const nextTerminal = prev[currentIndex - 1] || prev[currentIndex + 1];
-          return nextTerminal?.id || filtered[0]?.id || 'terminal-1';
-        }
-        return current;
-      });
-
-      return filtered;
+    setClosingTerminalIds((prev) => {
+      const next = new Set(prev);
+      next.add(terminalId);
+      return next;
     });
   }, []);
+
+  const finalizeCloseTerminal = useCallback(
+    (terminalId: string) => {
+      setTerminals((prev) => {
+        const filtered = prev.filter((t) => t.id !== terminalId);
+        if (filtered.length === 0) {
+          setActiveTerminalId(defaultTerminalId);
+          return [{ id: defaultTerminalId, label: 'Terminal 1' }];
+        }
+
+        setActiveTerminalId((current) => {
+          if (current === terminalId) {
+            const currentIndex = prev.findIndex((t) => t.id === terminalId);
+            const nextTerminal = prev[currentIndex - 1] || prev[currentIndex + 1];
+            return nextTerminal?.id || filtered[0]?.id || defaultTerminalId;
+          }
+          return current;
+        });
+
+        return filtered;
+      });
+      setClosingTerminalIds((prev) => {
+        const next = new Set(prev);
+        next.delete(terminalId);
+        return next;
+      });
+    },
+    [defaultTerminalId],
+  );
 
   return (
     <div className="flex h-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
@@ -113,6 +186,8 @@ export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible }) 
               isVisible={isVisible && activeTerminalId === terminal.id}
               sandboxId={sandboxId}
               terminalId={terminal.id}
+              shouldClose={closingTerminalIds.has(terminal.id)}
+              onClosed={() => finalizeCloseTerminal(terminal.id)}
             />
           </div>
         ))}

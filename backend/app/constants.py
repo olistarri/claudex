@@ -194,6 +194,7 @@ WS_MSG_INIT: Final[str] = "init"
 WS_MSG_RESIZE: Final[str] = "resize"
 WS_MSG_CLOSE: Final[str] = "close"
 WS_MSG_PING: Final[str] = "ping"
+WS_MSG_DETACH: Final[str] = "detach"
 
 # WebSocket close codes
 WS_CLOSE_AUTH_FAILED: Final[int] = 4001
@@ -208,7 +209,6 @@ ANTHROPIC_BRIDGE_HOST: Final[str] = "0.0.0.0"
 TERMINAL_TYPE: Final[str] = "xterm-256color"
 DEFAULT_PTY_ROWS: Final[int] = 24
 DEFAULT_PTY_COLS: Final[int] = 80
-
 # Docker container status
 DOCKER_STATUS_RUNNING: Final[str] = "running"
 

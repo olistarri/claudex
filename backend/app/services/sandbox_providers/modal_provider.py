@@ -275,6 +275,7 @@ class ModalSandboxProvider(SandboxProvider):
         sandbox_id: str,
         rows: int,
         cols: int,
+        tmux_session: str,
         on_data: PtyDataCallbackType | None = None,
     ) -> PtySession:
         sandbox = await self._get_sandbox(sandbox_id)
@@ -283,6 +284,8 @@ class ModalSandboxProvider(SandboxProvider):
         process = await self._retry_operation(
             sandbox.exec.aio,
             "bash",
+            "-c",
+            f"command -v tmux >/dev/null && tmux new -A -s {tmux_session} \\; set -g status off || exec bash",
             pty=True,
             env={"TERM": TERMINAL_TYPE},
         )

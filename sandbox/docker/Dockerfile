@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     jq \
     htop \
+    tmux \
     vim \
     nano \
     ca-certificates \

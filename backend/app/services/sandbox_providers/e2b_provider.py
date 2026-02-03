@@ -227,6 +227,7 @@ class E2BSandboxProvider(SandboxProvider):
         sandbox_id: str,
         rows: int,
         cols: int,
+        tmux_session: str,
         on_data: PtyDataCallbackType | None = None,
     ) -> PtySession:
         sandbox = await self._get_sandbox(sandbox_id)
@@ -242,6 +243,9 @@ class E2BSandboxProvider(SandboxProvider):
             envs={"TERM": TERMINAL_TYPE},
             timeout=None,
         )
+
+        tmux_cmd = f"command -v tmux >/dev/null && exec tmux new -A -s {tmux_session} \\; set -g status off\n"
+        await sandbox.pty.send_stdin(pty.pid, tmux_cmd.encode())
 
         self._register_pty_session(
             sandbox_id,

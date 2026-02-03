@@ -220,6 +220,66 @@ export const useXterm = ({
     return undefined;
   }, [mode, disableStdin, isReady, isVisible, fitTerminal]);
 
+  useEffect(() => {
+    if (!isReady || !isVisible) {
+      return undefined;
+    }
+
+    let frame: number | null = null;
+    let timeoutShort: number | null = null;
+    let timeoutLong: number | null = null;
+    let cancelled = false;
+
+    const scheduleFit = (delayMs?: number) => {
+      if (delayMs === undefined) {
+        frame = requestAnimationFrame(() => {
+          if (!cancelled) {
+            fitTerminal();
+          }
+        });
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        if (!cancelled) {
+          fitTerminal();
+        }
+      }, delayMs);
+
+      if (delayMs <= 50) {
+        timeoutShort = timeoutId;
+      } else {
+        timeoutLong = timeoutId;
+      }
+    };
+
+    scheduleFit();
+    scheduleFit(50);
+    scheduleFit(250);
+
+    const fonts = document.fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(() => {
+        if (!cancelled) {
+          fitTerminal();
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
+      if (timeoutShort) {
+        clearTimeout(timeoutShort);
+      }
+      if (timeoutLong) {
+        clearTimeout(timeoutLong);
+      }
+    };
+  }, [isReady, isVisible, fitTerminal]);
+
   // Handles container resize events with requestAnimationFrame debouncing.
   // Only fits when visible to avoid unnecessary work for hidden terminals.
   useEffect(() => {

@@ -6,7 +6,7 @@ import { useIsMobile } from '@/hooks';
 import type { ViewType } from '@/types/ui.types';
 
 interface SplitViewContainerProps {
-  renderView: (view: ViewType) => ReactNode;
+  renderView: (view: ViewType, slot: 'single' | 'primary' | 'secondary') => ReactNode;
 }
 
 export const SplitViewContainer = memo(function SplitViewContainer({
@@ -29,13 +29,17 @@ export const SplitViewContainer = memo(function SplitViewContainer({
   }, [exitSplitMode]);
 
   if (isMobile || !isSplitMode || !secondaryView) {
-    return <div className="flex h-full flex-1 overflow-hidden">{renderView(currentView)}</div>;
+    return (
+      <div className="flex h-full flex-1 overflow-hidden">{renderView(currentView, 'single')}</div>
+    );
   }
 
   return (
     <PanelGroup direction="horizontal" autoSaveId="split-view-layout" className="flex-1">
       <Panel defaultSize={50} minSize={20}>
-        <div className="flex h-full w-full flex-1 overflow-hidden">{renderView(currentView)}</div>
+        <div className="flex h-full w-full flex-1 overflow-hidden">
+          {renderView(currentView, 'primary')}
+        </div>
       </Panel>
 
       <PanelResizeHandle
@@ -50,7 +54,9 @@ export const SplitViewContainer = memo(function SplitViewContainer({
       </PanelResizeHandle>
 
       <Panel minSize={20}>
-        <div className="flex h-full w-full flex-1 overflow-hidden">{renderView(secondaryView)}</div>
+        <div className="flex h-full w-full flex-1 overflow-hidden">
+          {renderView(secondaryView, 'secondary')}
+        </div>
       </Panel>
     </PanelGroup>
   );
