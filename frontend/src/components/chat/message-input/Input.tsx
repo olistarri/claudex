@@ -122,7 +122,6 @@ export const Input = memo(function Input({
   const hasMessage = message.trim().length > 0;
   const hasAttachments = (attachedFiles?.length ?? 0) > 0;
   const isEnhancing = enhancePromptMutation.isPending;
-  const isUploading = isLoading && !isStreaming && hasAttachments;
   const dynamicPlaceholder = isStreaming ? 'Type to queue message...' : placeholder;
 
   const handleSlashCommandSelect = useCallback(
@@ -281,8 +280,7 @@ export const Input = memo(function Input({
     enhancePromptMutation.mutate({ prompt: message.trim(), modelId: selectedModelId });
   }, [hasMessage, isEnhancing, message, selectedModelId, enhancePromptMutation]);
 
-  const shouldShowAttachedPreview =
-    showAttachedFilesPreview && hasAttachments && (showPreview || isUploading);
+  const shouldShowAttachedPreview = showAttachedFilesPreview && hasAttachments && showPreview;
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="relative px-4 sm:px-6">
@@ -304,7 +302,6 @@ export const Input = memo(function Input({
             previewUrls={previewUrls}
             onRemoveFile={handleRemoveFile}
             onEditImage={handleDrawClick}
-            isUploading={isUploading}
           />
         )}
 

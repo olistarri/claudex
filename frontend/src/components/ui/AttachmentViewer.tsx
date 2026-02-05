@@ -100,6 +100,17 @@ const getDefaultFilename = (fileType: string, index: number): string => {
   }
 };
 
+const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
+  return (
+    <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b-md bg-black/40">
+      <div className="relative h-1 w-full overflow-hidden">
+        <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-brand-400" />
+      </div>
+      <p className="pb-1 pt-0.5 text-center text-2xs text-white">Loading...</p>
+    </div>
+  );
+});
+
 const downloadButtonClass =
   'h-7 w-7 rounded-full bg-black/60 text-white shadow-md backdrop-blur-sm hover:bg-black/70 focus-visible:ring-white/70';
 
@@ -130,7 +141,13 @@ function ThumbnailWrapper({ attachment, onDownload, children }: ThumbnailWrapper
   );
 }
 
-function IconThumbnail({ attachment }: { attachment: MessageAttachment }) {
+function IconThumbnail({
+  attachment,
+  isLoading = false,
+}: {
+  attachment: MessageAttachment;
+  isLoading?: boolean;
+}) {
   const { icon: Icon, color, label } = getIconConfig(attachment.file_type, attachment.filename);
   const filename = attachment.filename || getDefaultFilename(attachment.file_type, 0);
 
@@ -141,6 +158,7 @@ function IconThumbnail({ attachment }: { attachment: MessageAttachment }) {
         {filename}
       </p>
       <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">{label}</p>
+      {isLoading && <LoadingProgressOverlay />}
     </div>
   );
 }
@@ -158,8 +176,8 @@ function ImageThumbnail({
 
   if (state.isLoading) {
     return (
-      <div className="flex h-32 w-32 items-center justify-center rounded-md bg-surface-secondary dark:bg-surface-dark-secondary">
-        <div className="h-4 w-4 animate-pulse rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"></div>
+      <div className="relative h-32 w-32 rounded-md bg-surface-secondary dark:bg-surface-dark-secondary">
+        <LoadingProgressOverlay />
       </div>
     );
   }

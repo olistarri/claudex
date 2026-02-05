@@ -9,7 +9,6 @@ interface FilePreviewItemProps {
   onRemove: () => void;
   onEdit?: () => void;
   compact?: boolean;
-  isUploading?: boolean;
 }
 
 interface FileActionButtonsProps {
@@ -51,28 +50,12 @@ const FileActionButtons = ({
   </div>
 );
 
-const UploadProgressOverlay = memo(function UploadProgressOverlay({
-  compact = false,
-}: {
-  compact?: boolean;
-}) {
-  return (
-    <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b-lg bg-black/40">
-      <div className="relative h-1 w-full overflow-hidden">
-        <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-brand-400" />
-      </div>
-      {!compact && <p className="pb-1 pt-0.5 text-center text-2xs text-white">Uploading...</p>}
-    </div>
-  );
-});
-
 const FilePreviewItem = memo(function FilePreviewItem({
   file,
   previewUrl,
   onRemove,
   onEdit,
   compact = false,
-  isUploading = false,
 }: FilePreviewItemProps) {
   const isImage = isUploadedImageFile(file);
   const isPdf = isUploadedPdfFile(file);
@@ -94,23 +77,20 @@ const FilePreviewItem = memo(function FilePreviewItem({
           <img
             src={previewUrl}
             alt={`Preview of ${file.name}`}
-            className={`${previewSize} block rounded-lg object-cover ${isUploading ? 'opacity-70' : ''}`}
+            className={`${previewSize} block rounded-lg object-cover`}
           />
-          {!isUploading && (
-            <FileActionButtons
-              onEdit={onEdit}
-              onRemove={onRemove}
-              buttonSize={buttonSize}
-              iconSize={iconSize}
-              editLabel="Edit image"
-            />
-          )}
-          {isUploading && <UploadProgressOverlay compact={compact} />}
+          <FileActionButtons
+            onEdit={onEdit}
+            onRemove={onRemove}
+            buttonSize={buttonSize}
+            iconSize={iconSize}
+            editLabel="Edit image"
+          />
         </>
       ) : isPdf ? (
         <>
           <div
-            className={`${previewSize} flex flex-col items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary ${isUploading ? 'opacity-70' : ''}`}
+            className={`${previewSize} flex flex-col items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary`}
           >
             <FileText
               className={
@@ -138,21 +118,18 @@ const FilePreviewItem = memo(function FilePreviewItem({
               </p>
             </div>
           </div>
-          {!isUploading && (
-            <FileActionButtons
-              onEdit={onEdit}
-              onRemove={onRemove}
-              buttonSize={buttonSize}
-              iconSize={iconSize}
-              editLabel="Edit PDF"
-            />
-          )}
-          {isUploading && <UploadProgressOverlay compact={compact} />}
+          <FileActionButtons
+            onEdit={onEdit}
+            onRemove={onRemove}
+            buttonSize={buttonSize}
+            iconSize={iconSize}
+            editLabel="Edit PDF"
+          />
         </>
       ) : isXlsx ? (
         <>
           <div
-            className={`${previewSize} flex flex-col items-center justify-center rounded-lg border border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary ${isUploading ? 'opacity-70' : ''}`}
+            className={`${previewSize} flex flex-col items-center justify-center rounded-lg border border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary`}
           >
             <FileSpreadsheet
               className={
@@ -180,16 +157,13 @@ const FilePreviewItem = memo(function FilePreviewItem({
               </p>
             </div>
           </div>
-          {!isUploading && (
-            <FileActionButtons
-              onEdit={onEdit}
-              onRemove={onRemove}
-              buttonSize={buttonSize}
-              iconSize={iconSize}
-              editLabel="Edit Excel"
-            />
-          )}
-          {isUploading && <UploadProgressOverlay compact={compact} />}
+          <FileActionButtons
+            onEdit={onEdit}
+            onRemove={onRemove}
+            buttonSize={buttonSize}
+            iconSize={iconSize}
+            editLabel="Edit Excel"
+          />
         </>
       ) : null}
     </div>
@@ -202,7 +176,6 @@ interface FilePreviewListProps {
   onRemoveFile: (index: number) => void;
   onEditImage?: (index: number) => void;
   compact?: boolean;
-  isUploading?: boolean;
 }
 
 export const FilePreviewList = memo(function FilePreviewList({
@@ -211,7 +184,6 @@ export const FilePreviewList = memo(function FilePreviewList({
   onRemoveFile,
   onEditImage,
   compact = false,
-  isUploading = false,
 }: FilePreviewListProps) {
   if (!files || files.length === 0 || !previewUrls || previewUrls.length === 0) {
     return null;
@@ -234,7 +206,6 @@ export const FilePreviewList = memo(function FilePreviewList({
                 : undefined
             }
             compact={compact}
-            isUploading={isUploading}
           />
         ))}
       </div>
