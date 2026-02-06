@@ -26,22 +26,32 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
   const [state, setState] = useState<'idle' | 'waiting' | 'success' | 'error'>('idle');
   const [deviceInfo, setDeviceInfo] = useState<{ uri: string; code: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollIntervalMsRef = useRef<number>(0);
+  const flowIdRef = useRef<number>(0);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
   }, []);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  useEffect(
+    () => () => {
+      flowIdRef.current += 1;
+      stopPolling();
+    },
+    [stopPolling],
+  );
 
   const schedulePolling = useCallback(
-    (pollFn: () => Promise<void>) => {
+    (pollFn: () => Promise<void>, flowId: number) => {
       stopPolling();
-      pollingRef.current = setInterval(() => {
+      pollingRef.current = setTimeout(() => {
+        if (flowId !== flowIdRef.current) {
+          return;
+        }
         void pollFn();
       }, pollIntervalMsRef.current);
     },
@@ -51,12 +61,17 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
   const startDeviceFlow = async () => {
     setState('waiting');
     setErrorMsg(null);
+    flowIdRef.current += 1;
+    const flowId = flowIdRef.current;
     stopPolling();
 
     try {
       const resp = await apiClient.post<DeviceCodeResponse>('/copilot-auth/device-code');
       if (!resp) {
         throw new Error('Empty response');
+      }
+      if (flowId !== flowIdRef.current) {
+        return;
       }
 
       setDeviceInfo({ uri: resp.verification_uri, code: resp.user_code });
@@ -65,6 +80,9 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
       const expiresAt = Date.now() + resp.expires_in * 1000;
 
       const poll = async () => {
+        if (flowId !== flowIdRef.current) {
+          return;
+        }
         if (Date.now() > expiresAt) {
           stopPolling();
           setState('error');
@@ -90,17 +108,27 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
                 ? pollResp.interval + 3
                 : Math.floor(pollIntervalMsRef.current / 1000) + 5;
             pollIntervalMsRef.current = nextInterval * 1000;
-            schedulePolling(poll);
           }
         } catch {
+          if (flowId !== flowIdRef.current) {
+            return;
+          }
           stopPolling();
           setState('error');
           setErrorMsg('Authorization failed. Please try again.');
+          return;
+        }
+
+        if (flowId === flowIdRef.current) {
+          schedulePolling(poll, flowId);
         }
       };
 
-      schedulePolling(poll);
+      schedulePolling(poll, flowId);
     } catch {
+      if (flowId !== flowIdRef.current) {
+        return;
+      }
       setState('error');
       setErrorMsg('Failed to start GitHub authorization.');
     }
@@ -108,18 +136,14 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
 
   if (value && state !== 'waiting') {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-success-200 bg-success-50 p-3 dark:border-success-800 dark:bg-success-900/20">
-        <Check className="h-4 w-4 text-success-600 dark:text-success-400" />
-        <span className="text-sm text-success-700 dark:text-success-400">
-          GitHub Copilot connected
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-xs"
-          onClick={startDeviceFlow}
-        >
+      <div className="flex items-center justify-between rounded-lg border border-border bg-surface-tertiary p-3 dark:border-border-dark dark:bg-surface-dark-tertiary">
+        <div className="flex items-center gap-2">
+          <Check className="h-4 w-4 text-success-600 dark:text-success-400" />
+          <span className="text-sm text-text-primary dark:text-text-dark-primary">
+            GitHub Copilot connected
+          </span>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={startDeviceFlow}>
           Re-authenticate
         </Button>
       </div>
@@ -128,28 +152,30 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
 
   if (state === 'waiting' && deviceInfo) {
     return (
-      <div className="space-y-3 rounded-md border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+      <div className="space-y-3 rounded-lg border border-border bg-surface-tertiary p-4 dark:border-border-dark dark:bg-surface-dark-tertiary">
         <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-          <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+          <Loader2 className="h-4 w-4 animate-spin text-brand-600 dark:text-brand-400" />
+          <span className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
             Waiting for authorization...
           </span>
         </div>
         <div className="space-y-2">
-          <p className="text-xs text-blue-600 dark:text-blue-300">
+          <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
             1. Open this URL in your browser:
           </p>
           <a
             href={deviceInfo.uri}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 underline hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
           >
             {deviceInfo.uri}
             <ExternalLink className="h-3 w-3" />
           </a>
-          <p className="text-xs text-blue-600 dark:text-blue-300">2. Enter this code:</p>
-          <code className="block rounded bg-white px-3 py-2 text-lg font-bold tracking-widest text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+          <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
+            2. Enter this code:
+          </p>
+          <code className="bg-surface-primary dark:bg-surface-dark-primary block rounded px-3 py-2 text-lg font-bold tracking-widest text-text-primary dark:text-text-dark-primary">
             {deviceInfo.code}
           </code>
         </div>
@@ -157,8 +183,8 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
           type="button"
           variant="ghost"
           size="sm"
-          className="text-xs"
           onClick={() => {
+            flowIdRef.current += 1;
             stopPolling();
             setState('idle');
           }}

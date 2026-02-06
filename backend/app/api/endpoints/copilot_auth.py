@@ -4,12 +4,12 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.core.config import get_settings
 from app.core.security import get_current_user
 from app.models.db_models import User
 
 router = APIRouter()
-
-GITHUB_CLIENT_ID = "Ov23li8tweQw6odWQebz"
+settings = get_settings()
 DEVICE_CODE_URL = "https://github.com/login/device/code"
 ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
 
@@ -39,11 +39,8 @@ async def start_device_flow(
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             DEVICE_CODE_URL,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
-            json={"client_id": GITHUB_CLIENT_ID, "scope": "read:user"},
+            headers={"Accept": "application/json"},
+            data={"client_id": settings.GITHUB_CLIENT_ID, "scope": "read:user"},
         )
 
     if resp.status_code != 200:
@@ -70,12 +67,9 @@ async def poll_token(
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             ACCESS_TOKEN_URL,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
-            json={
-                "client_id": GITHUB_CLIENT_ID,
+            headers={"Accept": "application/json"},
+            data={
+                "client_id": settings.GITHUB_CLIENT_ID,
                 "device_code": request.device_code,
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             },

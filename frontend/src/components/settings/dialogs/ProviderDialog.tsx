@@ -67,8 +67,8 @@ const DEFAULT_COPILOT_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
   base_url: null,
   enabled: true,
   models: [
-    { model_id: 'gpt-5.3-codex', name: 'Codex 5.3', enabled: true },
-    { model_id: 'gemini-3-pro', name: 'Gemini 3 Pro', enabled: true },
+    { model_id: 'gpt-5.2-codex', name: 'Codex 5.2', enabled: true },
+    { model_id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', enabled: true },
     { model_id: 'claude-opus-4.6', name: 'Claude Opus 4.6', enabled: true },
   ],
 };

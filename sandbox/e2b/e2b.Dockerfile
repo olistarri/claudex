@@ -53,7 +53,7 @@ RUN curl -fsSLO https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.xz 
 
 RUN npm install -g @anthropic-ai/claude-code@2.1.32
 
-RUN pip3 install anthropic-bridge==0.1.31
+RUN pip3 install anthropic-bridge==0.1.34
 
 RUN npm install -g @openai/codex
 
