@@ -3,6 +3,7 @@ import { Button, Input, Label, Switch, Select } from '@/components/ui';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { SecretInput } from '../inputs/SecretInput';
 import { CodexAuthUpload } from '../inputs/CodexAuthUpload';
+import { CopilotAuthButton } from '../inputs/CopilotAuthButton';
 import { ModelListEditor } from '../inputs/ModelListEditor';
 import type {
   CustomProvider,
@@ -60,10 +61,23 @@ const DEFAULT_OPENAI_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
   ],
 };
 
+const DEFAULT_COPILOT_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
+  name: 'GitHub Copilot',
+  provider_type: 'copilot',
+  base_url: null,
+  enabled: true,
+  models: [
+    { model_id: 'gpt-5.3-codex', name: 'Codex 5.3', enabled: true },
+    { model_id: 'gemini-3-pro', name: 'Gemini 3 Pro', enabled: true },
+    { model_id: 'claude-opus-4.6', name: 'Claude Opus 4.6', enabled: true },
+  ],
+};
+
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openrouter', label: 'OpenRouter' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'copilot', label: 'GitHub Copilot' },
   { value: 'custom', label: 'Custom' },
 ];
 
@@ -86,6 +100,8 @@ const createProviderFromType = (providerType: ProviderType): CustomProvider => {
       return { ...DEFAULT_OPENROUTER_PROVIDER, id, auth_token: '' };
     case 'openai':
       return { ...DEFAULT_OPENAI_PROVIDER, id, auth_token: '' };
+    case 'copilot':
+      return { ...DEFAULT_COPILOT_PROVIDER, id, auth_token: '' };
     default:
       return createEmptyProvider();
   }
@@ -127,6 +143,16 @@ const getAuthTokenConfig = (
           prefix: 'Run',
           code: 'codex login',
           suffix: 'in terminal to authenticate with ChatGPT',
+        },
+      };
+    case 'copilot':
+      return {
+        label: 'GitHub Authentication',
+        placeholder: '',
+        helperText: {
+          prefix: 'Requires a',
+          anchorText: 'GitHub Copilot subscription',
+          href: 'https://github.com/features/copilot',
         },
       };
     case 'custom':
@@ -179,7 +205,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const builtInTypes = ['anthropic', 'openrouter', 'openai'];
+    const builtInTypes = ['anthropic', 'openrouter', 'openai', 'copilot'];
     if (builtInTypes.includes(form.provider_type) && !form.auth_token) {
       setLocalError('Authentication is required for this provider type.');
       return;
@@ -195,7 +221,8 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
   const isBuiltIn =
     form.provider_type === 'anthropic' ||
     form.provider_type === 'openrouter' ||
-    form.provider_type === 'openai';
+    form.provider_type === 'openai' ||
+    form.provider_type === 'copilot';
   const showBaseUrl = !isBuiltIn;
   const authConfig = getAuthTokenConfig(form.provider_type);
   const errorMessage = localError ?? error;
@@ -209,6 +236,8 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
         return 'Add OpenRouter Provider';
       case 'openai':
         return 'Add OpenAI Provider';
+      case 'copilot':
+        return 'Add GitHub Copilot Provider';
       default:
         return 'Add Custom Provider';
     }
@@ -253,7 +282,9 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
                   ? 'Configure a custom Anthropic-compatible API provider'
                   : selectedProviderType === 'openai'
                     ? 'Use OpenAI models with your ChatGPT subscription'
-                    : `Pre-configured with default ${selectedProviderType === 'anthropic' ? 'Claude' : 'OpenRouter'} models`}
+                    : selectedProviderType === 'copilot'
+                      ? 'Use AI models with your GitHub Copilot subscription'
+                      : `Pre-configured with default ${selectedProviderType === 'anthropic' ? 'Claude' : 'OpenRouter'} models`}
               </p>
             </div>
           )}
@@ -309,6 +340,19 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
                 value={form.auth_token || null}
                 onChange={(content) => {
                   setForm((prev) => ({ ...prev, auth_token: content || '' }));
+                  setLocalError(null);
+                }}
+              />
+            </div>
+          ) : form.provider_type === 'copilot' ? (
+            <div>
+              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+                GitHub Copilot Authentication
+              </Label>
+              <CopilotAuthButton
+                value={form.auth_token || null}
+                onChange={(token) => {
+                  setForm((prev) => ({ ...prev, auth_token: token || '' }));
                   setLocalError(null);
                 }}
               />

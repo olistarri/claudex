@@ -14,6 +14,7 @@ class ProviderType(str, Enum):
     ANTHROPIC = "anthropic"
     OPENROUTER = "openrouter"
     OPENAI = "openai"
+    COPILOT = "copilot"
     CUSTOM = "custom"
 
 
@@ -42,6 +43,10 @@ class CustomProvider(BaseModel):
             for model in self.models:
                 if not model.model_id.startswith("openai/"):
                     model.model_id = f"openai/{model.model_id}"
+        elif self.provider_type == ProviderType.COPILOT:
+            for model in self.models:
+                if not model.model_id.startswith("copilot/"):
+                    model.model_id = f"copilot/{model.model_id}"
         return self
 
 

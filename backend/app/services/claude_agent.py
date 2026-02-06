@@ -298,6 +298,12 @@ class ClaudeAgentService:
             env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:3456"
             env["ANTHROPIC_AUTH_TOKEN"] = "placeholder"
             env["CLAUDE_CODE_SUBAGENT_MODEL"] = actual_model_id
+        elif provider_type == ProviderType.COPILOT.value:
+            if auth_token:
+                env["GITHUB_COPILOT_TOKEN"] = auth_token
+            env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:3456"
+            env["ANTHROPIC_AUTH_TOKEN"] = "placeholder"
+            env["CLAUDE_CODE_SUBAGENT_MODEL"] = actual_model_id
         elif provider_type == ProviderType.CUSTOM.value:
             if provider.get("base_url"):
                 env["ANTHROPIC_BASE_URL"] = provider["base_url"]
