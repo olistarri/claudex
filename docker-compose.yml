@@ -1,7 +1,9 @@
+name: claudex-web
+
 services:
   postgres:
     image: postgres:13-alpine
-    container_name: claudex-postgres
+    container_name: claudex-postgres-web
     restart: always
     command: -c max_connections=600
     environment:
@@ -20,7 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: claudex-redis
+    container_name: claudex-redis-web
     restart: always
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -34,7 +36,7 @@ services:
 
   sandbox-setup:
     image: docker:27-cli
-    container_name: claudex-sandbox-setup
+    container_name: claudex-sandbox-setup-web
     restart: "no"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -44,7 +46,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: claudex-api
+    container_name: claudex-api-web
     restart: unless-stopped
     command: ["api"]
     user: root
@@ -108,7 +110,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: claudex-celery-beat
+    container_name: claudex-celery-beat-web
     restart: unless-stopped
     command: ["celery-beat"]
     depends_on:
@@ -131,7 +133,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: claudex-frontend
+    container_name: claudex-frontend-web
     restart: unless-stopped
     depends_on:
       - api
@@ -141,7 +143,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://api:${BACKEND_PORT:-8080}
+      - VITE_API_BASE_URL=http://localhost:${BACKEND_PORT:-8080}/api/v1
       - VITE_WS_URL=ws://localhost:${BACKEND_PORT:-8080}/api/v1/ws
 
 volumes:

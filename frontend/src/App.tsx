@@ -199,7 +199,7 @@ export default function App() {
         <div className="fixed inset-x-0 top-0 z-[100] bg-yellow-500/90 px-4 py-2 text-center text-xs font-medium text-black">
           Backend not running. Start it with{' '}
           <code className="rounded bg-black/10 px-1 py-0.5 text-[11px]">
-            docker compose -f docker-compose.desktop.yml up -d --remove-orphans
+            docker compose -p claudex-desktop -f docker-compose.desktop.yml up -d --remove-orphans
           </code>
           .
         </div>

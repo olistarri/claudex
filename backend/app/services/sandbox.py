@@ -622,11 +622,16 @@ class SandboxService:
         self,
         sandbox_id: str,
         openrouter_api_key: str | None = None,
+        copilot_token: str | None = None,
         skip_secret: bool = False,
     ) -> None:
         if openrouter_api_key and not skip_secret:
             await self.provider.add_secret(
                 sandbox_id, "OPENROUTER_API_KEY", openrouter_api_key
+            )
+        if copilot_token and not skip_secret:
+            await self.provider.add_secret(
+                sandbox_id, "GITHUB_COPILOT_TOKEN", copilot_token
             )
 
         start_cmd = f"anthropic-bridge --port {ANTHROPIC_BRIDGE_PORT} --host {ANTHROPIC_BRIDGE_HOST}"
@@ -808,11 +813,13 @@ class SandboxService:
 
         openrouter_api_key = self._get_openrouter_api_key(custom_providers)
         openai_enabled = self._has_openai_provider(custom_providers)
-        if openrouter_api_key or openai_enabled:
+        copilot_token = self._get_copilot_token(custom_providers)
+        if openrouter_api_key or openai_enabled or copilot_token:
             tasks.append(
                 self._setup_anthropic_bridge(
                     sandbox_id,
                     openrouter_api_key=openrouter_api_key,
+                    copilot_token=copilot_token,
                     skip_secret=is_fork,
                 )
             )
@@ -857,6 +864,21 @@ class SandboxService:
         for provider in custom_providers:
             if (
                 provider.get("provider_type") == ProviderType.OPENAI.value
+                and provider.get("enabled", True)
+                and provider.get("auth_token")
+            ):
+                return provider["auth_token"]
+        return None
+
+    @staticmethod
+    def _get_copilot_token(
+        custom_providers: list[CustomProviderDict] | None,
+    ) -> str | None:
+        if not custom_providers:
+            return None
+        for provider in custom_providers:
+            if (
+                provider.get("provider_type") == ProviderType.COPILOT.value
                 and provider.get("enabled", True)
                 and provider.get("auth_token")
             ):

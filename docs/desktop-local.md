@@ -13,8 +13,8 @@ When running in desktop mode, Vite loads `frontend/.env.desktop` which points th
 │   React frontend    │──────▶│   API         (port 8081)    │
 │   (.env.desktop)    │       │   Celery worker              │
 │                     │       │   Celery beat                │
-└─────────────────────┘       │   Postgres    (port 5432)    │
-                              │   Redis       (port 6379)    │
+└─────────────────────┘       │   Postgres    (port 5433)    │
+                              │   Redis       (port 6380)    │
                               └──────────────────────────────┘
 ```
 
@@ -28,7 +28,7 @@ When running in desktop mode, Vite loads `frontend/.env.desktop` which points th
 
 1. Start Docker services:
    ```sh
-   docker compose -f docker-compose.desktop.yml up -d --remove-orphans
+   docker compose -p claudex-desktop -f docker-compose.desktop.yml up -d --remove-orphans
    ```
 2. In `frontend/`:
    ```sh
@@ -47,5 +47,5 @@ The app bundle will be at `frontend/src-tauri/target/release/bundle/macos/Claude
 ## Troubleshooting
 
 - **Backend unavailable**: Ensure Docker Desktop is running and the compose stack is up.
-- **Database connection errors**: Confirm Postgres is listening on `localhost:5432`.
-- **Port conflict**: Desktop defaults to port `8081` to avoid conflicts. To change it, update `docker-compose.desktop.yml` and `frontend/.env.desktop`.
+- **Database connection errors**: Confirm Postgres is listening on `localhost:5433`.
+- **Port conflict**: Desktop defaults to ports `8081` (API), `5433` (Postgres), and `6380` (Redis) to avoid conflicts with web mode.

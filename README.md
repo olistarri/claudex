@@ -30,7 +30,7 @@ Join our [Discord server](https://discord.gg/qVJBdPjr) to get help, share feedba
 ```bash
 git clone https://github.com/Mng-dev-ai/claudex.git
 cd claudex
-docker compose up -d
+docker compose -p claudex-web -f docker-compose.yml up -d
 ```
 
 Open http://localhost:3000
@@ -189,9 +189,9 @@ You only need one AI provider configured.
 ## Commands
 
 ```bash
-docker compose up -d      # Start
-docker compose down       # Stop
-docker compose logs -f    # Logs
+docker compose -p claudex-web -f docker-compose.yml up -d      # Start web stack
+docker compose -p claudex-web -f docker-compose.yml down       # Stop web stack
+docker compose -p claudex-web -f docker-compose.yml logs -f    # Web logs
 ```
 
 ## Deployment

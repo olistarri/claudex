@@ -86,7 +86,7 @@ RUN python3 -m pip install --user --upgrade pip && \
     requests \
     pydantic \
     mcp \
-    anthropic-bridge==0.1.30
+    anthropic-bridge==0.1.34
 
 RUN OPENVSCODE_VERSION="1.105.1" && \
     ARCH=$(uname -m) && \

@@ -63,7 +63,7 @@ class Message(Base):
         ),
         nullable=False,
     )
-    model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     checkpoint_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     total_cost_usd: Mapped[float | None] = mapped_column(

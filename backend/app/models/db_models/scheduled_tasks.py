@@ -44,7 +44,7 @@ class ScheduledTask(Base):
         default=TaskStatus.ACTIVE,
         server_default="active",
     )
-    model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     executions = relationship(
         "TaskExecution", back_populates="task", cascade="all, delete-orphan"
