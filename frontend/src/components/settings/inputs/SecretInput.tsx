@@ -36,7 +36,7 @@ const renderHelperText = (helperText?: HelperTextLink | HelperTextCode) => {
           href={helperText.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="break-all text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+          className="break-all text-text-primary underline hover:text-text-secondary dark:text-text-dark-primary dark:hover:text-text-dark-secondary"
         >
           {helperText.anchorText}
         </a>

@@ -113,7 +113,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
                     href="https://console.cloud.google.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-600 hover:underline dark:text-brand-400"
+                    className="text-text-primary underline dark:text-text-dark-primary"
                   >
                     Google Cloud Console
                     <ExternalLink className="ml-1 inline h-3 w-3" />

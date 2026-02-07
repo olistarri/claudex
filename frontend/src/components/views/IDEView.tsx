@@ -141,7 +141,10 @@ export const IDEView = memo(function IDEView({ sandboxId, isActive = false }: ID
       <div className="relative flex-1 overflow-hidden">
         {isLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 dark:bg-black/50">
-            <Spinner size="md" className="h-6 w-6 text-brand-500" />
+            <Spinner
+              size="md"
+              className="h-6 w-6 text-text-quaternary dark:text-text-dark-quaternary"
+            />
           </div>
         )}
         <iframe

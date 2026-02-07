@@ -104,7 +104,7 @@ const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
   return (
     <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b-md bg-black/40">
       <div className="relative h-1 w-full overflow-hidden">
-        <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-brand-400" />
+        <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
       </div>
       <p className="pb-1 pt-0.5 text-center text-2xs text-white">Loading...</p>
     </div>

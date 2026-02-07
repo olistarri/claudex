@@ -40,14 +40,17 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
     <div
       ref={overlayRef}
       tabIndex={-1}
-      className={`${modalBackdropClass} z-[300] outline-none focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-brand-400`}
+      className={`${modalBackdropClass} z-[300] outline-none focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-text-quaternary`}
       role="dialog"
       aria-modal="true"
       aria-busy="true"
       aria-label={message}
     >
       <div className="flex flex-col items-center gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-brand-400" aria-hidden="true" />
+        <Loader2
+          className="h-8 w-8 animate-spin text-text-quaternary dark:text-text-dark-quaternary"
+          aria-hidden="true"
+        />
         <p
           className="text-sm text-text-dark-quaternary"
           role="status"
