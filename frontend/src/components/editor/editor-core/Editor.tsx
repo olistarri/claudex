@@ -101,9 +101,7 @@ export const Editor = memo(function Editor({
   }, [currentChat?.sandbox_id]);
 
   return (
-    <div
-      className={`flex h-full w-full flex-col overflow-hidden ${theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
-    >
+    <div className="flex h-full w-full flex-col overflow-hidden bg-surface-secondary dark:bg-surface-dark-secondary">
       <CodeView
         files={files}
         selectedFile={selectedFile}

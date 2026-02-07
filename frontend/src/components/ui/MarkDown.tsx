@@ -251,7 +251,7 @@ function MarkDownInner({ content, className = '' }: { content: string; className
         return (
           <a
             href={href}
-            className="text-brand-600 underline transition-colors hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+            className="text-text-primary underline transition-colors hover:text-text-secondary dark:text-text-dark-primary dark:hover:text-text-dark-secondary"
             target="_blank"
             rel="noopener noreferrer"
             {...props}

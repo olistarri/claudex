@@ -226,7 +226,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
             className={`rounded px-3 py-1.5 text-sm transition-colors ${
               currentSlide === 0
                 ? 'cursor-not-allowed bg-surface-tertiary text-text-quaternary dark:bg-surface-dark-tertiary'
-                : 'bg-brand-500 text-white hover:bg-brand-600'
+                : 'bg-text-primary text-surface hover:bg-text-secondary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary'
             }`}
           >
             Previous
@@ -244,7 +244,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
                   variant="unstyled"
                   className={`h-2 w-2 rounded-full transition-colors ${
                     idx === currentSlide
-                      ? 'bg-brand-500'
+                      ? 'bg-text-primary dark:bg-text-dark-primary'
                       : 'bg-text-quaternary dark:bg-text-dark-quaternary'
                   }`}
                   aria-label={`Go to slide ${idx + 1}`}
@@ -260,7 +260,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
             className={`rounded px-3 py-1.5 text-sm transition-colors ${
               currentSlide === slidesData.length - 1
                 ? 'cursor-not-allowed bg-surface-tertiary text-text-quaternary dark:bg-surface-dark-tertiary'
-                : 'bg-brand-500 text-white hover:bg-brand-600'
+                : 'bg-text-primary text-surface hover:bg-text-secondary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary'
             }`}
           >
             Next

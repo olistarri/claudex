@@ -196,9 +196,9 @@ export default function App() {
   return (
     <BrowserRouter>
       {backendReady === false && (
-        <div className="fixed inset-x-0 top-0 z-[100] bg-yellow-500/90 px-4 py-2 text-center text-xs font-medium text-black">
+        <div className="fixed inset-x-0 top-0 z-[100] bg-surface-tertiary px-4 py-2 text-center text-xs font-medium text-text-primary dark:bg-surface-dark-tertiary dark:text-text-dark-primary">
           Backend not running. Start it with{' '}
-          <code className="rounded bg-black/10 px-1 py-0.5 text-[11px]">
+          <code className="rounded bg-surface-active px-1 py-0.5 text-[11px] dark:bg-surface-dark-active">
             docker compose -p claudex-desktop -f docker-compose.desktop.yml up -d --remove-orphans
           </code>
           .

@@ -46,7 +46,7 @@ export const SplitViewContainer = memo(function SplitViewContainer({
         className={cn(
           'group relative w-px',
           'bg-border dark:bg-border-dark',
-          'hover:bg-brand-500 dark:hover:bg-brand-400',
+          'hover:bg-text-primary dark:hover:bg-text-dark-primary',
           'transition-colors duration-150',
         )}
       >

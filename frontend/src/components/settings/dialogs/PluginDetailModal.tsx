@@ -224,7 +224,7 @@ export const PluginDetailModal: React.FC<PluginDetailModalProps> = ({
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Spinner size="lg" className="text-brand-500" />
+              <Spinner size="lg" className="text-text-quaternary dark:text-text-dark-quaternary" />
             </div>
           ) : isError ? (
             <div className="rounded-lg border border-error-200 bg-error-50 p-6 text-center dark:border-error-800 dark:bg-error-900/20">
@@ -254,7 +254,7 @@ export const PluginDetailModal: React.FC<PluginDetailModalProps> = ({
                   {hasUninstalledComponents && (
                     <button
                       onClick={selectAll}
-                      className="text-xs text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+                      className="text-xs text-text-primary underline hover:text-text-secondary dark:text-text-dark-primary dark:hover:text-text-dark-secondary"
                     >
                       Select all available
                     </button>
@@ -279,8 +279,8 @@ export const PluginDetailModal: React.FC<PluginDetailModalProps> = ({
                           : isInstalled
                             ? 'border-success-200 bg-success-50 dark:border-success-800 dark:bg-success-900/20'
                             : isSelected
-                              ? 'border-brand-500 bg-brand-50 dark:border-brand-400 dark:bg-brand-900/20'
-                              : 'border-border hover:border-brand-300 dark:border-border-dark dark:hover:border-brand-600'
+                              ? 'border-border-hover bg-surface-active dark:border-border-dark-hover dark:bg-surface-dark-active'
+                              : 'border-border hover:border-border-hover dark:border-border-dark dark:hover:border-border-dark-hover'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -314,7 +314,7 @@ export const PluginDetailModal: React.FC<PluginDetailModalProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleComponent(componentId)}
-                          className="h-4 w-4 rounded border-border text-brand-600 focus:ring-brand-500 dark:border-border-dark"
+                          className="h-4 w-4 rounded border-border text-text-primary accent-text-primary focus:ring-text-quaternary/30 dark:border-border-dark"
                         />
                       )}
                     </label>

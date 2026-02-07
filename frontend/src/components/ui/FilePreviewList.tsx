@@ -105,13 +105,13 @@ const FilePreviewItem = memo(function FilePreviewItem({
               </p>
             )}
             <div
-              className={`${compact ? 'mt-1' : 'mt-2'} bg-brand-100 dark:bg-brand-900/30 ${compact ? 'px-2 py-0.5' : 'px-3 py-1'} rounded-full`}
+              className={`${compact ? 'mt-1' : 'mt-2'} bg-surface-active dark:bg-surface-dark-active ${compact ? 'px-2 py-0.5' : 'px-3 py-1'} rounded-full`}
             >
               <p
                 className={
                   compact
-                    ? 'text-2xs text-brand-600 dark:text-brand-400'
-                    : 'text-xs text-brand-600 dark:text-brand-400'
+                    ? 'text-2xs text-text-secondary dark:text-text-dark-secondary'
+                    : 'text-xs text-text-secondary dark:text-text-dark-secondary'
                 }
               >
                 {compact ? 'PDF' : 'PDF Document'}

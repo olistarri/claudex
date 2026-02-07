@@ -39,7 +39,7 @@ export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) =>
     if (percentage >= 75) {
       return 'text-warning-500 dark:text-warning-400';
     }
-    return 'text-brand-500 dark:text-brand-400';
+    return 'text-text-primary dark:text-text-dark-primary';
   }, [percentage]);
 
   const tooltip = `${formatNumberCompact(usage.tokensUsed)}/${formatNumberCompact(usage.contextWindow)}`;
