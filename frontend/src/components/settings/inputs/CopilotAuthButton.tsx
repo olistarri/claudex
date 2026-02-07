@@ -66,7 +66,7 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
     stopPolling();
 
     try {
-      const resp = await apiClient.post<DeviceCodeResponse>('/copilot-auth/device-code');
+      const resp = await apiClient.post<DeviceCodeResponse>('/integrations/copilot/device-code');
       if (!resp) {
         throw new Error('Empty response');
       }
@@ -91,9 +91,12 @@ export const CopilotAuthButton: React.FC<CopilotAuthButtonProps> = ({ value, onC
         }
 
         try {
-          const pollResp = await apiClient.post<PollTokenResponse>('/copilot-auth/poll-token', {
-            device_code: resp.device_code,
-          });
+          const pollResp = await apiClient.post<PollTokenResponse>(
+            '/integrations/copilot/poll-token',
+            {
+              device_code: resp.device_code,
+            },
+          );
 
           if (pollResp?.status === 'success' && pollResp.access_token) {
             stopPolling();
