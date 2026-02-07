@@ -3,6 +3,12 @@ import toast from 'react-hot-toast';
 import { logger } from '@/utils/logger';
 import { isSupportedUploadedFile } from '@/utils/fileTypes';
 import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
+import {
+  isApiAttachmentUrl,
+  isBrowserObjectUrl,
+  toApiEndpoint,
+  toDownloadUrl,
+} from '@/utils/attachmentUrl';
 
 const LANGUAGE_MAP: Record<string, string> = {
   ts: 'typescript',
@@ -258,6 +264,50 @@ export function traverseFileStructure<T>(
   });
 
   return result;
+}
+
+export async function fetchAttachmentBlob(
+  fileUrl: string,
+  apiClient: { getBlob: (endpoint: string, signal?: AbortSignal) => Promise<Blob> },
+  signal?: AbortSignal,
+): Promise<Blob> {
+  if (isApiAttachmentUrl(fileUrl)) {
+    return apiClient.getBlob(toApiEndpoint(fileUrl), signal);
+  }
+  const response = await fetch(fileUrl, { signal });
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.blob();
+}
+
+export async function downloadAttachmentFile(
+  fileUrl: string,
+  fileName: string,
+  apiClient: { getBlob: (endpoint: string, signal?: AbortSignal) => Promise<Blob> },
+): Promise<void> {
+  if (isBrowserObjectUrl(fileUrl)) {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  const downloadUrl = toDownloadUrl(fileUrl);
+  const blob = await fetchAttachmentBlob(downloadUrl, apiClient);
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 }
 
 export const convertDataUrlToUploadedFile = async (

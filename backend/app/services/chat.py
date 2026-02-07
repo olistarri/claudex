@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from celery.result import AsyncResult
 from app.utils.message_events import extract_user_prompt_and_reviews
 from app.utils.redis import redis_connection
+from app.utils.attachment_urls import build_attachment_preview_url
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys
 
 settings = get_settings()
@@ -625,7 +626,7 @@ class ChatService(BaseDbService[Chat]):
                         db.add_all(all_attachments)
                         await db.flush()
                         for att in all_attachments:
-                            att.file_url = f"{settings.BASE_URL}/api/v1/attachments/{att.id}/preview"
+                            att.file_url = build_attachment_preview_url(att.id)
 
                     await db.commit()
                     await db.refresh(new_chat)
