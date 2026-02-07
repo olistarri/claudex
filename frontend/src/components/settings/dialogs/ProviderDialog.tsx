@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button, Input, Label, Switch, Select } from '@/components/ui';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { SecretInput } from '../inputs/SecretInput';
-import { CodexAuthUpload } from '../inputs/CodexAuthUpload';
+import { OpenAIAuthButton } from '../inputs/OpenAIAuthButton';
 import { CopilotAuthButton } from '../inputs/CopilotAuthButton';
 import { ModelListEditor } from '../inputs/ModelListEditor';
 import type {
@@ -137,12 +137,12 @@ const getAuthTokenConfig = (
       };
     case 'openai':
       return {
-        label: 'Auth (Optional)',
-        placeholder: 'Uses ~/.codex/auth.json from codex login',
+        label: 'OpenAI Authentication',
+        placeholder: '',
         helperText: {
-          prefix: 'Run',
-          code: 'codex login',
-          suffix: 'in terminal to authenticate with ChatGPT',
+          prefix: 'Requires a',
+          anchorText: 'ChatGPT Pro/Plus subscription',
+          href: 'https://openai.com',
         },
       };
     case 'copilot':
@@ -323,23 +323,12 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
           {form.provider_type === 'openai' ? (
             <div>
               <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
-                Codex Authentication
+                OpenAI Authentication
               </Label>
-              <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                Upload your auth.json from{' '}
-                <code className="rounded bg-surface-tertiary px-1 dark:bg-surface-dark-tertiary">
-                  ~/.codex/auth.json
-                </code>{' '}
-                or run{' '}
-                <code className="rounded bg-surface-tertiary px-1 dark:bg-surface-dark-tertiary">
-                  codex login
-                </code>{' '}
-                in terminal. Required.
-              </p>
-              <CodexAuthUpload
+              <OpenAIAuthButton
                 value={form.auth_token || null}
-                onChange={(content) => {
-                  setForm((prev) => ({ ...prev, auth_token: content || '' }));
+                onChange={(token) => {
+                  setForm((prev) => ({ ...prev, auth_token: token || '' }));
                   setLocalError(null);
                 }}
               />
