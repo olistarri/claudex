@@ -75,17 +75,16 @@ const getDefaultFilename = (fileType: string, index: number): string => {
 
 const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
   return (
-    <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b-md bg-black/40">
-      <div className="relative h-1 w-full overflow-hidden">
+    <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b bg-black/40">
+      <div className="relative h-0.5 w-full overflow-hidden">
         <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
       </div>
-      <p className="pb-1 pt-0.5 text-center text-2xs text-white">Loading...</p>
     </div>
   );
 });
 
 const downloadButtonClass =
-  'h-7 w-7 rounded-full bg-black/60 text-white shadow-md backdrop-blur-sm hover:bg-black/70 focus-visible:ring-white/70';
+  'h-5 w-5 rounded-full bg-black/60 text-white shadow-md backdrop-blur-sm hover:bg-black/70 focus-visible:ring-white/70';
 
 function ThumbnailWrapper({ attachment, onDownload, children }: ThumbnailWrapperProps) {
   const filename = attachment.filename || getDefaultFilename(attachment.file_type, 0);
@@ -93,7 +92,7 @@ function ThumbnailWrapper({ attachment, onDownload, children }: ThumbnailWrapper
   return (
     <div className="group/thumbnail relative">
       {children}
-      <div className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover/thumbnail:opacity-100">
+      <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/thumbnail:opacity-100">
         <Button
           type="button"
           size="icon"
@@ -107,7 +106,7 @@ function ThumbnailWrapper({ attachment, onDownload, children }: ThumbnailWrapper
           className={cn('p-0', downloadButtonClass)}
           aria-label={`Download ${attachment.file_type}`}
         >
-          <Download className="h-3.5 w-3.5 text-white" />
+          <Download className="h-2.5 w-2.5 text-white" />
         </Button>
       </div>
     </div>
@@ -122,15 +121,13 @@ function IconThumbnail({
   isLoading?: boolean;
 }) {
   const { icon: Icon, color, label } = getIconConfig(attachment.file_type, attachment.filename);
-  const filename = attachment.filename || getDefaultFilename(attachment.file_type, 0);
 
   return (
-    <div className="relative flex h-32 w-32 flex-col items-center justify-center rounded-md border border-border bg-surface-secondary transition-colors hover:bg-surface-hover dark:border-border-dark dark:bg-surface-dark-secondary dark:hover:bg-surface-dark-hover">
-      <Icon className={`h-10 w-10 ${color} mb-2`} />
-      <p className="max-w-full truncate px-2 text-center text-xs text-text-secondary dark:text-text-dark-secondary">
-        {filename}
+    <div className="relative flex h-10 w-10 flex-col items-center justify-center rounded border border-border/50 bg-surface-secondary transition-colors hover:bg-surface-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:hover:bg-surface-dark-hover">
+      <Icon className={`h-4 w-4 ${color}`} />
+      <p className="text-[8px] leading-tight text-text-tertiary dark:text-text-dark-tertiary">
+        {label}
       </p>
-      <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">{label}</p>
       {isLoading && <LoadingProgressOverlay />}
     </div>
   );
@@ -149,7 +146,7 @@ function ImageThumbnail({
 
   if (state.isLoading) {
     return (
-      <div className="relative h-32 w-32 rounded-md bg-surface-secondary dark:bg-surface-dark-secondary">
+      <div className="relative h-10 w-10 rounded bg-surface-secondary dark:bg-surface-dark-secondary">
         <LoadingProgressOverlay />
       </div>
     );
@@ -157,10 +154,8 @@ function ImageThumbnail({
 
   if (state.error) {
     return (
-      <div className="flex h-32 w-32 items-center justify-center rounded-md border border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary">
-        <p className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-          Failed to load image
-        </p>
+      <div className="flex h-10 w-10 items-center justify-center rounded border border-border/50 bg-surface-secondary dark:border-border-dark/50 dark:bg-surface-dark-secondary">
+        <p className="text-[8px] text-text-tertiary dark:text-text-dark-tertiary">Error</p>
       </div>
     );
   }
@@ -171,7 +166,7 @@ function ImageThumbnail({
         <img
           src={state.imageSrc}
           alt={filename}
-          className="block h-32 w-32 cursor-default rounded-md object-cover"
+          className="block h-10 w-10 cursor-default rounded object-cover"
         />
       </div>
     );
@@ -263,7 +258,7 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {attachments.map((attachment, index) => {
         if (attachment.file_type === 'image') {
           const state = imageStates[attachment.id] || {
