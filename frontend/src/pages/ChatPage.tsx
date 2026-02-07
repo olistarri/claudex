@@ -260,6 +260,7 @@ export function ChatPage() {
           return (
             <ChatComponent
               messages={messages}
+              pendingUserMessageId={streamingState.pendingUserMessageId}
               copiedMessageId={streamingState.copiedMessageId}
               isLoading={isLoading}
               isStreaming={isStreaming}

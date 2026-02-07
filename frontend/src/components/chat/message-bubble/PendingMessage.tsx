@@ -1,7 +1,8 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { X, Pencil, Check, FileText, FileSpreadsheet } from 'lucide-react';
-import { Button } from '@/components/ui';
+import { Button, Spinner } from '@/components/ui';
 import { apiClient } from '@/lib/api';
+import { detectFileType } from '@/utils/fileTypes';
 import { fetchAttachmentBlob } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import type { LocalQueuedMessage, MessageAttachment as QueueAttachment } from '@/types/queue.types';
@@ -10,6 +11,86 @@ interface PendingMessageProps {
   message: LocalQueuedMessage;
   onCancel: () => void;
   onEdit: (newContent: string) => void;
+}
+
+function UploadingOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 rounded-lg bg-black/35">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Spinner size="xs" className="text-white" />
+      </div>
+    </div>
+  );
+}
+
+function LocalUploadingPreview({ file }: { file: File }) {
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<'image' | 'pdf' | 'xlsx' | 'unknown'>('unknown');
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+
+    try {
+      const detectedType = detectFileType(file.name, file.type);
+      setFileType(detectedType);
+
+      if (detectedType === 'image') {
+        objectUrl = URL.createObjectURL(file);
+        setImageSrc(objectUrl);
+      }
+    } catch {
+      setFileType('unknown');
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [file]);
+
+  if (fileType === 'image' && imageSrc) {
+    return (
+      <div className="relative h-14 w-14 rounded-lg">
+        <img
+          src={imageSrc}
+          alt={file.name || 'Attachment'}
+          className="h-14 w-14 rounded-lg object-cover"
+        />
+        <UploadingOverlay />
+      </div>
+    );
+  }
+
+  if (fileType === 'xlsx') {
+    return (
+      <div className="relative flex h-14 w-14 flex-col items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary">
+        <FileSpreadsheet className="h-6 w-6 text-success-600 dark:text-success-400" />
+        <span className="mt-0.5 text-2xs text-text-tertiary dark:text-text-dark-tertiary">
+          Excel
+        </span>
+        <UploadingOverlay />
+      </div>
+    );
+  }
+
+  if (fileType === 'pdf') {
+    return (
+      <div className="relative flex h-14 w-14 flex-col items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary">
+        <FileText className="h-6 w-6 text-error-500 dark:text-error-400" />
+        <span className="mt-0.5 text-2xs text-text-tertiary dark:text-text-dark-tertiary">PDF</span>
+        <UploadingOverlay />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-14 w-14 flex-col items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary">
+      <FileText className="h-6 w-6 text-text-tertiary dark:text-text-dark-tertiary" />
+      <span className="mt-0.5 text-2xs text-text-tertiary dark:text-text-dark-tertiary">File</span>
+      <UploadingOverlay />
+    </div>
+  );
 }
 
 function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
@@ -111,8 +192,6 @@ export const PendingMessage = memo(function PendingMessage({
   const hasLocalFiles = message.files && message.files.length > 0;
   const hasServerAttachments = message.attachments && message.attachments.length > 0;
 
-  const isUploadingFiles = hasLocalFiles && !hasServerAttachments;
-
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.focus();
@@ -156,9 +235,14 @@ export const PendingMessage = memo(function PendingMessage({
     <div className="group px-4 py-1.5 sm:px-6 sm:py-2">
       <div className="flex items-start">
         <div className="min-w-0 flex-1">
-          {isUploadingFiles && (
-            <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary">
-              <div className="h-4 w-4 animate-pulse rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
+          {hasLocalFiles && !hasServerAttachments && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {message.files!.map((file, idx) => (
+                <LocalUploadingPreview
+                  key={`${file.name}-${file.lastModified}-${idx}`}
+                  file={file}
+                />
+              ))}
             </div>
           )}
           {hasServerAttachments && message.attachments && (

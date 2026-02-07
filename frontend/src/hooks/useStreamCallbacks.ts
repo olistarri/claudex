@@ -30,6 +30,7 @@ interface UseStreamCallbacksParams {
   setCurrentMessageId: Dispatch<SetStateAction<string | null>>;
   setError: Dispatch<SetStateAction<Error | null>>;
   pendingStopRef: React.MutableRefObject<Set<string>>;
+  onPendingUserMessageIdChange?: (id: string | null) => void;
 }
 
 interface UseStreamCallbacksResult {
@@ -60,6 +61,7 @@ export function useStreamCallbacks({
   setCurrentMessageId,
   setError,
   pendingStopRef,
+  onPendingUserMessageIdChange,
 }: UseStreamCallbacksParams): UseStreamCallbacksResult {
   const optionsRef = useRef<{
     chatId: string;
@@ -86,14 +88,22 @@ export function useStreamCallbacks({
   const clearReviewsForChat = useReviewStore((state) => state.clearReviewsForChat);
   const { data: settings } = useSettingsQuery();
 
-  const setPendingUserMessageId = useCallback((id: string | null) => {
-    pendingUserMessageIdRef.current = id;
-  }, []);
+  const setPendingUserMessageId = useCallback(
+    (id: string | null) => {
+      pendingUserMessageIdRef.current = id;
+      onPendingUserMessageIdChange?.(id);
+    },
+    [onPendingUserMessageIdChange],
+  );
 
   const onChunk = useCallback(
     (event: AssistantStreamEvent, messageId: string) => {
       if (pendingStopRef.current.has(messageId)) {
         return;
+      }
+
+      if (pendingUserMessageIdRef.current) {
+        setPendingUserMessageId(null);
       }
 
       if (event.type === 'permission_request' && onPermissionRequest) {
@@ -123,10 +133,18 @@ export function useStreamCallbacks({
         content: appendEventToLog(cachedMsg.content, event),
       }));
     },
-    [updateMessageInCache, onPermissionRequest, onContextUsageUpdate, setMessages, pendingStopRef],
+    [
+      updateMessageInCache,
+      onPermissionRequest,
+      onContextUsageUpdate,
+      setMessages,
+      pendingStopRef,
+      setPendingUserMessageId,
+    ],
   );
 
   const onComplete = useCallback(() => {
+    setPendingUserMessageId(null);
     setStreamState('idle');
     setCurrentMessageId(null);
 
@@ -165,6 +183,7 @@ export function useStreamCallbacks({
     setStreamState,
     setCurrentMessageId,
     settings?.notification_sound_enabled,
+    setPendingUserMessageId,
   ]);
 
   const onError = useCallback(
@@ -189,9 +208,16 @@ export function useStreamCallbacks({
         removeMessagesFromCache(messageIdsToRemove);
       }
 
-      pendingUserMessageIdRef.current = null;
+      setPendingUserMessageId(null);
     },
-    [setError, setStreamState, setCurrentMessageId, setMessages, removeMessagesFromCache],
+    [
+      setError,
+      setStreamState,
+      setCurrentMessageId,
+      setMessages,
+      removeMessagesFromCache,
+      setPendingUserMessageId,
+    ],
   );
 
   const onQueueProcess = useCallback(

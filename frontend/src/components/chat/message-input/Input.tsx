@@ -38,6 +38,7 @@ export interface InputProps {
   showTip?: boolean;
   compact?: boolean;
   chatId?: string;
+  showLoadingSpinner?: boolean;
 }
 
 export const Input = memo(function Input({
@@ -58,6 +59,7 @@ export const Input = memo(function Input({
   showTip = true,
   compact = true,
   chatId,
+  showLoadingSpinner = false,
 }: InputProps) {
   const { fileStructure, customAgents, customSlashCommands, customPrompts } = useChatContext();
   const formRef = useRef<HTMLFormElement>(null);
@@ -362,6 +364,7 @@ export const Input = memo(function Input({
                 onClick={handleSendClick}
                 type="button"
                 hasMessage={hasMessage}
+                showLoadingSpinner={showLoadingSpinner}
               />
             </div>
           </div>
