@@ -147,10 +147,6 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
                           <Check className="h-3 w-3" />
                           Configured
                         </span>
-                      ) : provider.provider_type === 'openai' ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                          Uses ~/.codex/auth.json
-                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs text-warning-600 dark:text-warning-500">
                           <X className="h-3 w-3" />

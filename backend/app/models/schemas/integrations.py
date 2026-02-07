@@ -38,7 +38,13 @@ class PollTokenRequest(BaseModel):
     device_code: str
 
 
+class OpenAIPollTokenRequest(BaseModel):
+    device_code: str
+    user_code: str
+
+
 class PollTokenResponse(BaseModel):
     status: str
     access_token: str | None = None
+    refresh_token: str | None = None
     interval: int | None = None

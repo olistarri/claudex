@@ -174,6 +174,9 @@ class Settings(BaseSettings):
     # GitHub Copilot OAuth (default ID from https://github.com/anomalyco/opencode)
     GITHUB_CLIENT_ID: str = "Ov23li8tweQw6odWQebz"
 
+    # OpenAI OAuth
+    OPENAI_CLIENT_ID: str = "app_EMoamEEZ73f0CkXaXp7hrann"
+
     class Config:
         env_file = ".env"
         case_sensitive = True
