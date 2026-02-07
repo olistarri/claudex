@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,12 +12,15 @@ from app.core.deps import get_db, get_user_service
 from app.core.security import get_current_user
 from app.models.db_models import User
 from app.models.schemas.integrations import (
+    DeviceCodeResponse,
     GmailStatusResponse,
     OAuthClientResponse,
     OAuthClientUploadRequest,
     OAuthUrlResponse,
+    PollTokenRequest,
+    PollTokenResponse,
 )
-from app.services import gmail_oauth
+from app.services import copilot_oauth, gmail_oauth
 from app.services.exceptions import UserException
 from app.services.user import UserService
 
@@ -225,6 +230,54 @@ async def disconnect_gmail(
     )
 
     return OAuthClientResponse(success=True, message="Gmail disconnected")
+
+
+@router.post("/copilot/device-code", response_model=DeviceCodeResponse)
+async def start_device_flow(
+    _current_user: User = Depends(get_current_user),
+) -> DeviceCodeResponse:
+    try:
+        data: dict[str, Any] = await copilot_oauth.start_device_authorization()
+    except Exception:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to initiate GitHub device authorization",
+        )
+
+    return DeviceCodeResponse(
+        verification_uri=data["verification_uri"],
+        user_code=data["user_code"],
+        device_code=data["device_code"],
+        interval=data.get("interval", 5),
+        expires_in=data.get("expires_in", 900),
+    )
+
+
+@router.post("/copilot/poll-token", response_model=PollTokenResponse)
+async def poll_token(
+    request: PollTokenRequest,
+    _current_user: User = Depends(get_current_user),
+) -> PollTokenResponse:
+    try:
+        data: dict[str, Any] = await copilot_oauth.poll_access_token(
+            request.device_code
+        )
+    except Exception:
+        raise HTTPException(status_code=502, detail="GitHub token request failed")
+
+    if data.get("access_token"):
+        return PollTokenResponse(status="success", access_token=data["access_token"])
+
+    error = data.get("error", "unknown")
+    if error == "authorization_pending":
+        return PollTokenResponse(status="pending")
+    if error == "slow_down":
+        interval = data.get("interval")
+        if isinstance(interval, int) and interval > 0:
+            return PollTokenResponse(status="slow_down", interval=interval)
+        return PollTokenResponse(status="slow_down")
+
+    raise HTTPException(status_code=400, detail=f"Authorization failed: {error}")
 
 
 def _callback_html(error: str | None, email: str | None = None) -> str:

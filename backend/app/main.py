@@ -11,7 +11,6 @@ from app.api.endpoints import (
     ai_model,
     auth,
     chat,
-    copilot_auth,
     sandbox,
     websocket,
     attachments,
@@ -148,12 +147,6 @@ def create_application() -> FastAPI:
         prefix=f"{settings.API_V1_STR}/integrations",
         tags=["Integrations"],
     )
-    application.include_router(
-        copilot_auth.router,
-        prefix=f"{settings.API_V1_STR}/copilot-auth",
-        tags=["Copilot Auth"],
-    )
-
     application.openapi = lambda: custom_openapi(application)
 
     admin = create_admin(application, engine, SessionLocal)
