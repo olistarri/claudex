@@ -25,7 +25,7 @@ export const MessageContent = memo(
   }: MessageContentProps) => {
     if (!isBot) {
       return (
-        <div className="space-y-4">
+        <div className="space-y-1">
           <MessageAttachments attachments={attachments} />
           <MessageRenderer content={content} isStreaming={isStreaming} chatId={chatId} />
         </div>

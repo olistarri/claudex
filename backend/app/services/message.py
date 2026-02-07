@@ -7,7 +7,6 @@ from sqlalchemy import select, delete, update, or_, and_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.models.db_models import (
     Message,
     MessageAttachment,
@@ -18,9 +17,9 @@ from app.models.schemas import CursorPaginatedMessages
 from app.models.types import MessageAttachmentDict
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import MessageException, ErrorCode
+from app.utils.attachment_urls import build_attachment_preview_url
 from app.utils.cursor import encode_cursor, decode_cursor, InvalidCursorError
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
@@ -86,7 +85,7 @@ class MessageService(BaseDbService[Message]):
                     db.add(attachment)
                     await db.flush()
 
-                    attachment.file_url = f"{settings.BASE_URL}/api/v1/attachments/{attachment.id}/preview"
+                    attachment.file_url = build_attachment_preview_url(attachment.id)
 
                 await db.commit()
                 await db.refresh(message, ["attachments"])

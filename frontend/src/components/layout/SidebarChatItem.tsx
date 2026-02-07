@@ -75,7 +75,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           className={cn(
             'flex-shrink-0 text-2xs tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
             'transition-opacity duration-200',
-            isHovered || isDropdownOpen ? 'opacity-0' : 'opacity-100',
+            isHovered || isSelected || isDropdownOpen ? 'opacity-0' : 'opacity-100',
           )}
         >
           {getRelativeTime(chat.updated_at || chat.created_at)}

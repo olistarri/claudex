@@ -6,36 +6,9 @@ import { logger } from '@/utils/logger';
 import type { MessageAttachment } from '@/types';
 import { Button } from './primitives/Button';
 import { cn } from '@/utils/cn';
-import { authService } from '@/services/authService';
-
-async function downloadFile(url: string, fileName: string): Promise<void> {
-  try {
-    const token = authService.getToken();
-    const downloadUrl = url.replace('/preview', '/download');
-    const response = await fetch(downloadUrl, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-
-    document.body.removeChild(link);
-    URL.revokeObjectURL(blobUrl);
-  } catch (error) {
-    logger.error('File download failed', 'downloadFile', error);
-    throw error;
-  }
-}
+import { apiClient } from '@/lib/api';
+import { fetchAttachmentBlob, downloadAttachmentFile } from '@/utils/file';
+import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 
 interface AttachmentViewerProps {
   attachments?: MessageAttachment[];
@@ -210,10 +183,16 @@ function ImageThumbnail({
 function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   const loadedIdsRef = useRef<Set<string>>(new Set());
+  const ownedObjectUrlsRef = useRef<Set<string>>(new Set());
 
   const handleDownload = useCallback(async (url: string, fileName: string) => {
     if (!url) return;
-    await downloadFile(url, fileName);
+    try {
+      await downloadAttachmentFile(url, fileName, apiClient);
+    } catch (error) {
+      logger.error('File download failed', 'AttachmentViewer', error);
+      throw error;
+    }
   }, []);
 
   useEffect(() => {
@@ -236,17 +215,17 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
         }));
 
         try {
-          const token = authService.getToken();
-          const response = await fetch(attachment.file_url, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          if (isBrowserObjectUrl(attachment.file_url)) {
+            setImageStates((prev) => ({
+              ...prev,
+              [key]: { isLoading: false, error: false, imageSrc: attachment.file_url },
+            }));
+            continue;
           }
 
-          const blob = await response.blob();
+          const blob = await fetchAttachmentBlob(attachment.file_url, apiClient);
           const blobUrl = URL.createObjectURL(blob);
+          ownedObjectUrlsRef.current.add(blobUrl);
 
           setImageStates((prev) => ({
             ...prev,
@@ -268,16 +247,14 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
+    const ownedObjectUrls = ownedObjectUrlsRef.current;
     return () => {
-      setImageStates((prev) => {
-        Object.values(prev).forEach((state) => {
-          if (state.imageSrc) {
-            URL.revokeObjectURL(state.imageSrc);
-          }
-        });
-        return {};
+      ownedObjectUrls.forEach((url) => {
+        URL.revokeObjectURL(url);
       });
+      ownedObjectUrls.clear();
       loadedIds.clear();
+      setImageStates({});
     };
   }, []);
 

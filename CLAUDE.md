@@ -12,6 +12,9 @@
 
 - Don't add comments or docstrings for self-explanatory code
 - Let the code speak for itself - use clear variable/function names instead of comments
+- Avoid no-op pass-through wrappers (e.g., a function that only calls another function with identical args/return)
+- If a wrapper exists, it must add concrete value (validation, transformation, error handling, compatibility boundary, or stable public API surface)
+- Prefer direct imports/calls over indirection when behavior is unchanged
 
 ## Frontend UI/UX Guidelines
 

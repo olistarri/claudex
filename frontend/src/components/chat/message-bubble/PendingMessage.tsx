@@ -1,7 +1,9 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { X, Pencil, Check, FileText, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { authService } from '@/services/authService';
+import { apiClient } from '@/lib/api';
+import { fetchAttachmentBlob } from '@/utils/file';
+import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import type { LocalQueuedMessage, MessageAttachment as QueueAttachment } from '@/types/queue.types';
 
 interface PendingMessageProps {
@@ -21,15 +23,14 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
 
     async function loadImage() {
       try {
-        const token = authService.getToken();
-        const response = await fetch(attachment.file_url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        if (isBrowserObjectUrl(attachment.file_url)) {
+          setImageSrc(attachment.file_url);
+          setIsLoading(false);
+          return;
+        }
 
-        if (!response.ok) throw new Error('Failed to load');
+        const blob = await fetchAttachmentBlob(attachment.file_url, apiClient);
         if (cancelled) return;
-
-        const blob = await response.blob();
         objectUrl = URL.createObjectURL(blob);
         setImageSrc(objectUrl);
         setIsLoading(false);

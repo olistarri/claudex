@@ -53,8 +53,8 @@ export function ToolPermissionInline({
     <div className="overflow-hidden rounded-lg border border-border bg-surface-tertiary dark:border-border-dark dark:bg-surface-dark-tertiary">
       <div className="flex items-center justify-between border-b border-border px-3 py-2 dark:border-border-dark">
         <div className="flex items-center gap-2">
-          <div className="rounded-md bg-warning-500/10 p-1 dark:bg-warning-500/20">
-            <ShieldAlert className="h-3.5 w-3.5 text-warning-600 dark:text-warning-500" />
+          <div className="rounded-md bg-black/5 p-1 dark:bg-white/10">
+            <ShieldAlert className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
           </div>
           <div className="min-w-0 flex-1">
             <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
