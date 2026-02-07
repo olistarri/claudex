@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import { Sidebar, useLayoutSidebar } from '@/components/layout';
 import { Input } from '@/components/chat/message-input/Input';
 import { Button } from '@/components/ui';
+import { Globe, BarChart3, Code2 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useChatStore, useAuthStore } from '@/store';
 import {
   useInfiniteChatsQuery,
@@ -14,13 +16,30 @@ import {
 import { mergeAgents } from '@/utils/settings';
 import { ChatProvider } from '@/contexts/ChatContext';
 
+interface ExamplePrompt {
+  icon: LucideIcon;
+  label: string;
+  prompt: string;
+}
+
 const useExamplePrompts = () =>
-  useMemo(
+  useMemo<ExamplePrompt[]>(
     () => [
-      'Go to Amazon and find the best laptops under $1000',
-      'Analyze this Excel file and create visualizations',
-      'Deep research on quantum computing trends',
-      'Build a full-stack app with FastAPI and React',
+      {
+        icon: Globe,
+        label: 'Browse the web',
+        prompt: 'Go to Amazon and find the best laptops under $1000',
+      },
+      {
+        icon: BarChart3,
+        label: 'Analyze data',
+        prompt: 'Analyze this Excel file and create visualizations',
+      },
+      {
+        icon: Code2,
+        label: 'Build an app',
+        prompt: 'Build a full-stack app with FastAPI and React',
+      },
     ],
     [],
   );
@@ -141,18 +160,12 @@ export function LandingPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="relative flex flex-1">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-surface-secondary/50 via-transparent to-brand-50/30 dark:from-surface-dark/50 dark:via-transparent dark:to-brand-900/10" />
         <div className="flex flex-1 items-center justify-center px-4 pb-10">
-          <div className="w-full max-w-3xl">
-            <div className="mb-8 space-y-6 text-center">
-              <div>
-                <h1 className="mb-2 text-3xl font-medium text-text-primary dark:text-text-dark-primary">
-                  What would you like to work on?
-                </h1>
-                <p className="text-sm text-text-tertiary dark:text-text-dark-tertiary">
-                  Build anything. No limitations.
-                </p>
-              </div>
+          <div className="w-full max-w-2xl">
+            <div className="mb-6 text-center">
+              <p className="text-sm font-medium text-text-secondary dark:text-text-dark-secondary">
+                What would you like to build?
+              </p>
             </div>
             <ChatProvider
               customAgents={allAgents}
@@ -168,21 +181,27 @@ export function LandingPage() {
                 isLoading={isLoading}
                 selectedModelId={selectedModelId}
                 onModelChange={selectModel}
+                showTip={false}
               />
             </ChatProvider>
-            <div className="mt-4">
-              <div className="mx-auto flex max-w-4xl flex-wrap justify-center gap-3">
-                {examplePrompts.map((prompt) => (
+            <div className="mt-5 flex justify-center gap-2 px-4 sm:px-6">
+              {examplePrompts.map((example, index) => {
+                const Icon = example.icon;
+                return (
                   <Button
-                    key={prompt}
-                    onClick={() => handleExampleClick(prompt)}
+                    key={example.prompt}
+                    onClick={() => handleExampleClick(example.prompt)}
                     variant="unstyled"
-                    className="whitespace-nowrap rounded-full border border-border bg-surface-secondary px-4 py-2.5 text-xs text-text-secondary transition-all duration-200 hover:border-brand-500/30 hover:bg-surface-hover dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-secondary dark:hover:border-brand-400/30 dark:hover:bg-surface-dark-hover"
+                    className="group flex animate-fade-in items-center gap-2 rounded-xl border border-border px-3.5 py-2.5 text-left opacity-0 transition-all duration-200 hover:border-border-hover hover:bg-surface-secondary dark:border-border-dark dark:hover:border-border-dark-hover dark:hover:bg-surface-dark-tertiary"
+                    style={{ animationDelay: `${index * 75}ms`, animationFillMode: 'forwards' }}
                   >
-                    {prompt}
+                    <Icon className="h-3.5 w-3.5 flex-shrink-0 text-text-quaternary transition-colors duration-200 group-hover:text-text-secondary dark:text-text-dark-quaternary dark:group-hover:text-text-dark-tertiary" />
+                    <span className="text-xs text-text-tertiary transition-colors duration-200 group-hover:text-text-primary dark:text-text-dark-tertiary dark:group-hover:text-text-dark-secondary">
+                      {example.label}
+                    </span>
                   </Button>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>

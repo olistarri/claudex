@@ -74,7 +74,7 @@ export function Layout({
 
           <main
             className={cn(
-              'relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-surface-secondary transition-[padding] duration-500 ease-in-out dark:bg-surface-dark-secondary',
+              'relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-surface transition-[padding] duration-500 ease-in-out dark:bg-surface-dark',
               shouldPushContent ? 'pl-64' : 'pl-0',
               contentClassName,
             )}

@@ -13,7 +13,7 @@
 html,
 body,
 #root {
-  @apply bg-surface-secondary text-neutral-900 dark:bg-surface-dark-secondary dark:text-white;
+  @apply bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary;
 }
 
 #root {
@@ -139,7 +139,7 @@ body {
 /* Global scrollbar styling - universal selectors */
 * {
   scrollbar-width: thin;
-  scrollbar-color: theme('colors.neutral.300') transparent;
+  scrollbar-color: theme('colors.border.DEFAULT') transparent;
 }
 
 *::-webkit-scrollbar {
@@ -152,13 +152,13 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: theme('colors.neutral.300');
+  background-color: theme('colors.border.DEFAULT');
   border-radius: 4px;
   transition: background-color 0.2s ease;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: theme('colors.neutral.400');
+  background-color: theme('colors.border.secondary');
 }
 
 *::-webkit-scrollbar-corner {
@@ -167,15 +167,15 @@ body {
 
 /* Dark mode scrollbar styling */
 .dark * {
-  scrollbar-color: theme('colors.neutral.600') transparent;
+  scrollbar-color: theme('colors.border.dark.DEFAULT') transparent;
 }
 
 .dark *::-webkit-scrollbar-thumb {
-  background-color: theme('colors.neutral.600');
+  background-color: theme('colors.border.dark.DEFAULT');
 }
 
 .dark *::-webkit-scrollbar-thumb:hover {
-  background-color: theme('colors.neutral.500');
+  background-color: theme('colors.border.dark.hover');
 }
 
 /* Accessibility: Respect reduced motion preferences */
@@ -183,53 +183,6 @@ body {
   *::-webkit-scrollbar-thumb {
     transition: none;
   }
-}
-
-/* Dark mode overrides for react-diff-view */
-.dark {
-  --diff-text-color: #e5e5e5;
-  --diff-background-color: transparent;
-  --diff-gutter-insert-background-color: #1a3324;
-  --diff-gutter-delete-background-color: #3a1e1f;
-  --diff-code-insert-background-color: #1f3a28;
-  --diff-code-delete-background-color: #3f2326;
-  --diff-code-insert-edit-background-color: #2d5a3d;
-  --diff-code-delete-edit-background-color: #5a2d32;
-}
-
-/* Hide old line number column (first gutter) in unified diff view */
-.diff-viewer-container .diff-unified > colgroup > col:nth-child(1) {
-  width: 0 !important;
-  min-width: 0 !important;
-  padding: 0 !important;
-}
-
-.diff-viewer-container .diff-unified > tbody > tr > td:nth-child(1) {
-  width: 0 !important;
-  min-width: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  border: none !important;
-}
-
-/* Style the new line numbers gutter (second column) */
-.diff-viewer-container .diff-unified > colgroup > col:nth-child(2) {
-  width: 50px !important;
-}
-
-.diff-viewer-container .diff-unified .diff-gutter {
-  min-width: 50px !important;
-  padding: 0 10px !important;
-  white-space: nowrap !important;
-}
-
-/* Add spacing between lines */
-.diff-viewer-container .diff-unified .diff-line {
-  line-height: 1.6 !important;
-}
-
-.diff-viewer-container .diff-unified .diff-code {
-  padding: 2px 8px 2px 12px !important;
 }
 
 .mermaid-container {

@@ -6,7 +6,7 @@ const EDITOR_OPTIONS = {
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
   wordWrap: 'on',
-  padding: { top: 4 },
+  padding: { top: 8, bottom: 8 },
   automaticLayout: true,
   suggestOnTriggerCharacters: true,
   quickSuggestions: {
@@ -18,15 +18,25 @@ const EDITOR_OPTIONS = {
   fontFamily:
     'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
   fontSize: 12,
-  lineHeight: 1.4,
-  renderLineHighlight: 'all',
+  lineHeight: 1.5,
+  renderLineHighlight: 'none',
   scrollbar: {
     useShadows: false,
-    vertical: 'visible',
-    horizontal: 'visible',
-    horizontalScrollbarSize: 10,
-    verticalScrollbarSize: 10,
+    vertical: 'auto',
+    horizontal: 'auto',
+    horizontalScrollbarSize: 6,
+    verticalScrollbarSize: 6,
   },
+  overviewRulerBorder: false,
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  guides: {
+    indentation: false,
+  },
+  renderLineHighlightOnlyWhenFocus: true,
+  cursorBlinking: 'smooth',
+  cursorSmoothCaretAnimation: 'on',
+  smoothScrolling: true,
 } as const;
 
 export interface ContentProps {
@@ -65,9 +75,9 @@ export const Content = memo(function Content({
         onMount={onMount}
         loading={
           <div
-            className={`flex h-full items-center justify-center text-text-secondary dark:text-text-dark-secondary ${theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
+            className={`flex h-full items-center justify-center text-xs text-text-quaternary ${theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
           >
-            Loading editor...
+            <div className="animate-pulse">Loading editor...</div>
           </div>
         }
         className={theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}

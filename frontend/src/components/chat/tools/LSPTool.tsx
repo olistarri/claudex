@@ -64,27 +64,17 @@ const LSPToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       expandable={hasExpandableContent}
     >
       {hasExpandableContent && (
-        <div className="space-y-3 border-t border-border/50 p-3 dark:border-border-dark/50">
+        <div className="space-y-1.5">
           {filePath && (
-            <div className="space-y-0.5">
-              <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                File
-              </div>
-              <div className="truncate rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                {filePath}
-                {location}
-              </div>
+            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
+              {filePath}
+              {location}
             </div>
           )}
           {result.length > 0 && tool.status === 'completed' && (
-            <div className="space-y-0.5">
-              <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Result
-              </div>
-              <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                <pre className="whitespace-pre-wrap break-all">{result}</pre>
-              </div>
-            </div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-quaternary">
+              {result}
+            </pre>
           )}
         </div>
       )}

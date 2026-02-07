@@ -23,17 +23,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Exclude<ButtonVariant, 'unstyled'>, string> = {
-  primary: 'bg-brand-500 text-white shadow-sm hover:bg-brand-600 focus-visible:ring-brand-500/60',
+  primary:
+    'bg-text-primary text-surface shadow-sm hover:bg-text-secondary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary focus-visible:ring-text-quaternary/40',
   secondary:
-    'bg-surface-secondary text-text-primary hover:bg-surface-hover dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:hover:bg-surface-dark-hover focus-visible:ring-brand-500/40',
+    'bg-surface-secondary text-text-primary hover:bg-surface-hover dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:hover:bg-surface-dark-hover focus-visible:ring-text-quaternary/30',
   outline:
-    'border border-border text-text-primary hover:bg-surface-hover dark:border-border-dark dark:text-text-dark-primary dark:hover:bg-surface-dark-hover focus-visible:ring-brand-500/40',
+    'border border-border text-text-primary hover:bg-surface-hover dark:border-border-dark dark:text-text-dark-primary dark:hover:bg-surface-dark-hover focus-visible:ring-text-quaternary/30',
   ghost:
-    'text-text-secondary hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover focus-visible:ring-brand-500/30',
+    'text-text-secondary hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover focus-visible:ring-text-quaternary/20',
   destructive: 'bg-error-500 text-white hover:bg-error-600 focus-visible:ring-error-500/60',
-  link: 'text-brand-600 underline underline-offset-4 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 focus-visible:ring-0 focus-visible:ring-offset-0 px-0 shadow-none',
+  link: 'text-text-secondary underline underline-offset-4 hover:text-text-primary dark:text-text-dark-secondary dark:hover:text-text-dark-primary focus-visible:ring-0 focus-visible:ring-offset-0 px-0 shadow-none',
   gradient:
-    'relative overflow-hidden bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-lg hover:from-brand-700 hover:to-brand-800 focus-visible:ring-brand-500/60',
+    'relative overflow-hidden bg-gradient-to-r from-text-primary to-text-secondary text-surface shadow-lg hover:from-text-secondary hover:to-text-tertiary dark:from-text-dark-primary dark:to-text-dark-secondary dark:text-surface-dark focus-visible:ring-text-quaternary/40',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

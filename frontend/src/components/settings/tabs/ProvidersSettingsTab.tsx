@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Circle } from 'lucide-react';
 import { Button, Switch, ConfirmDialog } from '@/components/ui';
+import { cn } from '@/utils/cn';
 import type { CustomProvider, ProviderType } from '@/types';
 
 interface ProvidersSettingsTabProps {
@@ -17,14 +18,6 @@ const PROVIDER_TYPE_LABELS: Record<ProviderType, string> = {
   openai: 'OpenAI',
   copilot: 'GitHub Copilot',
   custom: 'Custom',
-};
-
-const PROVIDER_TYPE_COLORS: Record<ProviderType, string> = {
-  anthropic: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  openrouter: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  openai: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  copilot: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  custom: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
 };
 
 export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
@@ -69,33 +62,33 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
 
   if (!providers || providers.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div>
-          <h2 className="mb-4 text-sm font-medium text-text-primary dark:text-text-dark-primary">
+          <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
             AI Providers
           </h2>
-          <p className="mb-4 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-            Configure AI providers for model access. Add providers like Anthropic (Claude Code),
-            OpenAI (Codex), OpenRouter, or custom endpoints (GLM, Minimax, Deepseek).
+          <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+            Configure AI providers for model access. Add providers like Anthropic, OpenAI,
+            OpenRouter, or custom endpoints.
           </p>
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 dark:border-border-dark">
-            <p className="mb-4 text-sm text-text-tertiary dark:text-text-dark-tertiary">
-              No providers configured
-            </p>
-            <Button onClick={onAddProvider} variant="primary" size="sm">
-              <Plus className="h-3.5 w-3.5" />
-              Add Provider
-            </Button>
-          </div>
+        </div>
+        <div className="rounded-xl border border-dashed border-border py-10 text-center dark:border-border-dark">
+          <p className="mb-3 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+            No providers configured
+          </p>
+          <Button onClick={onAddProvider} variant="outline" size="sm">
+            <Plus className="h-3.5 w-3.5" />
+            Add Provider
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
               AI Providers
@@ -110,103 +103,92 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
           </Button>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {sortedProviders.map((provider) => {
             const isExpanded = expandedProviders.has(provider.id);
 
             return (
               <div
                 key={provider.id}
-                className="bg-surface-primary dark:bg-surface-dark-primary rounded-lg border border-border dark:border-border-dark"
+                className="group rounded-xl border border-border transition-all duration-200 hover:border-border-hover dark:border-border-dark dark:hover:border-border-dark-hover"
               >
-                <div className="flex items-center gap-3 p-4">
+                <div className="flex items-center gap-3 px-4 py-3">
                   <button
                     type="button"
                     onClick={() => toggleExpanded(provider.id)}
-                    className="flex-shrink-0 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+                    className="flex-shrink-0 text-text-quaternary transition-colors hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                   >
                     {isExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                     )}
                   </button>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
+                      <h3 className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
                         {provider.name}
                       </h3>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PROVIDER_TYPE_COLORS[provider.provider_type]}`}
-                      >
+                      <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                         {PROVIDER_TYPE_LABELS[provider.provider_type]}
                       </span>
-                      {provider.auth_token ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-success-600 dark:text-success-500">
-                          <Check className="h-3 w-3" />
-                          Configured
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-warning-600 dark:text-warning-500">
-                          <X className="h-3 w-3" />
-                          No API key
-                        </span>
-                      )}
+                      <Circle
+                        className={cn(
+                          'h-1.5 w-1.5 fill-current',
+                          provider.auth_token
+                            ? 'text-text-tertiary dark:text-text-dark-tertiary'
+                            : 'text-text-quaternary dark:text-text-dark-quaternary',
+                        )}
+                      />
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <Switch
                       checked={provider.enabled}
                       onCheckedChange={(checked) => onToggleProvider(provider.id, checked)}
+                      size="sm"
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEditProvider(provider)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setProviderPendingDelete(provider)}
-                      className="h-8 w-8 p-0 text-error-600 hover:bg-error-50 hover:text-error-700 dark:text-error-400 dark:hover:bg-error-900/20"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEditProvider(provider)}
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setProviderPendingDelete(provider)}
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
                 {isExpanded && provider.models.length > 0 && (
                   <div className="border-t border-border px-4 py-3 dark:border-border-dark">
-                    <h4 className="mb-2 text-xs font-medium text-text-secondary dark:text-text-dark-secondary">
-                      Models
-                    </h4>
                     <div className="space-y-1">
                       {provider.models.map((model) => (
                         <div
                           key={model.model_id}
-                          className="flex items-center justify-between rounded px-2 py-1.5 text-xs"
+                          className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs"
                         >
-                          <div>
+                          <div className="flex items-center gap-2">
                             <span className="font-medium text-text-primary dark:text-text-dark-primary">
                               {model.name}
                             </span>
-                            <span className="ml-2 text-text-tertiary dark:text-text-dark-tertiary">
+                            <span className="font-mono text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                               {model.model_id}
                             </span>
                           </div>
-                          <span
-                            className={
-                              model.enabled
-                                ? 'text-success-600 dark:text-success-500'
-                                : 'text-text-tertiary dark:text-text-dark-tertiary'
-                            }
-                          >
-                            {model.enabled ? 'Enabled' : 'Disabled'}
+                          <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                            {model.enabled ? 'On' : 'Off'}
                           </span>
                         </div>
                       ))}
@@ -216,7 +198,7 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
 
                 {isExpanded && provider.models.length === 0 && (
                   <div className="border-t border-border px-4 py-3 dark:border-border-dark">
-                    <p className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                    <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
                       No models configured. Edit this provider to add models.
                     </p>
                   </div>

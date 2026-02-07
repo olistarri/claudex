@@ -161,7 +161,7 @@ export const AskUserQuestion: React.FC<AskUserQuestionProps> = ({ tool, chatId }
 
     return (
       <div className="overflow-hidden rounded-lg border border-border bg-surface-tertiary dark:border-border-dark dark:bg-surface-dark-tertiary">
-        <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 dark:border-border-dark/50">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2 dark:border-border-dark">
           <div className="flex items-center gap-2">
             <div className="rounded-md bg-black/5 p-1 dark:bg-white/5">
               <HelpCircle className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
@@ -296,7 +296,7 @@ export const AskUserQuestion: React.FC<AskUserQuestionProps> = ({ tool, chatId }
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border/50 px-3 py-2 dark:border-border-dark/50">
+        <div className="flex items-center justify-between border-t border-border px-3 py-2 dark:border-border-dark">
           <div>
             {questionError && (
               <div className="flex items-center gap-2 text-2xs text-error-600 dark:text-error-400">
@@ -342,27 +342,27 @@ export const AskUserQuestion: React.FC<AskUserQuestionProps> = ({ tool, chatId }
       expandable={questionCount > 0 && toolStatus === 'completed' && !!answers}
     >
       {questionCount > 0 && toolStatus === 'completed' && answers && (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
-          <div className="space-y-3">
-            {questions.map((q, index) => {
-              const answer = answers[`question_${index}`];
-              return (
-                <div key={index} className="space-y-1">
-                  <p className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
-                    {q.header && (
-                      <span className="text-brand-600 dark:text-brand-400">{q.header}: </span>
-                    )}
-                    {q.question}
-                  </p>
-                  {answer && (
-                    <p className="border-l-2 border-brand-500 pl-2 text-xs text-text-secondary dark:text-text-dark-secondary">
-                      {Array.isArray(answer) ? answer.join(', ') : answer}
-                    </p>
+        <div className="space-y-2">
+          {questions.map((q, index) => {
+            const answer = answers[`question_${index}`];
+            return (
+              <div key={index} className="space-y-0.5">
+                <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">
+                  {q.header && (
+                    <span className="text-text-quaternary dark:text-text-dark-quaternary">
+                      {q.header}:{' '}
+                    </span>
                   )}
-                </div>
-              );
-            })}
-          </div>
+                  {q.question}
+                </p>
+                {answer && (
+                  <p className="text-2xs text-text-secondary dark:text-text-dark-secondary">
+                    {Array.isArray(answer) ? answer.join(', ') : answer}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </ToolCard>

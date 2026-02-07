@@ -63,7 +63,7 @@ export const HighlightMatch = memo(function HighlightMatch({
         segment.highlighted ? (
           <mark
             key={index}
-            className="rounded-sm bg-brand-200 px-0.5 font-medium text-text-primary dark:bg-brand-500/30 dark:text-text-dark-primary"
+            className="rounded-sm bg-surface-active px-0.5 font-medium text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary"
           >
             {segment.text}
           </mark>

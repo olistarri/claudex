@@ -244,27 +244,24 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
   };
 
   return (
-    <BaseModal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="lg"
-      className="max-h-[90vh] overflow-y-auto shadow-strong"
-    >
-      <div className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-text-primary dark:text-text-dark-primary">
+    <BaseModal isOpen={isOpen} onClose={onClose} size="lg" className="max-h-[90vh] overflow-y-auto">
+      <div className="p-5">
+        <h3 className="mb-5 text-sm font-medium text-text-primary dark:text-text-dark-primary">
           {getDialogTitle()}
         </h3>
 
         {errorMessage && (
-          <div className="mb-4 rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-            <p className="text-xs text-error-700 dark:text-error-400">{errorMessage}</p>
+          <div className="mb-4 rounded-xl border border-border p-3 dark:border-border-dark">
+            <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
+              {errorMessage}
+            </p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isEditing && (
             <div>
-              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+              <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
                 Provider Type
               </Label>
               <Select
@@ -277,7 +274,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
                   </option>
                 ))}
               </Select>
-              <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              <p className="mt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                 {selectedProviderType === 'custom'
                   ? 'Configure a custom Anthropic-compatible API provider'
                   : selectedProviderType === 'openai'
@@ -290,31 +287,31 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
           )}
 
           <div>
-            <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+            <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
               Provider Name
             </Label>
             <Input
               value={form.name}
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               placeholder={isEditing ? undefined : 'e.g., DeepSeek, Local Ollama'}
-              className="text-sm"
+              className="text-xs"
               required
             />
           </div>
 
           {showBaseUrl && (
             <div>
-              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+              <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
                 Base URL
               </Label>
               <Input
                 value={form.base_url || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, base_url: e.target.value }))}
                 placeholder="https://api.example.com/v1"
-                className="font-mono text-sm"
+                className="font-mono text-xs"
                 required
               />
-              <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              <p className="mt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                 The base URL for the Anthropic-compatible API endpoint
               </p>
             </div>
@@ -322,7 +319,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
 
           {form.provider_type === 'openai' ? (
             <div>
-              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+              <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
                 OpenAI Authentication
               </Label>
               <OpenAIAuthButton
@@ -335,7 +332,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
             </div>
           ) : form.provider_type === 'copilot' ? (
             <div>
-              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+              <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
                 GitHub Copilot Authentication
               </Label>
               <CopilotAuthButton
@@ -348,7 +345,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
             </div>
           ) : (
             <div>
-              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+              <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
                 {authConfig.label}
               </Label>
               <SecretInput
@@ -365,13 +362,13 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
 
           <ModelListEditor models={form.models} onChange={handleModelsChange} />
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-xl border border-border px-3.5 py-3 dark:border-border-dark">
             <div>
-              <Label className="text-sm text-text-primary dark:text-text-dark-primary">
+              <span className="text-xs text-text-primary dark:text-text-dark-primary">
                 Enable Provider
-              </Label>
-              <p className="mt-0.5 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                Provider models will only be available when enabled
+              </span>
+              <p className="mt-0.5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                Models will only be available when enabled
               </p>
             </div>
             <Switch
@@ -382,11 +379,16 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-1">
             <Button type="button" onClick={onClose} variant="outline" size="sm">
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm">
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className="border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
+            >
               {isEditing ? 'Save Changes' : 'Add Provider'}
             </Button>
           </div>

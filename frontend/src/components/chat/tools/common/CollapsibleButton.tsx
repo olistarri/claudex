@@ -31,7 +31,7 @@ export const CollapsibleButton: React.FC<CollapsibleButtonProps> = ({
     >
       <span>{displayLabel}</span>
       <ChevronDown
-        className={`h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/button:text-brand-600 dark:group-hover/button:text-brand-400 ${isExpanded ? 'rotate-180' : ''}`}
+        className={`h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/button:text-text-primary dark:group-hover/button:text-text-dark-primary ${isExpanded ? 'rotate-180' : ''}`}
       />
     </Button>
   );

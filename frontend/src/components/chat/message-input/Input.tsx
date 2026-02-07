@@ -6,6 +6,7 @@ import { useFileHandling } from '@/hooks/useFileHandling';
 import { useInputFileOperations } from '@/hooks/useInputFileOperations';
 import { DropIndicator } from './DropIndicator';
 import { SendButton } from './SendButton';
+import { AttachButton } from './AttachButton';
 import { Textarea } from './Textarea';
 import { InputControls } from './InputControls';
 import { InputAttachments } from './InputAttachments';
@@ -286,9 +287,9 @@ export const Input = memo(function Input({
     <form ref={formRef} onSubmit={handleSubmit} className="relative px-4 sm:px-6">
       <div
         {...dragHandlers}
-        className={`relative rounded-2xl border bg-surface-tertiary transition-all duration-300 dark:bg-surface-dark-tertiary ${
+        className={`relative rounded-2xl border bg-surface-secondary shadow-soft transition-all duration-300 dark:bg-surface-dark-secondary ${
           isDragging
-            ? 'scale-[1.01] border-brand-400 bg-brand-50/50 dark:border-brand-500 dark:bg-brand-950/20'
+            ? 'scale-[1.01] border-border-hover dark:border-border-dark-hover'
             : 'border-border dark:border-border-dark'
         }`}
       >
@@ -335,15 +336,11 @@ export const Input = memo(function Input({
           />
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 px-3 py-1.5 pb-safe">
+        <div className="absolute bottom-0 left-0 right-0 px-3 py-2 pb-safe">
           <div className="relative flex items-center justify-between">
             <InputControls
               selectedModelId={selectedModelId}
               onModelChange={onModelChange}
-              onAttach={() => {
-                resetDragState();
-                setShowFileUpload(true);
-              }}
               onEnhance={handleEnhancePrompt}
               dropdownPosition={dropdownPosition}
               isLoading={isLoading}
@@ -351,7 +348,13 @@ export const Input = memo(function Input({
               hasMessage={hasMessage}
             />
 
-            <div className="absolute bottom-2.5 right-3">
+            <div className="absolute bottom-2.5 right-3 flex items-center gap-1">
+              <AttachButton
+                onAttach={() => {
+                  resetDragState();
+                  setShowFileUpload(true);
+                }}
+              />
               <SendButton
                 isLoading={isLoading}
                 isStreaming={isStreaming}

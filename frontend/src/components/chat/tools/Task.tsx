@@ -54,8 +54,8 @@ export const Task: React.FC<TaskProps> = ({ tool }) => {
       expandable={hasDetails}
     >
       {hasDetails && (
-        <div className="border-t border-border/50 dark:border-border-dark/50">
-          <div className="space-y-3 p-3">
+        <div>
+          <div className="space-y-2">
             {prompt && (
               <div className="space-y-2">
                 <CollapsibleButton
@@ -88,7 +88,7 @@ export const Task: React.FC<TaskProps> = ({ tool }) => {
                       return (
                         <div
                           key={childTool.id}
-                          className="border-l border-border/60 pl-2 dark:border-border-dark/60"
+                          className="border-l border-border pl-2 dark:border-border-dark"
                         >
                           <Component tool={childTool} />
                         </div>

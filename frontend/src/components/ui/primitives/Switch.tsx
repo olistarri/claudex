@@ -14,16 +14,16 @@ export interface SwitchProps extends Omit<
 }
 
 const trackBase =
-  'relative inline-flex shrink-0 cursor-pointer rounded-full border transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-60';
+  'relative inline-flex shrink-0 cursor-pointer rounded-full border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-text-quaternary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-black disabled:cursor-not-allowed disabled:opacity-50';
 
 const sizeClasses: Record<SwitchSize, string> = {
-  md: 'h-6 w-11 px-0.5',
-  sm: 'h-5 w-9 px-0.5',
+  md: 'h-[22px] w-10 px-0.5',
+  sm: 'h-[18px] w-8 px-0.5',
 };
 
 const knobSize: Record<SwitchSize, string> = {
   md: 'h-4 w-4',
-  sm: 'h-3.5 w-3.5',
+  sm: 'h-3 w-3',
 };
 
 export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch(
@@ -52,7 +52,7 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
         trackBase,
         sizeClasses[size],
         checked
-          ? 'border-transparent bg-brand-500'
+          ? 'border-text-primary/80 bg-text-primary dark:border-text-dark-primary/80 dark:bg-text-dark-primary'
           : 'border-border bg-surface-tertiary dark:border-border-dark dark:bg-surface-dark-tertiary',
         className,
       )}
@@ -71,9 +71,11 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
         <span
           aria-hidden="true"
           className={cn(
-            'rounded-full bg-surface-secondary shadow-sm transition-all duration-200 dark:bg-text-dark-primary',
+            'rounded-full shadow-sm transition-all duration-200',
             knobSize[size],
-            checked ? 'scale-100' : 'scale-75',
+            checked
+              ? 'scale-100 bg-surface dark:bg-surface-dark'
+              : 'scale-[0.85] bg-text-quaternary dark:bg-text-dark-quaternary',
           )}
         />
       </span>

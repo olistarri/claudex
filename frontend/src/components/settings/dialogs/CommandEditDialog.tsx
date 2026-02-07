@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { ModalHeader } from '@/components/ui/shared/ModalHeader';
 import { Button } from '@/components/ui';
 import { useUIStore } from '@/store/uiStore';
 import type { CustomCommand } from '@/types/user.types';
@@ -48,7 +47,26 @@ export const CommandEditDialog: React.FC<CommandEditDialogProps> = ({
 
   return (
     <BaseModal isOpen={isOpen} onClose={handleClose} size="4xl">
-      <ModalHeader title={`Edit Command: /${command.name}`} onClose={handleClose} />
+      <div className="flex items-center justify-between border-b border-border px-5 py-3 dark:border-border-dark">
+        <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
+          Edit Command: /{command.name}
+        </h3>
+        <button
+          onClick={handleClose}
+          className="text-text-quaternary transition-colors hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
       <div className="h-[600px] p-4">
         <Editor
           height="100%"
@@ -67,7 +85,7 @@ export const CommandEditDialog: React.FC<CommandEditDialogProps> = ({
               'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
           }}
           loading={
-            <div className="flex h-full items-center justify-center text-text-secondary dark:text-text-dark-secondary">
+            <div className="flex h-full items-center justify-center text-text-quaternary dark:text-text-dark-quaternary">
               Loading editor...
             </div>
           }
@@ -75,20 +93,22 @@ export const CommandEditDialog: React.FC<CommandEditDialogProps> = ({
       </div>
 
       {error && (
-        <div className="px-4 pb-2">
-          <div className="rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-            <p className="text-xs text-error-700 dark:text-error-400">{error}</p>
+        <div className="px-5 pb-2">
+          <div className="rounded-xl border border-border p-3 dark:border-border-dark">
+            <p className="text-xs text-text-secondary dark:text-text-dark-secondary">{error}</p>
           </div>
         </div>
       )}
 
-      <div className="flex justify-end gap-2 border-t border-border p-4 dark:border-border-dark">
-        <Button onClick={handleClose} variant="outline" disabled={saving}>
+      <div className="flex justify-end gap-2 border-t border-border px-5 py-3 dark:border-border-dark">
+        <Button onClick={handleClose} variant="outline" size="sm" disabled={saving}>
           Cancel
         </Button>
         <Button
           onClick={handleSave}
-          variant="primary"
+          variant="outline"
+          size="sm"
+          className="border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
           isLoading={saving}
           disabled={!editedContent.trim()}
         >

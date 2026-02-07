@@ -14,9 +14,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       <select
         ref={ref}
         className={cn(
-          'flex h-10 w-full appearance-none rounded-lg border border-border bg-surface-tertiary px-3 pr-9 text-sm text-text-primary transition-colors focus-visible:border-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:bg-surface-secondary disabled:opacity-60 dark:border-border-dark dark:bg-surface-dark-tertiary dark:text-text-dark-primary dark:disabled:bg-surface-dark-secondary',
+          'flex h-10 w-full appearance-none rounded-lg border border-border bg-surface-tertiary px-3 pr-9 text-sm text-text-primary transition-all duration-200 hover:border-border-hover focus-visible:border-border-hover focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:hover:border-border-dark-hover dark:focus-visible:border-border-dark-hover',
           hasError &&
-            'border-error-500 text-error-700 focus-visible:border-error-500 focus-visible:ring-error-500/40 dark:text-error-200',
+            'border-error-500/60 text-error-700 focus-visible:border-error-500 focus-visible:ring-error-500/20 dark:border-error-500/40 dark:text-error-200',
           className,
         )}
         disabled={disabled}
@@ -24,10 +24,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       >
         {children}
       </select>
-      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-tertiary dark:text-text-dark-tertiary">
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-text-quaternary dark:text-text-dark-quaternary">
         <svg
           aria-hidden="true"
-          className="h-4 w-4"
+          className="h-3.5 w-3.5"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"

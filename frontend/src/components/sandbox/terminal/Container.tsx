@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { FC } from 'react';
+import { Plus, X } from 'lucide-react';
 import { TerminalTab } from './TerminalTab';
+import { cn } from '@/utils/cn';
 
 export interface ContainerProps {
   sandboxId?: string;
@@ -139,43 +141,43 @@ export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible, pa
 
   return (
     <div className="flex h-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
-      {/* Tab bar */}
-      <div className="flex items-center overflow-x-auto border-b border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary">
+      <div className="flex h-9 items-center border-b border-border/50 dark:border-border-dark/50">
         {terminals.map((terminal) => (
-          <div
+          <button
             key={terminal.id}
-            className={`flex cursor-pointer items-center gap-2 border-r border-border px-3 py-2 text-xs dark:border-border-dark ${
+            className={cn(
+              'group flex h-full items-center gap-1.5 border-r border-border/30 px-3 font-mono text-2xs transition-colors duration-200 dark:border-border-dark/30',
               activeTerminalId === terminal.id
                 ? 'bg-surface-secondary text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary'
-                : 'text-text-secondary hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover'
-            }`}
+                : 'text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
+            )}
             onClick={() => setActiveTerminalId(terminal.id)}
           >
             <span>{terminal.label}</span>
             {terminals.length > 1 && (
-              <button
-                className="hover:text-text-primary dark:hover:text-text-dark-primary"
+              <span
+                className="rounded p-0.5 text-text-quaternary opacity-0 transition-opacity duration-150 hover:text-text-primary group-hover:opacity-100 dark:hover:text-text-dark-primary"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeTerminal(terminal.id);
                 }}
+                role="button"
                 aria-label={`Close ${terminal.label}`}
               >
-                ×
-              </button>
+                <X className="h-2.5 w-2.5" />
+              </span>
             )}
-          </div>
+          </button>
         ))}
         <button
-          className="flex items-center justify-center px-3 py-2 text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+          className="flex h-full items-center px-2 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
           onClick={addTerminal}
           aria-label="Add new terminal"
         >
-          +
+          <Plus className="h-3 w-3" />
         </button>
       </div>
 
-      {/* Terminal instances */}
       <div className="relative flex-1 overflow-hidden">
         {terminals.map((terminal) => (
           <div

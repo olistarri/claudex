@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useInView } from 'react-intersection-observer';
 import type { FetchNextPageOptions } from '@tanstack/react-query';
 import type { Chat } from '@/types';
-import { Button, ConfirmDialog, Input, RenameModal, Spinner } from '@/components/ui';
+import { Button, ConfirmDialog, RenameModal, Spinner } from '@/components/ui';
 import { useDeleteChatMutation, useUpdateChatMutation, usePinChatMutation } from '@/hooks/queries';
 import { cn } from '@/utils/cn';
 import { useUIStore, useStreamStore } from '@/store';
@@ -13,6 +13,36 @@ import { useIsMobile } from '@/hooks';
 import { SidebarChatItem } from './SidebarChatItem';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
+
+function getDateGroup(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  if (date >= today) return 'Today';
+  if (date >= yesterday) return 'Yesterday';
+  if (date >= weekAgo) return 'Previous 7 days';
+  return 'Older';
+}
+
+function groupChatsByDate(chats: Chat[]): { label: string; chats: Chat[] }[] {
+  const order = ['Today', 'Yesterday', 'Previous 7 days', 'Older'];
+  const groups = new Map<string, Chat[]>();
+
+  for (const chat of chats) {
+    const group = getDateGroup(chat.updated_at || chat.created_at);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group)!.push(chat);
+  }
+
+  return order
+    .filter((label) => groups.has(label))
+    .map((label) => ({ label, chats: groups.get(label)! }));
+}
 
 function calculateDropdownPosition(buttonRect: DOMRect): { top: number; left: number } {
   const isMobile = window.innerWidth < 640;
@@ -81,7 +111,7 @@ export function Sidebar({
     () => activeStreamMetadata.map((meta) => meta.chatId),
     [activeStreamMetadata],
   );
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [chatToRename, setChatToRename] = useState<Chat | null>(null);
@@ -110,15 +140,17 @@ export function Sidebar({
     }
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const { pinnedChats, unpinnedChats } = useMemo(() => {
+  const { pinnedChats, unpinnedGroups } = useMemo(() => {
     const filtered = chats.filter((chat) =>
       chat.title.toLowerCase().includes(searchQuery.toLowerCase()),
     );
     return {
       pinnedChats: filtered.filter((chat) => !!chat.pinned_at),
-      unpinnedChats: filtered.filter((chat) => !chat.pinned_at),
+      unpinnedGroups: groupChatsByDate(filtered.filter((chat) => !chat.pinned_at)),
     };
   }, [chats, searchQuery]);
+
+  const hasAnyChats = pinnedChats.length > 0 || unpinnedGroups.length > 0;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -266,114 +298,93 @@ export function Sidebar({
       <aside
         className={cn(
           'absolute top-0 h-full w-64',
-          'bg-surface dark:bg-surface-dark',
+          'border-r border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary',
           'z-40 flex flex-col transition-[left] duration-500 ease-in-out',
           sidebarOpen ? (hasActivityBar ? 'left-12' : 'left-0') : '-left-64',
         )}
       >
-        <div className="p-3">
+        <div className="border-b border-border px-3 py-3 dark:border-border-dark">
           <Button
             onClick={handleNewChat}
             variant="unstyled"
             className={cn(
-              'w-full px-3 py-1.5',
-              'bg-surface-secondary dark:bg-surface-dark-secondary',
+              'w-full px-3 py-2',
               'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
               'border border-border dark:border-border-dark',
-              'text-text-primary dark:text-text-dark-primary',
+              'text-text-secondary dark:text-text-dark-secondary',
               'rounded-lg transition-colors duration-200',
-              'flex items-center justify-center gap-2 text-sm font-medium',
+              'flex items-center justify-center gap-1.5 text-xs font-medium',
             )}
           >
-            New Agent
+            <Plus className="h-3.5 w-3.5" />
+            New thread
           </Button>
         </div>
 
-        <div className="px-3 pb-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-tertiary dark:text-text-dark-tertiary" />
-            <Input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search"
-              variant="unstyled"
-              className={cn(
-                'w-full py-1.5 pl-8 pr-3',
-                'bg-surface-secondary dark:bg-surface-dark-secondary',
-                'border border-border dark:border-border-dark',
-                'rounded-lg text-text-primary dark:text-text-dark-primary',
-                'placeholder-text-tertiary dark:placeholder-text-dark-tertiary',
-                'focus:outline-none focus:ring-1 focus:ring-border-secondary dark:focus:ring-border-dark-secondary',
-                'text-sm',
-              )}
-            />
-          </div>
-        </div>
-
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-2">
-          {pinnedChats.length === 0 && unpinnedChats.length === 0 ? (
-            <p className="py-6 text-center text-sm text-text-tertiary dark:text-text-dark-tertiary">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-2 pt-1">
+          {!hasAnyChats ? (
+            <p className="py-8 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
               {searchQuery ? 'No matching chats' : 'No chats yet'}
             </p>
           ) : (
-            <div className="space-y-1">
+            <div>
               {pinnedChats.length > 0 && (
-                <>
-                  <div className="px-2 py-1.5">
-                    <span className="text-xs font-medium uppercase tracking-wider text-text-tertiary dark:text-text-dark-tertiary">
+                <div className="mb-1">
+                  <div className="px-2.5 pb-1 pt-2">
+                    <span className="text-2xs font-medium uppercase tracking-widest text-text-quaternary dark:text-text-dark-quaternary">
                       Pinned
                     </span>
                   </div>
-                  {pinnedChats.map((chat) => (
-                    <SidebarChatItem
-                      key={chat.id}
-                      chat={chat}
-                      isSelected={chat.id === selectedChatId}
-                      isHovered={hoveredChatId === chat.id}
-                      isDropdownOpen={dropdown?.chatId === chat.id}
-                      isChatStreaming={streamingChatIds.includes(chat.id)}
-                      onSelect={handleChatSelect}
-                      onDropdownClick={handleDropdownClick}
-                      onMouseEnter={handleMouseEnter}
-                      onMouseLeave={handleMouseLeave}
-                    />
-                  ))}
-                </>
+                  <div className="space-y-px">
+                    {pinnedChats.map((chat) => (
+                      <SidebarChatItem
+                        key={chat.id}
+                        chat={chat}
+                        isSelected={chat.id === selectedChatId}
+                        isHovered={hoveredChatId === chat.id}
+                        isDropdownOpen={dropdown?.chatId === chat.id}
+                        isChatStreaming={streamingChatIds.includes(chat.id)}
+                        onSelect={handleChatSelect}
+                        onDropdownClick={handleDropdownClick}
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
 
-              {unpinnedChats.length > 0 && (
-                <>
-                  {pinnedChats.length > 0 && (
-                    <div className="mt-2 px-2 py-1.5">
-                      <span className="text-xs font-medium uppercase tracking-wider text-text-tertiary dark:text-text-dark-tertiary">
-                        Recent
-                      </span>
-                    </div>
-                  )}
-                  {unpinnedChats.map((chat) => (
-                    <SidebarChatItem
-                      key={chat.id}
-                      chat={chat}
-                      isSelected={chat.id === selectedChatId}
-                      isHovered={hoveredChatId === chat.id}
-                      isDropdownOpen={dropdown?.chatId === chat.id}
-                      isChatStreaming={streamingChatIds.includes(chat.id)}
-                      onSelect={handleChatSelect}
-                      onDropdownClick={handleDropdownClick}
-                      onMouseEnter={handleMouseEnter}
-                      onMouseLeave={handleMouseLeave}
-                    />
-                  ))}
-                </>
-              )}
+              {unpinnedGroups.map((group) => (
+                <div key={group.label} className="mb-1">
+                  <div className="px-2.5 pb-1 pt-2">
+                    <span className="text-2xs font-medium uppercase tracking-widest text-text-quaternary dark:text-text-dark-quaternary">
+                      {group.label}
+                    </span>
+                  </div>
+                  <div className="space-y-px">
+                    {group.chats.map((chat) => (
+                      <SidebarChatItem
+                        key={chat.id}
+                        chat={chat}
+                        isSelected={chat.id === selectedChatId}
+                        isHovered={hoveredChatId === chat.id}
+                        isDropdownOpen={dropdown?.chatId === chat.id}
+                        isChatStreaming={streamingChatIds.includes(chat.id)}
+                        onSelect={handleChatSelect}
+                        onDropdownClick={handleDropdownClick}
+                        onMouseEnter={handleMouseEnter}
+                        onMouseLeave={handleMouseLeave}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               {hasNextPage && (
                 <div ref={loadMoreRef} className="py-2 text-center">
                   {isFetchingNextPage ? (
-                    <div className="flex items-center justify-center gap-2 text-sm text-text-tertiary dark:text-text-dark-tertiary">
+                    <div className="flex items-center justify-center gap-2 text-xs text-text-quaternary dark:text-text-dark-quaternary">
                       <Spinner size="xs" />
-                      Loading more...
                     </div>
                   ) : (
                     <div className="h-4" />

@@ -1,5 +1,5 @@
 import { memo, ReactNode, useState, useEffect, KeyboardEvent } from 'react';
-import { ChevronDown, LucideIcon, Search, X } from 'lucide-react';
+import { Check, ChevronDown, LucideIcon, Search, X } from 'lucide-react';
 import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button, SelectItem } from '@/components/ui';
@@ -128,9 +128,9 @@ function DropdownInner<T>({
     : 'whitespace-nowrap text-xs font-medium text-text-primary dark:text-text-dark-secondary';
   const chevronClasses = showIconOnly
     ? forceCompact
-      ? 'hidden h-3.5 w-3.5 flex-shrink-0 text-text-quaternary'
-      : 'hidden lg:block h-3.5 w-3.5 flex-shrink-0 text-text-quaternary'
-    : 'h-3.5 w-3.5 flex-shrink-0 text-text-quaternary';
+      ? 'hidden'
+      : 'hidden lg:block h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary transition-transform duration-200'
+    : 'h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary transition-transform duration-200';
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -139,25 +139,25 @@ function DropdownInner<T>({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         variant="unstyled"
-        className={`flex items-center gap-1 rounded-lg border border-border/70 bg-surface-tertiary px-2 py-1 shadow-sm hover:border-border-secondary dark:border-white/10 dark:bg-surface-dark-tertiary dark:hover:border-white/15 ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all duration-200 ${isOpen && !disabled ? 'bg-surface-hover dark:bg-surface-dark-hover' : 'hover:bg-surface-hover/60 dark:hover:bg-surface-dark-hover/60'} ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
       >
-        <div className={`flex items-center ${LeftIcon ? 'gap-1.5' : 'gap-2'}`}>
-          {LeftIcon && <LeftIcon className="h-3.5 w-3.5 text-text-quaternary" />}
-          <span className={labelClasses}>
-            {getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value)}
-          </span>
-          {!disabled && (
-            <ChevronDown className={`${chevronClasses} ${isOpen ? 'rotate-180' : ''}`} />
-          )}
-        </div>
+        {LeftIcon && (
+          <LeftIcon
+            className={`h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary${forceCompact ? '' : 'lg:hidden'}`}
+          />
+        )}
+        <span className={labelClasses}>
+          {getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value)}
+        </span>
+        {!disabled && <ChevronDown className={`${chevronClasses} ${isOpen ? 'rotate-180' : ''}`} />}
       </Button>
 
       {isOpen && !disabled && (
         <div
-          className={`absolute left-0 ${width} z-[60] rounded-2xl border border-border/50 bg-surface-secondary/95 shadow-2xl shadow-black/10 backdrop-blur-xl backdrop-saturate-150 dark:border-white/10 dark:bg-surface-dark-secondary/95 dark:shadow-black/40 ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}`}
+          className={`absolute left-0 ${width} z-[60] rounded-xl border border-border bg-surface-secondary/95 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95 dark:shadow-black/40 ${dropdownPosition === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
         >
           {searchable && (
-            <div className="border-b border-border/30 p-2 dark:border-white/5">
+            <div className="border-b border-border p-1.5 dark:border-border-dark">
               <div className="relative flex items-center">
                 <Search className="pointer-events-none absolute left-2 h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
                 <input
@@ -167,13 +167,13 @@ function DropdownInner<T>({
                   onKeyDown={handleSearchKeyDown}
                   placeholder={searchPlaceholder}
                   autoFocus={!isMobile}
-                  className="h-7 w-full rounded-md border border-border bg-surface-tertiary py-1 pl-7 pr-7 text-xs text-text-primary placeholder:text-text-quaternary focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-border-dark dark:bg-surface-dark-tertiary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus:ring-brand-400"
+                  className="h-7 w-full rounded-lg border border-border bg-surface-tertiary py-1 pl-7 pr-7 text-xs text-text-primary transition-all duration-200 placeholder:text-text-quaternary focus:border-border-hover focus:outline-none dark:border-border-dark dark:bg-surface-dark-tertiary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover"
                 />
                 {searchQuery && (
                   <Button
                     onClick={() => setSearchQuery('')}
                     variant="unstyled"
-                    className="absolute right-1 rounded bg-transparent p-1 text-text-quaternary transition-colors hover:bg-surface-hover hover:text-text-primary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                    className="absolute right-1 rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-secondary"
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -181,14 +181,14 @@ function DropdownInner<T>({
               </div>
             </div>
           )}
-          <div className="max-h-64 space-y-1 overflow-y-auto p-2">
+          <div className="max-h-64 space-y-px overflow-y-auto p-1">
             {isGroupedItems(items)
               ? (displayItems as DropdownItemType<T>[]).map((item, index) => {
                   if (item.type === 'header') {
                     return (
                       <div
                         key={`header-${item.label}`}
-                        className={`border-t border-border/30 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-text-tertiary dark:border-white/5 dark:text-text-dark-tertiary ${index === 0 ? 'border-t-0' : 'mt-1'}`}
+                        className={`px-2 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary ${index === 0 ? '' : 'mt-1 border-t border-border dark:border-border-dark'}`}
                       >
                         {item.label}
                       </div>
@@ -204,21 +204,26 @@ function DropdownInner<T>({
                         onSelect(item.data);
                         setIsOpen(false);
                       }}
-                      className={itemClassName || 'flex items-center gap-2.5 pl-3'}
+                      className="flex items-center gap-2"
                     >
-                      {renderItem ? (
-                        renderItem(item.data, isSelected)
-                      ) : (
-                        <span
-                          className={`text-xs font-medium ${
-                            isSelected
-                              ? 'text-text-primary dark:text-text-dark-primary'
-                              : 'text-text-primary dark:text-text-dark-secondary'
-                          }`}
-                        >
-                          {getItemLabel(item.data)}
-                        </span>
-                      )}
+                      <Check
+                        className={`h-3 w-3 flex-shrink-0 transition-opacity duration-150 ${isSelected ? 'text-text-primary opacity-100 dark:text-text-dark-primary' : 'opacity-0'}`}
+                      />
+                      <div className={`min-w-0 flex-1${itemClassName ? ` ${itemClassName}` : ''}`}>
+                        {renderItem ? (
+                          renderItem(item.data, isSelected)
+                        ) : (
+                          <span
+                            className={`text-xs font-medium ${
+                              isSelected
+                                ? 'text-text-primary dark:text-text-dark-primary'
+                                : 'text-text-secondary dark:text-text-dark-secondary'
+                            }`}
+                          >
+                            {getItemLabel(item.data)}
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   );
                 })
@@ -232,21 +237,26 @@ function DropdownInner<T>({
                         onSelect(item);
                         setIsOpen(false);
                       }}
-                      className={itemClassName || 'flex items-center gap-2.5'}
+                      className="flex items-center gap-2"
                     >
-                      {renderItem ? (
-                        renderItem(item, isSelected)
-                      ) : (
-                        <span
-                          className={`text-xs font-medium ${
-                            isSelected
-                              ? 'text-text-primary dark:text-text-dark-primary'
-                              : 'text-text-primary dark:text-text-dark-secondary'
-                          }`}
-                        >
-                          {getItemLabel(item)}
-                        </span>
-                      )}
+                      <Check
+                        className={`h-3 w-3 flex-shrink-0 transition-opacity duration-150 ${isSelected ? 'text-text-primary opacity-100 dark:text-text-dark-primary' : 'opacity-0'}`}
+                      />
+                      <div className={`min-w-0 flex-1${itemClassName ? ` ${itemClassName}` : ''}`}>
+                        {renderItem ? (
+                          renderItem(item, isSelected)
+                        ) : (
+                          <span
+                            className={`text-xs font-medium ${
+                              isSelected
+                                ? 'text-text-primary dark:text-text-dark-primary'
+                                : 'text-text-secondary dark:text-text-dark-secondary'
+                            }`}
+                          >
+                            {getItemLabel(item)}
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   );
                 })}

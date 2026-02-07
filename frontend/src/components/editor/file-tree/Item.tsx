@@ -39,11 +39,12 @@ export const Item = memo(function Item({ item, level, searchQuery = '', matchedP
         onClick={handleClick}
         variant="unstyled"
         className={cn(
-          'flex w-full items-center gap-1 px-1.5 py-1 text-left',
+          'flex w-full items-center gap-1.5 px-1.5 py-[3px] text-left',
           'rounded-md transition-colors duration-150',
           'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-          isSelected && 'bg-brand-50 text-brand-900 dark:bg-brand-500/10 dark:text-brand-100',
-          !isSelected && 'text-text-secondary dark:text-text-dark-secondary',
+          isSelected &&
+            'bg-surface-active text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary',
+          !isSelected && 'text-text-tertiary dark:text-text-dark-tertiary',
         )}
         style={indentStyle}
       >

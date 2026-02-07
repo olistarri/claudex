@@ -1,6 +1,5 @@
 import React, { useState, useMemo, memo } from 'react';
-import { ChevronDown, ChevronRight, Brain } from 'lucide-react';
-import { Button } from '@/components/ui';
+import { ChevronRight, Brain } from 'lucide-react';
 
 interface ThinkingBlockProps {
   content: string;
@@ -10,16 +9,12 @@ interface ThinkingBlockProps {
 const ThinkingBlockInner: React.FC<ThinkingBlockProps> = ({ content, isActiveThinking }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const toggleExpanded = () => {
-    setIsExpanded((prev) => !prev);
-  };
-
   const previewText = useMemo(() => {
     if (!content) return '';
     const lines = content.split('\n');
     const firstLine = lines[0];
-    if (firstLine.length > 80) {
-      return firstLine.substring(0, 80) + '...';
+    if (firstLine.length > 60) {
+      return firstLine.substring(0, 60) + '...';
     }
     if (lines.length > 1) {
       return firstLine + '...';
@@ -28,60 +23,50 @@ const ThinkingBlockInner: React.FC<ThinkingBlockProps> = ({ content, isActiveThi
   }, [content]);
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-border bg-surface-tertiary transition-all duration-200 dark:border-border-dark dark:bg-surface-dark-tertiary">
-      <Button
-        onClick={toggleExpanded}
-        variant="unstyled"
-        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+    <div className="group/thinking">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        className="-ml-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors duration-150 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
       >
-        <div className="flex-shrink-0 rounded-md bg-surface-tertiary p-1.5 dark:bg-surface-dark-tertiary">
-          <Brain className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
-              {isActiveThinking ? 'Thinking' : 'Thought process'}
-            </span>
-            {isActiveThinking && (
-              <div className="flex gap-0.5">
-                <div
-                  className="h-1 w-1 animate-bounce rounded-full bg-text-secondary dark:bg-text-dark-tertiary"
-                  style={{ animationDelay: '0ms' }}
-                />
-                <div
-                  className="h-1 w-1 animate-bounce rounded-full bg-text-secondary dark:bg-text-dark-tertiary"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <div
-                  className="h-1 w-1 animate-bounce rounded-full bg-text-secondary dark:bg-text-dark-tertiary"
-                  style={{ animationDelay: '300ms' }}
-                />
-              </div>
-            )}
-            {!isExpanded && content && (
-              <span className="max-w-52 truncate text-2xs text-text-secondary dark:text-text-dark-tertiary">
-                {previewText}
-              </span>
-            )}
+        <Brain className="h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
+        <span className="text-2xs font-medium text-text-tertiary dark:text-text-dark-tertiary">
+          {isActiveThinking ? 'Thinking' : 'Thought process'}
+        </span>
+        {isActiveThinking && (
+          <div className="flex gap-0.5">
+            <div
+              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
+              style={{ animationDelay: '0ms' }}
+            />
+            <div
+              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
+              style={{ animationDelay: '150ms' }}
+            />
+            <div
+              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
+              style={{ animationDelay: '300ms' }}
+            />
           </div>
-        </div>
-        <div className="flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary">
-          {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5" />
-          )}
-        </div>
-      </Button>
+        )}
+        {!isExpanded && content && (
+          <span className="max-w-48 truncate text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+            {previewText}
+          </span>
+        )}
+        <ChevronRight
+          className={`h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary ${isExpanded ? 'rotate-90' : ''}`}
+        />
+      </button>
 
       <div
-        className={`transition-all duration-200 ease-in-out ${
-          isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-        } overflow-y-auto`}
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isExpanded ? 'mt-1.5 max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
       >
         {content && (
-          <div className="px-3 pb-2">
-            <div className="whitespace-pre-wrap text-xs leading-relaxed text-text-secondary dark:text-text-dark-secondary">
+          <div className="border-l border-border pl-3 dark:border-border-dark">
+            <div className="max-h-80 overflow-y-auto whitespace-pre-wrap text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-tertiary">
               {content}
             </div>
           </div>

@@ -153,7 +153,7 @@ export function TimePicker({
         <span className={value ? '' : 'text-text-tertiary dark:text-text-dark-tertiary'}>
           {value ? formatDisplayTime(value) : placeholder}
         </span>
-        <Clock className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />
+        <Clock className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
       </button>
 
       {isOpen && !disabled && (
@@ -161,15 +161,17 @@ export function TimePicker({
           role="dialog"
           aria-label="Time picker"
           onKeyDown={handleKeyDown}
-          className="absolute bottom-full left-0 z-50 mb-1.5 w-[240px] overflow-hidden rounded-lg border border-border/50 bg-surface shadow-strong dark:border-white/10 dark:bg-surface-dark"
+          className="absolute bottom-full left-0 z-50 mb-1.5 w-[240px] overflow-hidden rounded-xl border border-border bg-surface shadow-strong dark:border-border-dark dark:bg-surface-dark"
         >
-          <div className="bg-brand-500 px-4 py-2.5">
+          <div className="border-b border-border bg-surface-tertiary px-4 py-2.5 dark:border-border-dark dark:bg-surface-dark-tertiary">
             <div className="flex items-center justify-center gap-2">
-              <span className="text-xl font-semibold tabular-nums text-white">{displayTime}</span>
+              <span className="text-xl font-semibold tabular-nums text-text-primary dark:text-text-dark-primary">
+                {displayTime}
+              </span>
               <button
                 type="button"
                 onClick={handlePeriodToggle}
-                className="rounded bg-white/20 px-1.5 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/40"
+                className="rounded bg-surface-hover px-1.5 py-0.5 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-active dark:bg-surface-dark-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-active"
               >
                 {selectedPeriod}
               </button>
@@ -188,7 +190,7 @@ export function TimePicker({
                     selectedHour === qt.hour &&
                       selectedMinute === qt.minute &&
                       selectedPeriod === qt.period
-                      ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300'
+                      ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
                       : 'bg-surface-secondary text-text-secondary hover:bg-surface-hover dark:bg-surface-dark-secondary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover',
                   )}
                 >
@@ -210,7 +212,7 @@ export function TimePicker({
                     className={cn(
                       'rounded py-1.5 text-xs font-medium transition-all',
                       selectedHour === hour
-                        ? 'bg-brand-500 text-white'
+                        ? 'bg-text-primary text-surface dark:bg-text-dark-primary dark:text-surface-dark'
                         : 'text-text-primary hover:bg-surface-hover dark:text-text-dark-primary dark:hover:bg-surface-dark-hover',
                     )}
                   >
@@ -233,7 +235,7 @@ export function TimePicker({
                     className={cn(
                       'rounded py-1.5 text-xs font-medium transition-all',
                       selectedMinute === minute
-                        ? 'bg-brand-500 text-white'
+                        ? 'bg-text-primary text-surface dark:bg-text-dark-primary dark:text-surface-dark'
                         : 'text-text-primary hover:bg-surface-hover dark:text-text-dark-primary dark:hover:bg-surface-dark-hover',
                     )}
                   >

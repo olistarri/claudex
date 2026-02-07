@@ -30,30 +30,32 @@ const VerificationStatus = memo(function VerificationStatus({
     switch (status) {
       case 'error':
         return {
-          icon: <AlertCircle className="h-16 w-16 text-error-500 dark:text-error-400" />,
+          icon: <AlertCircle className="h-6 w-6 text-error-500 dark:text-error-400" />,
           heading: 'Verification Failed',
           headingClassName: 'text-error-600 dark:text-error-400',
           subText: message,
         };
       case 'success':
         return {
-          icon: <CheckCircle className="h-16 w-16 text-blue-600 dark:text-blue-400" />,
+          icon: <CheckCircle className="h-6 w-6 text-text-primary dark:text-text-dark-primary" />,
           heading: 'Email Verified',
           headingClassName: 'text-text-primary dark:text-text-dark-primary',
           subText: message || 'Your email has been verified successfully.',
         };
       case 'verifying':
         return {
-          icon: <RefreshCw className="h-16 w-16 animate-spin text-blue-500 dark:text-blue-400" />,
+          icon: (
+            <RefreshCw className="h-5 w-5 animate-spin text-text-tertiary dark:text-text-dark-tertiary" />
+          ),
           heading: 'Verifying...',
-          headingClassName: 'text-blue-600 dark:text-blue-400',
+          headingClassName: 'text-text-primary dark:text-text-dark-primary',
           subText: 'Please wait while we verify your email...',
         };
       default:
         return {
-          icon: <Mail className="h-16 w-16 text-blue-500 dark:text-blue-400" />,
+          icon: <Mail className="h-6 w-6 text-text-tertiary dark:text-text-dark-tertiary" />,
           heading: 'Check Your Email',
-          headingClassName: 'text-blue-600 dark:text-blue-400',
+          headingClassName: 'text-text-primary dark:text-text-dark-primary',
           subText: email
             ? `We sent a verification link to ${email}`
             : 'We sent a verification link to your email.',
@@ -65,42 +67,40 @@ const VerificationStatus = memo(function VerificationStatus({
     <Layout isAuthPage={true}>
       <div className="flex h-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
         <div className="flex flex-1 flex-col items-center justify-center p-4">
-          <div className="relative z-10 w-full max-w-md space-y-6">
-            {/* Status Icon */}
+          <div className="relative z-10 w-full max-w-sm space-y-5">
             <div className="flex justify-center">{icon}</div>
 
-            <div className="relative rounded-xl border border-border bg-surface-tertiary p-6 shadow-2xl backdrop-blur-xl dark:border-border-dark dark:bg-surface-dark-tertiary">
-              <div className="mb-6 space-y-2 text-center">
-                <h2 className={cn('text-2xl font-bold', headingClassName)}>{heading}</h2>
-                <p className="text-sm text-text-secondary dark:text-text-dark-secondary">
-                  {subText}
-                </p>
+            <div className="rounded-xl border border-border/50 bg-surface-tertiary p-6 shadow-medium dark:border-border-dark/50 dark:bg-surface-dark-tertiary">
+              <div className="mb-5 space-y-1.5 text-center">
+                <h2 className={cn('text-lg font-semibold', headingClassName)}>{heading}</h2>
+                <p className="text-xs text-text-tertiary dark:text-text-dark-tertiary">{subText}</p>
               </div>
 
               {status === 'success' && (
-                <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/50 dark:bg-blue-900/10">
-                  <p className="text-sm text-text-secondary dark:text-text-dark-secondary">
+                <div className="mb-5 rounded-lg border border-border/50 bg-surface-hover/50 p-3 dark:border-border-dark/50 dark:bg-surface-dark-hover/50">
+                  <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
                     {message}
                   </p>
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {(status === 'pending' || status === 'error') && (
                   <Button
                     onClick={onResend}
                     disabled={isResending}
-                    variant="unstyled"
-                    className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 text-sm font-medium text-white shadow-lg shadow-blue-600/25 transition-all duration-200 hover:bg-blue-700 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
                   >
                     {isResending ? (
                       <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                         Sending...
                       </>
                     ) : (
                       <>
-                        <Mail className="h-4 w-4" />
+                        <Mail className="h-3.5 w-3.5" />
                         Resend Verification Email
                       </>
                     )}
@@ -110,8 +110,9 @@ const VerificationStatus = memo(function VerificationStatus({
                 {status === 'success' && (
                   <Button
                     onClick={() => navigate('/login')}
-                    variant="gradient"
-                    className="w-full transform shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
                   >
                     Continue to Login
                   </Button>
@@ -120,8 +121,9 @@ const VerificationStatus = memo(function VerificationStatus({
                 {status !== 'verifying' && status !== 'success' && (
                   <Button
                     onClick={() => navigate('/login')}
-                    variant="unstyled"
-                    className="flex h-10 w-full items-center justify-center rounded-lg bg-surface-tertiary text-sm font-medium text-text-secondary transition-all duration-200 hover:bg-surface-hover dark:bg-surface-dark-tertiary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover"
+                    variant="secondary"
+                    size="lg"
+                    className="w-full"
                   >
                     Back to Login
                   </Button>
@@ -130,7 +132,7 @@ const VerificationStatus = memo(function VerificationStatus({
             </div>
 
             {status === 'pending' && (
-              <div className="space-y-1 text-center text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              <div className="space-y-0.5 text-center text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                 <p>Can't find the email? Check your spam folder.</p>
                 <p>The verification link will expire in 24 hours.</p>
               </div>

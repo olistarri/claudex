@@ -46,7 +46,7 @@ const TaskOutputToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       expandable={hasOutput}
     >
       {hasOutput && (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
+        <div>
           <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
             <pre className="whitespace-pre-wrap break-all">{output}</pre>
           </div>
@@ -86,7 +86,7 @@ const BashOutputToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       expandable={hasOutput}
     >
       {hasOutput && (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
+        <div>
           <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
             <pre className="whitespace-pre-wrap break-all">{output}</pre>
           </div>

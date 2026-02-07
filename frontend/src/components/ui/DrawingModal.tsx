@@ -242,7 +242,7 @@ export const DrawingModal = memo(function DrawingModal({
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t p-4 dark:border-border-dark">
+      <div className="flex items-center justify-between border-t border-border p-4 dark:border-border-dark">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
             {colors.map((c) => (
@@ -251,7 +251,9 @@ export const DrawingModal = memo(function DrawingModal({
                 onClick={() => setColor(c)}
                 variant="unstyled"
                 className={`h-6 w-6 rounded-full border ${
-                  color === c ? 'ring-2 ring-brand-500' : 'ring-1 ring-border dark:ring-border-dark'
+                  color === c
+                    ? 'ring-2 ring-text-primary dark:ring-text-dark-primary'
+                    : 'ring-1 ring-border dark:ring-border-dark'
                 }`}
                 style={{ backgroundColor: c }}
                 aria-label={`Select color ${c}`}
@@ -287,7 +289,7 @@ export const DrawingModal = memo(function DrawingModal({
           <Button
             onClick={handleSave}
             variant="unstyled"
-            className="flex items-center gap-2 rounded-lg bg-brand-500 px-3 py-2 text-white hover:bg-brand-600"
+            className="flex items-center gap-2 rounded-lg bg-text-primary px-3 py-2 text-xs font-medium text-surface transition-colors hover:bg-text-secondary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
             disabled={!canvasReady}
           >
             <Check className="h-4 w-4" />

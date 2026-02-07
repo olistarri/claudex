@@ -37,8 +37,7 @@ export const AgentsSettingsTab: React.FC<AgentsSettingsTabProps> = ({
       renderItem={(agent, index) => (
         <>
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Bot className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-            <h3 className="min-w-0 max-w-full truncate text-sm font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
+            <h3 className="min-w-0 max-w-full truncate text-xs font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
               {agent.name}
             </h3>
             <Switch
@@ -48,14 +47,14 @@ export const AgentsSettingsTab: React.FC<AgentsSettingsTabProps> = ({
               aria-label={`Toggle ${agent.name} agent`}
             />
           </div>
-          <p className="mb-2 line-clamp-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-            {agent.description}
-          </p>
-          <div className="mt-2 rounded bg-surface-tertiary p-2 dark:bg-surface-dark-tertiary">
-            <p className="line-clamp-2 font-mono text-xs text-text-secondary dark:text-text-dark-secondary">
-              {agent.content}
+          {agent.description && (
+            <p className="mb-2 line-clamp-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              {agent.description}
             </p>
-          </div>
+          )}
+          <p className="line-clamp-2 font-mono text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+            {agent.content}
+          </p>
         </>
       )}
       logContext="AgentsSettingsTab"

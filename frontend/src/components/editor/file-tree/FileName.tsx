@@ -42,11 +42,9 @@ export function FileName({ path, isFolder, className, searchQuery = '' }: FileNa
 
   return (
     <span className={cn('flex items-center text-xs', className)} title={path}>
-      <span className="min-w-0 truncate text-text-secondary dark:text-text-dark-secondary">
-        {baseName || fileName}
-      </span>
+      <span className="min-w-0 truncate">{baseName || fileName}</span>
       {ext && (
-        <span className="flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary">
+        <span className="flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary">
           .{ext}
         </span>
       )}

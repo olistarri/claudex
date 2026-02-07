@@ -135,25 +135,25 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
     switch (task.status) {
       case TaskStatus.ACTIVE:
         return (
-          <span className="rounded-full bg-success-100 px-2 py-1 text-xs text-success-700 dark:bg-success-900/30 dark:text-success-400">
+          <span className="rounded-full border border-border px-2 py-0.5 text-2xs text-text-secondary dark:border-border-dark dark:text-text-dark-secondary">
             Active
           </span>
         );
       case TaskStatus.PAUSED:
         return (
-          <span className="rounded-full bg-text-quaternary/10 px-2 py-1 text-xs text-text-secondary dark:bg-text-dark-quaternary/10 dark:text-text-dark-secondary">
+          <span className="rounded-full border border-border px-2 py-0.5 text-2xs text-text-quaternary dark:border-border-dark dark:text-text-dark-quaternary">
             Paused
           </span>
         );
       case TaskStatus.FAILED:
         return (
-          <span className="rounded-full bg-error-100 px-2 py-1 text-xs text-error-700 dark:bg-error-900/30 dark:text-error-400">
+          <span className="rounded-full border border-border px-2 py-0.5 text-2xs text-text-quaternary dark:border-border-dark dark:text-text-dark-quaternary">
             Failed
           </span>
         );
       case TaskStatus.COMPLETED:
         return (
-          <span className="rounded-full bg-info-100 px-2 py-1 text-xs text-info-700 dark:bg-info-900/30 dark:text-info-400">
+          <span className="rounded-full border border-border px-2 py-0.5 text-2xs text-text-quaternary dark:border-border-dark dark:text-text-dark-quaternary">
             Completed
           </span>
         );
@@ -188,7 +188,7 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
               Scheduled Tasks
             </h2>
           </div>
-          <div className="rounded-lg bg-error-50 p-4 text-error-600 dark:bg-error-900/20 dark:text-error-400">
+          <div className="rounded-xl border border-border p-4 text-text-secondary dark:border-border-dark dark:text-text-dark-secondary">
             <p>Error loading tasks. Please try again.</p>
           </div>
         </div>
@@ -222,12 +222,12 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
         </p>
 
         {tasksList.length === 0 ? (
-          <div className="rounded-lg border border-border p-8 text-center dark:border-border-dark">
-            <CalendarClock className="mx-auto mb-3 h-8 w-8 text-text-quaternary dark:text-text-dark-quaternary" />
-            <p className="mb-3 text-sm text-text-tertiary dark:text-text-dark-tertiary">
+          <div className="rounded-xl border border-dashed border-border p-8 text-center dark:border-border-dark">
+            <CalendarClock className="mx-auto mb-3 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
+            <p className="mb-3 text-xs text-text-tertiary dark:text-text-dark-tertiary">
               No scheduled tasks configured yet
             </p>
-            <Button type="button" onClick={onAddTask} variant="primary" size="sm">
+            <Button type="button" onClick={onAddTask} variant="outline" size="sm">
               Create Your First Task
             </Button>
           </div>
@@ -242,12 +242,12 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
               {tasksList.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded-lg border border-border bg-surface-tertiary p-4 transition-colors hover:border-border-hover dark:border-border-dark dark:bg-surface-dark-tertiary dark:hover:border-border-dark-hover"
+                  className="rounded-xl border border-border p-4 transition-colors duration-200 hover:border-border-hover dark:border-border-dark dark:hover:border-border-dark-hover"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="mb-2 flex items-center gap-2">
-                        <h3 className="truncate text-sm font-medium text-text-primary dark:text-text-dark-primary">
+                        <h3 className="truncate text-xs font-medium text-text-primary dark:text-text-dark-primary">
                           {task.task_name}
                         </h3>
                         {getStatusBadge(task)}
@@ -257,15 +257,15 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         {task.prompt_message}
                       </p>
 
-                      <div className="flex flex-wrap gap-4 text-xs text-text-secondary dark:text-text-dark-secondary">
+                      <div className="flex flex-wrap gap-4 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                         <div className="flex items-center gap-1.5">
-                          <Clock className="h-4 w-4" />
+                          <Clock className="h-3 w-3" />
                           <span>{getRecurrenceDisplay(task)}</span>
                         </div>
 
                         {task.next_execution && task.status === TaskStatus.ACTIVE && (
                           <div className="flex items-center gap-1.5">
-                            <Calendar className="h-4 w-4" />
+                            <Calendar className="h-3 w-3" />
                             <span>Next: {getNextExecutionDisplay(task)}</span>
                           </div>
                         )}
@@ -278,7 +278,7 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         variant="ghost"
                         size="icon"
                         onClick={() => handleToggleTask(task)}
-                        className="h-8 w-8 text-text-secondary dark:text-text-dark-secondary"
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                         title={task.status === TaskStatus.ACTIVE ? 'Pause task' : 'Resume task'}
                         aria-label={
                           task.status === TaskStatus.ACTIVE ? 'Pause task' : 'Resume task'
@@ -286,11 +286,11 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         disabled={togglingTaskId === task.id}
                       >
                         {togglingTaskId === task.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : task.status === TaskStatus.ACTIVE ? (
-                          <Pause className="h-4 w-4" />
+                          <Pause className="h-3.5 w-3.5" />
                         ) : (
-                          <Play className="h-4 w-4" />
+                          <Play className="h-3.5 w-3.5" />
                         )}
                       </Button>
 
@@ -299,11 +299,11 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         variant="ghost"
                         size="icon"
                         onClick={() => onEditTask(task)}
-                        className="h-8 w-8 text-text-secondary dark:text-text-dark-secondary"
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                         title="Edit task"
                         aria-label="Edit task"
                       >
-                        <Edit2 className="h-4 w-4" />
+                        <Edit2 className="h-3.5 w-3.5" />
                       </Button>
 
                       <Button
@@ -311,15 +311,15 @@ export const TasksSettingsTab: React.FC<TasksSettingsTabProps> = ({ onAddTask, o
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteRequest(task)}
-                        className="h-8 w-8 text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-400/20"
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                         title="Delete task"
                         aria-label="Delete task"
                         disabled={deletingTaskId === task.id}
                       >
                         {deletingTaskId === task.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         )}
                       </Button>
                     </div>

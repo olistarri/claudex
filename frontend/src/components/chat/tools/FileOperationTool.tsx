@@ -1,21 +1,13 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useMemo } from 'react';
+import { diffLines } from 'diff';
 import { FileSearch, FileEdit as FileEditIcon, FilePlus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ToolAggregate, ToolComponent } from '@/types';
-import { ToolCard, DiffViewer, ReviewInput } from './common';
-import { useReviewStore } from '@/store/reviewStore';
+import { ToolCard } from './common';
 
 interface FileOperationToolProps {
   tool: ToolAggregate;
   variant: 'read' | 'edit' | 'write';
-  chatId?: string;
-}
-
-interface PendingReview {
-  lineStart: number;
-  lineEnd: number;
-  selectedCode: string;
-  changeType: 'insert' | 'delete' | 'normal';
 }
 
 interface TitleConfig {
@@ -55,80 +47,108 @@ const normalizeContent = (result: unknown): string => {
   return JSON.stringify(result, null, 2);
 };
 
-const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, variant, chatId }) => {
+interface DiffLine {
+  type: 'added' | 'removed' | 'context';
+  content: string;
+}
+
+const computeDiffLines = (oldStr: string, newStr: string): DiffLine[] => {
+  const changes = diffLines(oldStr, newStr);
+  const result: DiffLine[] = [];
+
+  for (const change of changes) {
+    const lines = change.value.endsWith('\n')
+      ? change.value.slice(0, -1).split('\n')
+      : change.value.split('\n');
+
+    for (const line of lines) {
+      if (change.removed) {
+        result.push({ type: 'removed', content: line });
+      } else if (change.added) {
+        result.push({ type: 'added', content: line });
+      } else {
+        result.push({ type: 'context', content: line });
+      }
+    }
+  }
+
+  return result;
+};
+
+const InlineDiff: React.FC<{ oldContent: string; newContent: string }> = ({
+  oldContent,
+  newContent,
+}) => {
+  const lines = useMemo(() => computeDiffLines(oldContent, newContent), [oldContent, newContent]);
+
+  if (lines.length === 0) {
+    return (
+      <p className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+        No changes detected
+      </p>
+    );
+  }
+
+  return (
+    <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+      {lines.map((line, idx) => (
+        <div key={idx} className="flex">
+          <span
+            className={`w-4 flex-shrink-0 select-none text-center ${
+              line.type === 'removed'
+                ? 'text-error-600/40 dark:text-error-400/40'
+                : line.type === 'added'
+                  ? 'text-success-600/40 dark:text-success-400/40'
+                  : 'text-transparent'
+            }`}
+          >
+            {line.type === 'removed' ? '−' : line.type === 'added' ? '+' : ' '}
+          </span>
+          <span
+            className={`whitespace-pre ${
+              line.type === 'removed'
+                ? 'text-text-quaternary line-through dark:text-text-dark-quaternary'
+                : line.type === 'added'
+                  ? 'text-text-secondary dark:text-text-dark-secondary'
+                  : 'text-text-tertiary dark:text-text-dark-tertiary'
+            }`}
+          >
+            {line.content || '\u00A0'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, variant }) => {
   const config = OPERATION_CONFIGS[variant];
   const Icon = config.icon;
   const filePath = (tool.input?.file_path as string | undefined) ?? '';
-
-  const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
-  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
-  const addReview = useReviewStore((s) => s.addReview);
-
-  const handleLineSelect = useCallback(
-    (
-      lineStart: number,
-      lineEnd: number,
-      selectedCode: string,
-      changeType: 'insert' | 'delete' | 'normal',
-    ) => {
-      setSelectedRange({ start: lineStart, end: lineEnd });
-      setPendingReview({ lineStart, lineEnd, selectedCode, changeType });
-    },
-    [],
-  );
-
-  const handleReviewSubmit = useCallback(
-    (comment: string) => {
-      if (!pendingReview || !chatId) return;
-      addReview({
-        id: crypto.randomUUID(),
-        chatId,
-        filePath,
-        operationId: tool.id,
-        lineStart: pendingReview.lineStart,
-        lineEnd: pendingReview.lineEnd,
-        selectedCode: pendingReview.selectedCode,
-        changeType: pendingReview.changeType,
-        comment,
-        createdAt: new Date().toISOString(),
-      });
-      setSelectedRange(null);
-      setPendingReview(null);
-    },
-    [pendingReview, chatId, filePath, tool.id, addReview],
-  );
-
-  const handleReviewCancel = useCallback(() => {
-    setSelectedRange(null);
-    setPendingReview(null);
-  }, []);
 
   const renderContent = () => {
     if (variant === 'read') {
       const content = normalizeContent(tool.result);
       if (!content || tool.status !== 'completed') return null;
 
+      const lines = content.split('\n');
       return (
-        <div className="border-t border-border/50 dark:border-border-dark/50">
-          <div className="max-h-64 overflow-x-auto font-mono text-xs">
-            <div className="flex">
-              <div className="flex-shrink-0 select-none border-r border-border px-3 py-3 text-right text-text-tertiary dark:border-border-dark-secondary dark:text-text-dark-tertiary">
-                {content.split('\n').map((line: string, idx: number) => {
-                  const match = line.match(/^\s*(\d+)→/);
-                  const lineNum = match ? match[1] : String(idx + 1);
-                  return <div key={idx}>{lineNum}</div>;
-                })}
+        <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+          {lines.map((line: string, idx: number) => {
+            const match = line.match(/^\s*(\d+)→/);
+            const lineNum = match ? match[1] : String(idx + 1);
+            const lineContent = line.replace(/^\s*\d+→/, '');
+            return (
+              <div key={idx} className="flex">
+                <span className="w-8 flex-shrink-0 select-none pr-2 text-right text-text-quaternary dark:text-text-dark-quaternary">
+                  {lineNum}
+                </span>
+                <span className="whitespace-pre text-text-tertiary dark:text-text-dark-tertiary">
+                  {lineContent || '\u00A0'}
+                </span>
               </div>
-              <pre className="flex-1 py-3 pl-4">
-                <code className="whitespace-pre text-text-primary dark:text-text-dark-primary">
-                  {content.split('\n').map((line: string, idx: number) => {
-                    const lineContent = line.replace(/^\s*\d+→/, '');
-                    return <div key={idx}>{lineContent || '\u00A0'}</div>;
-                  })}
-                </code>
-              </pre>
-            </div>
-          </div>
+            );
+          })}
         </div>
       );
     }
@@ -138,53 +158,25 @@ const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, varian
       const newString = typeof tool.input?.new_string === 'string' ? tool.input.new_string : '';
       if (!oldString && !newString) return null;
 
-      return (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
-          <DiffViewer
-            oldContent={oldString}
-            newContent={newString}
-            filename={filePath}
-            reviewMode={!!chatId}
-            operationId={tool.id}
-            onLineSelect={handleLineSelect}
-            selectedRange={selectedRange}
-          />
-          {pendingReview && (
-            <ReviewInput
-              selectedLines={{ start: pendingReview.lineStart, end: pendingReview.lineEnd }}
-              fileName={filePath}
-              onSubmit={handleReviewSubmit}
-              onCancel={handleReviewCancel}
-              className="mt-3"
-            />
-          )}
-        </div>
-      );
+      return <InlineDiff oldContent={oldString} newContent={newString} />;
     }
 
     const content = typeof tool.input?.content === 'string' ? tool.input.content : '';
     if (!content) return null;
 
+    const lines = content.split('\n');
     return (
-      <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
-        <DiffViewer
-          oldContent=""
-          newContent={content}
-          filename={filePath}
-          reviewMode={!!chatId}
-          operationId={tool.id}
-          onLineSelect={handleLineSelect}
-          selectedRange={selectedRange}
-        />
-        {pendingReview && (
-          <ReviewInput
-            selectedLines={{ start: pendingReview.lineStart, end: pendingReview.lineEnd }}
-            fileName={filePath}
-            onSubmit={handleReviewSubmit}
-            onCancel={handleReviewCancel}
-            className="mt-3"
-          />
-        )}
+      <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+        {lines.map((line: string, idx: number) => (
+          <div key={idx} className="flex">
+            <span className="w-8 flex-shrink-0 select-none pr-2 text-right text-text-quaternary dark:text-text-dark-quaternary">
+              {idx + 1}
+            </span>
+            <span className="whitespace-pre text-text-tertiary dark:text-text-dark-tertiary">
+              {line || '\u00A0'}
+            </span>
+          </div>
+        ))}
       </div>
     );
   };
@@ -220,14 +212,14 @@ const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, varian
 
 const FileOperationTool = memo(FileOperationToolInner);
 
-export const WriteTool: ToolComponent = ({ tool, chatId }) => (
-  <FileOperationTool tool={tool} variant="write" chatId={chatId} />
+export const WriteTool: ToolComponent = ({ tool }) => (
+  <FileOperationTool tool={tool} variant="write" />
 );
 
-export const ReadTool: ToolComponent = ({ tool, chatId }) => (
-  <FileOperationTool tool={tool} variant="read" chatId={chatId} />
+export const ReadTool: ToolComponent = ({ tool }) => (
+  <FileOperationTool tool={tool} variant="read" />
 );
 
-export const EditTool: ToolComponent = ({ tool, chatId }) => (
-  <FileOperationTool tool={tool} variant="edit" chatId={chatId} />
+export const EditTool: ToolComponent = ({ tool }) => (
+  <FileOperationTool tool={tool} variant="edit" />
 );

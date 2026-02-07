@@ -3,10 +3,7 @@ import type { ReactNode } from 'react';
 import { Smartphone, Monitor, ExternalLink, RotateCcw } from 'lucide-react';
 import type { PortInfo } from '@/types';
 import { Button, Select, Spinner } from '@/components/ui';
-
-const backgroundClass = 'bg-surface-secondary dark:bg-surface-dark-secondary';
-const buttonHoverClass =
-  'text-text-tertiary hover:text-text-secondary dark:hover:text-text-dark-secondary';
+import { cn } from '@/utils/cn';
 
 interface DeviceButtonProps {
   active: boolean;
@@ -19,9 +16,12 @@ const DeviceButton = ({ active, onClick, title, children }: DeviceButtonProps) =
   <Button
     onClick={onClick}
     variant="unstyled"
-    className={`rounded p-1 ${
-      active ? 'bg-surface-active shadow-sm dark:bg-surface-dark-active' : 'text-text-tertiary'
-    }`}
+    className={cn(
+      'rounded-md p-1 transition-colors duration-200',
+      active
+        ? 'bg-surface-active text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
+        : 'text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
+    )}
     title={title}
   >
     {children}
@@ -83,78 +83,73 @@ export const Panel = memo(function Panel({
 
   if (!previewUrl) {
     return (
-      <div className={`flex flex-1 items-center justify-center ${backgroundClass}`}>
-        <div className="text-center">
-          <p className="text-xs text-text-tertiary">No preview available</p>
-        </div>
+      <div className="flex flex-1 items-center justify-center bg-surface-secondary dark:bg-surface-dark-secondary">
+        <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+          No preview available
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={`flex flex-1 flex-col ${backgroundClass}`}>
-      <div className="flex items-center border-b border-border px-3 py-1.5 dark:border-white/10">
-        <div className="flex flex-1 items-center space-x-3">
-          {/* Reload button - First */}
+    <div className="flex flex-1 flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
+      <div className="flex h-9 items-center border-b border-border/50 px-3 dark:border-border-dark/50">
+        <div className="flex flex-1 items-center gap-2">
           <Button
             onClick={handleReload}
             variant="unstyled"
-            className={`p-1.5 ${buttonHoverClass} rounded`}
+            className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
             title="Reload preview"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3 w-3" />
           </Button>
 
-          {/* URL display */}
-          <div className="flex-1 overflow-hidden">
-            <p
-              className="truncate text-xs text-text-secondary dark:text-text-dark-secondary"
-              title={previewUrl}
-            >
-              {previewUrl}
-            </p>
-          </div>
+          <p
+            className="flex-1 truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary"
+            title={previewUrl}
+          >
+            {previewUrl}
+          </p>
 
-          {/* Open in new tab button */}
           <Button
             onClick={handleOpenInNewTab}
             variant="unstyled"
-            className={`p-1.5 ${buttonHoverClass} rounded`}
+            className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
             title="Open in new tab"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-3 w-3" />
           </Button>
 
-          {/* Device selector */}
-          <div className="flex items-center rounded-md bg-surface-secondary p-0.5 dark:bg-surface-dark-secondary">
+          <div className="flex items-center gap-0.5 rounded-lg bg-surface-tertiary/50 p-0.5 dark:bg-surface-dark-tertiary/50">
             <DeviceButton
               active={deviceView === 'desktop'}
               onClick={() => setDeviceView('desktop')}
               title="Desktop view"
             >
-              <Monitor className="h-3.5 w-3.5" />
+              <Monitor className="h-3 w-3" />
             </DeviceButton>
             <DeviceButton
               active={deviceView === 'mobile'}
               onClick={() => setDeviceView('mobile')}
               title="Mobile view"
             >
-              <Smartphone className="h-3.5 w-3.5" />
+              <Smartphone className="h-3 w-3" />
             </DeviceButton>
           </div>
         </div>
 
         {ports.length > 0 && (
-          <div className="flex items-center space-x-1.5">
-            <div className="mx-2 h-4 w-px bg-border-secondary dark:bg-border-dark-secondary" />
-            <span className="text-xs text-text-tertiary">Port:</span>
+          <div className="ml-2 flex items-center gap-1.5 border-l border-border/30 pl-2 dark:border-border-dark/30">
+            <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              Port
+            </span>
             <Select
               value={selectedPort?.port?.toString() ?? ''}
               onChange={(e) => {
                 const port = ports.find((p) => p.port === Number(e.target.value));
                 if (port && onPortChange) onPortChange(port);
               }}
-              className="h-7 border-border-secondary bg-surface-secondary text-xs dark:border-border-dark-secondary dark:bg-surface-dark-secondary"
+              className="h-6 border-border/30 bg-transparent text-2xs dark:border-border-dark/30"
             >
               {ports.map((port) => (
                 <option key={port.port} value={port.port}>
@@ -165,23 +160,24 @@ export const Panel = memo(function Panel({
           </div>
         )}
       </div>
-      <div className="relative h-full w-full flex-1 overflow-hidden bg-surface-secondary dark:bg-surface-dark-secondary">
+
+      <div className="relative h-full w-full flex-1 overflow-hidden">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50">
-            <Spinner size="md" className="h-6 w-6 text-brand-500" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-secondary/80 dark:bg-surface-dark-secondary/80">
+            <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
           </div>
         )}
         <div
-          className={`h-full w-full transition-all duration-300 ${
-            deviceView === 'mobile'
-              ? 'mx-auto max-w-sm border-x border-border dark:border-white/10'
-              : ''
-          }`}
+          className={cn(
+            'h-full w-full transition-all duration-300',
+            deviceView === 'mobile' &&
+              'mx-auto max-w-sm border-x border-border/30 dark:border-border-dark/30',
+          )}
         >
           <iframe
             key={iframeKey}
             src={previewUrl}
-            className="h-full w-full border-0 bg-surface-secondary dark:bg-surface-dark-secondary"
+            className="h-full w-full border-0 bg-white"
             title="Code Preview"
             sandbox="allow-scripts allow-same-origin allow-forms"
             onLoad={handlePreviewLoad}
