@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { logger } from '@/utils/logger';
-import { Search, ExternalLink, Globe } from 'lucide-react';
+import { Search, Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types';
 import { ToolCard } from './common';
 
@@ -23,17 +22,53 @@ interface ZaiSearchResult {
   publish_date: string;
 }
 
-export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
-  const getFaviconUrl = (url: string) => {
-    try {
-      const domain = new URL(url).hostname;
-      return `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
-    } catch (error) {
-      logger.error('Favicon URL parse failed', 'WebSearch', error);
-      return null;
-    }
-  };
+const SourceChip: React.FC<{ source: SearchSource; index: number }> = ({ source, index }) => {
+  let domain = '';
+  let faviconUrl: string | null = null;
 
+  try {
+    const urlObj = new URL(source.url);
+    domain = urlObj.hostname.replace('www.', '');
+    faviconUrl = `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
+  } catch {
+    domain = source.url;
+  }
+
+  return (
+    <a
+      href={source.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={source.title}
+      className="group/chip flex items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 transition-all duration-150 hover:bg-surface-hover dark:bg-white/5 dark:hover:bg-surface-dark-hover"
+    >
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-2xs font-medium text-text-quaternary dark:text-text-dark-quaternary">
+        {faviconUrl ? (
+          <img
+            src={faviconUrl}
+            alt=""
+            className="h-3 w-3 rounded-sm"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <Globe
+          className={`h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary ${faviconUrl ? 'hidden' : ''}`}
+        />
+      </span>
+      <span className="max-w-32 truncate text-2xs text-text-secondary transition-colors duration-150 group-hover/chip:text-text-primary dark:text-text-dark-tertiary dark:group-hover/chip:text-text-dark-primary">
+        {domain}
+      </span>
+      <span className="text-2xs tabular-nums text-text-quaternary/60 dark:text-text-dark-quaternary/60">
+        {index + 1}
+      </span>
+    </a>
+  );
+};
+
+export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
   const parseZaiSearchResults = (result: unknown): SearchSource[] => {
     try {
       if (!Array.isArray(result)) {
@@ -107,15 +142,15 @@ export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
         <div className="mt-0.5 flex items-center gap-1.5">
           <div className="flex space-x-1">
             <div
-              className="h-1 w-1 animate-bounce rounded-full bg-brand-600 dark:bg-brand-400"
+              className="h-1 w-1 animate-bounce rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"
               style={{ animationDelay: '0ms' }}
             />
             <div
-              className="h-1 w-1 animate-bounce rounded-full bg-brand-600 dark:bg-brand-400"
+              className="h-1 w-1 animate-bounce rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"
               style={{ animationDelay: '150ms' }}
             />
             <div
-              className="h-1 w-1 animate-bounce rounded-full bg-brand-600 dark:bg-brand-400"
+              className="h-1 w-1 animate-bounce rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"
               style={{ animationDelay: '300ms' }}
             />
           </div>
@@ -128,59 +163,11 @@ export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
       expandable={canShowSources}
     >
       {canShowSources && (
-        <div className="border-t border-border/50 dark:border-border-dark/50">
-          <div className="px-4 pb-4">
-            <div className="space-y-1.5">
-              {sources.map((source, index) => (
-                <a
-                  key={index}
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group/item relative block rounded-lg px-4 py-3 transition-all duration-200 hover:bg-surface-hover active:bg-surface-active dark:hover:bg-surface-dark-hover dark:active:bg-surface-dark-active"
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/5 dark:bg-white/5">
-                      {getFaviconUrl(source.url) ? (
-                        <>
-                          <img
-                            src={getFaviconUrl(source.url)!}
-                            alt=""
-                            className="h-5 w-5"
-                            onError={(event) => {
-                              event.currentTarget.style.display = 'none';
-                              event.currentTarget.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                          <Globe className="hidden h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />
-                        </>
-                      ) : (
-                        <Globe className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="mb-0.5 text-xs font-medium leading-tight text-text-primary transition-colors duration-200 dark:text-text-dark-primary">
-                        {source.title}
-                      </h4>
-
-                      <p className="text-xs leading-relaxed text-text-quaternary dark:text-text-dark-quaternary">
-                        {(() => {
-                          try {
-                            return new URL(source.url).hostname.replace('www.', '');
-                          } catch (error) {
-                            logger.error('Favicon URL parse failed', 'WebSearch', error);
-                            return source.url;
-                          }
-                        })()}
-                      </p>
-                    </div>
-
-                    <ExternalLink className="h-3.5 w-3.5 flex-shrink-0 text-text-quaternary opacity-0 transition-all duration-200 group-hover/item:opacity-100 dark:text-text-dark-quaternary" />
-                  </div>
-                </a>
-              ))}
-            </div>
+        <div>
+          <div className="flex flex-wrap gap-1">
+            {sources.map((source, index) => (
+              <SourceChip key={index} source={source} index={index} />
+            ))}
           </div>
         </div>
       )}

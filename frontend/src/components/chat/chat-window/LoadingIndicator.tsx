@@ -1,39 +1,51 @@
 import { memo } from 'react';
+import { motion } from 'framer-motion';
 import iconDark from '/assets/images/icon-dark.svg';
 import iconLight from '/assets/images/icon-white.svg';
 
 export const LoadingIndicator = memo(function LoadingIndicator() {
   return (
-    <div className="flex items-center justify-center gap-3 pb-2 pt-4">
-      <div className="relative">
-        <img
-          src={iconDark}
-          alt="Claudex"
-          className="animate-float h-5 w-5 animate-pulse dark:hidden"
-        />
-        <img
-          src={iconLight}
-          alt="Claudex"
-          className="animate-float hidden h-5 w-5 animate-pulse dark:block"
-        />
-        <div className="absolute inset-0 animate-ping rounded-full bg-text-secondary/20 dark:bg-text-dark-secondary/20" />
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-text-tertiary dark:text-text-dark-tertiary">
-          Claudex is thinking
+    <motion.div
+      className="flex items-center justify-center pb-2 pt-4"
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+    >
+      <div className="relative flex items-center gap-2 overflow-hidden rounded-full border border-border/50 bg-surface-tertiary/80 px-3 py-1.5 dark:border-border-dark/50 dark:bg-surface-dark-tertiary/80">
+        <motion.div
+          animate={{ scale: [1, 1.15, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <img src={iconDark} alt="" className="h-3.5 w-3.5 dark:hidden" />
+          <img src={iconLight} alt="" className="hidden h-3.5 w-3.5 dark:block" />
+        </motion.div>
+
+        <span className="text-xs font-medium text-text-tertiary dark:text-text-dark-tertiary">
+          Thinking
         </span>
-        <div className="flex gap-1">
-          <div className="h-1 w-1 animate-pulse rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"></div>
-          <div
-            className="h-1 w-1 animate-pulse rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"
-            style={{ animationDelay: '0.2s' }}
-          ></div>
-          <div
-            className="h-1 w-1 animate-pulse rounded-full bg-text-tertiary dark:bg-text-dark-tertiary"
-            style={{ animationDelay: '0.4s' }}
-          ></div>
+
+        <div className="flex items-center gap-[3px]">
+          {[0, 0.2, 0.4].map((delay, i) => (
+            <motion.div
+              key={i}
+              className="h-1 w-1 rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay,
+              }}
+            />
+          ))}
         </div>
+
+        <motion.div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent dark:via-white/[0.04]"
+          animate={{ x: ['-100%', '200%'] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
+        />
       </div>
-    </div>
+    </motion.div>
   );
 });

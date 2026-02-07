@@ -8,6 +8,7 @@ import {
   useStartBrowserMutation,
   useStopBrowserMutation,
 } from '@/hooks/queries';
+import { cn } from '@/utils/cn';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 
@@ -89,7 +90,7 @@ export const BrowserView = memo(function BrowserView({
 
   if (!sandboxId) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-text-tertiary dark:text-text-dark-tertiary">
+      <div className="flex h-full items-center justify-center bg-surface-secondary text-xs text-text-quaternary dark:bg-surface-dark-secondary dark:text-text-dark-quaternary">
         No sandbox connected
       </div>
     );
@@ -101,21 +102,19 @@ export const BrowserView = memo(function BrowserView({
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
-      <div className="flex items-center border-b border-border px-3 py-1.5 dark:border-white/10">
-        <div className="flex flex-1 items-center gap-3">
+      <div className="flex h-9 items-center border-b border-border/50 px-3 dark:border-border-dark/50">
+        <div className="flex flex-1 items-center gap-2">
           <Button
             onClick={handleReconnect}
             variant="unstyled"
-            className="rounded-md bg-transparent p-1 text-text-tertiary transition-all hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+            className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
             title="Reconnect"
           >
-            <RotateCcw className={`h-3.5 w-3.5 ${isFetchingUrl ? 'animate-spin' : ''}`} />
+            <RotateCcw className={cn('h-3 w-3', isFetchingUrl && 'animate-spin')} />
           </Button>
 
-          <Globe className="h-4 w-4 text-text-secondary dark:text-text-dark-secondary" />
-
-          <span className="text-xs font-medium text-text-secondary dark:text-text-dark-secondary">
-            Browser (VNC)
+          <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
+            Browser
           </span>
 
           <div className="flex-1" />
@@ -125,10 +124,10 @@ export const BrowserView = memo(function BrowserView({
               onClick={handleStopBrowser}
               variant="unstyled"
               disabled={stopBrowserMutation.isPending}
-              className="flex items-center gap-1 rounded-md bg-red-500 px-2 py-1 text-xs text-white transition-all hover:bg-red-600 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-error-600 disabled:opacity-50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-error-400"
               title="Stop browser"
             >
-              <Square className="h-3 w-3" />
+              <Square className="h-2.5 w-2.5" />
               Stop
             </Button>
           )}
@@ -137,21 +136,21 @@ export const BrowserView = memo(function BrowserView({
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {isConnecting && isBrowserRunning && !connectionError && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/50 dark:bg-black/50">
-            <Spinner size="md" className="h-6 w-6 text-brand-500" />
-            <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-              Connecting to browser...
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-surface-secondary/80 dark:bg-surface-dark-secondary/80">
+            <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
+            <span className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+              Connecting...
             </span>
           </div>
         )}
 
         {connectionError && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/50 dark:bg-black/50">
-            <span className="text-xs text-red-500">{connectionError}</span>
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-surface-secondary/80 dark:bg-surface-dark-secondary/80">
+            <span className="text-xs text-error-500 dark:text-error-400">{connectionError}</span>
             <Button
               onClick={handleReconnect}
               variant="unstyled"
-              className="rounded-md bg-brand-500 px-3 py-1 text-xs text-white hover:bg-brand-600"
+              className="rounded-md px-3 py-1 text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
             >
               Retry
             </Button>
@@ -160,12 +159,12 @@ export const BrowserView = memo(function BrowserView({
 
         {!isBrowserRunning && !isConnecting && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-surface-secondary dark:bg-surface-dark-secondary">
-            <Globe className="h-12 w-12 text-text-tertiary dark:text-text-dark-tertiary" />
+            <Globe className="h-6 w-6 text-text-quaternary dark:text-text-dark-quaternary" />
             <div className="flex flex-col items-center gap-1">
-              <span className="text-sm font-medium text-text-secondary dark:text-text-dark-secondary">
+              <span className="text-xs font-medium text-text-secondary dark:text-text-dark-secondary">
                 Start a browser session
               </span>
-              <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                 Enter a URL to browse
               </span>
             </div>
@@ -174,7 +173,7 @@ export const BrowserView = memo(function BrowserView({
               value={browserUrl}
               onChange={(e) => setBrowserUrl(e.target.value)}
               placeholder="https://example.com"
-              className="bg-surface-primary dark:bg-surface-dark-primary w-80 rounded-md border border-border px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 dark:border-white/10 dark:text-text-dark-primary dark:focus:border-brand-400 dark:focus:ring-brand-400"
+              className="w-72 rounded-lg border border-border/50 bg-transparent px-3 py-1.5 font-mono text-xs text-text-primary outline-none transition-colors duration-200 focus:border-border-hover dark:border-border-dark/50 dark:text-text-dark-primary dark:focus:border-border-dark-hover"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !startBrowserMutation.isPending) {
                   handleStartBrowser();
@@ -185,9 +184,9 @@ export const BrowserView = memo(function BrowserView({
               onClick={handleStartBrowser}
               variant="unstyled"
               disabled={startBrowserMutation.isPending}
-              className="flex items-center gap-2 rounded-md bg-brand-500 px-4 py-2 text-sm text-white transition-all hover:bg-brand-600 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-3.5 w-3.5" />
               Start Browser
             </Button>
           </div>

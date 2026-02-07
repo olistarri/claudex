@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, FileCode2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 export interface EmptyStateProps {
@@ -10,27 +10,27 @@ export interface EmptyStateProps {
 export const EmptyState = memo(function EmptyState({ theme, onToggleFileTree }: EmptyStateProps) {
   return (
     <div
-      className={`flex h-full flex-col ${theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
+      className={cn(
+        'flex h-full flex-col',
+        theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary',
+      )}
     >
       {onToggleFileTree && (
-        <div className="flex items-center border-b border-border px-3 py-1.5 dark:border-border-dark">
+        <div className="flex h-9 items-center border-b border-border/50 px-3 dark:border-border-dark/50">
           <button
             onClick={onToggleFileTree}
-            className={cn(
-              'shrink-0 rounded-md p-1',
-              'bg-surface-secondary dark:bg-surface-dark-secondary',
-              'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-              'text-text-secondary dark:text-text-dark-secondary',
-              'transition-colors duration-150',
-            )}
+            className="shrink-0 rounded-md p-1 text-text-quaternary transition-colors duration-150 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
             aria-label="Show file tree"
           >
-            <PanelLeft size={16} />
+            <PanelLeft size={14} />
           </button>
         </div>
       )}
-      <div className="flex flex-1 items-center justify-center text-sm text-text-secondary dark:text-text-dark-primary">
-        Select a file to view its contents
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <FileCode2 className="h-8 w-8 text-text-quaternary dark:text-text-dark-quaternary" />
+        <span className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+          Select a file to edit
+        </span>
       </div>
     </div>
   );

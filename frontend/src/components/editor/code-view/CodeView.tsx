@@ -122,12 +122,12 @@ export const CodeView = memo(function CodeView({
         <PanelResizeHandle
           className={cn(
             'group relative w-px',
-            'bg-transparent',
-            'hover:bg-text-quaternary dark:hover:bg-text-dark-quaternary',
-            'transition-colors duration-150',
+            'bg-border/50 dark:bg-border-dark/50',
+            'hover:bg-text-quaternary/50 dark:hover:bg-text-dark-quaternary/50',
+            'transition-colors duration-200',
           )}
         >
-          <div className={cn('absolute inset-y-0 -left-2 -right-2', 'cursor-col-resize')} />
+          <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize" />
         </PanelResizeHandle>
 
         <Panel>

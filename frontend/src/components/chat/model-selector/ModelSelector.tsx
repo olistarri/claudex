@@ -1,5 +1,4 @@
 import { memo, useMemo, useEffect } from 'react';
-import { Bot, ChevronDown } from 'lucide-react';
 import { Dropdown } from '@/components/ui';
 import type { DropdownItemType } from '@/components/ui';
 import { useAuthStore, useUIStore } from '@/store';
@@ -64,20 +63,16 @@ export const ModelSelector = memo(function ModelSelector({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-surface-tertiary px-2 py-1 shadow-sm dark:border-white/10 dark:bg-surface-dark-tertiary">
-        <Bot className="h-3.5 w-3.5 text-text-quaternary" />
-        <div className="hidden h-3.5 w-16 animate-pulse rounded bg-text-quaternary/20 sm:block" />
-        <ChevronDown className="hidden h-3.5 w-3.5 text-text-quaternary sm:block" />
+      <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1">
+        <div className="h-3.5 w-16 animate-pulse rounded-full bg-text-quaternary/20" />
       </div>
     );
   }
 
   if (models.length === 0) {
     return (
-      <div className="flex items-center gap-1 rounded-lg border border-border/70 bg-surface-tertiary px-2 py-1 shadow-sm dark:border-white/10 dark:bg-surface-dark-tertiary">
-        <Bot className="h-3.5 w-3.5 text-text-quaternary" />
-        <span className="hidden text-xs text-text-quaternary sm:block">No models</span>
-        <ChevronDown className="hidden h-3.5 w-3.5 text-text-quaternary sm:block" />
+      <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1">
+        <span className="text-xs text-text-quaternary">No models</span>
       </div>
     );
   }
@@ -88,8 +83,8 @@ export const ModelSelector = memo(function ModelSelector({
       items={groupedItems}
       getItemKey={(model) => model.model_id}
       getItemLabel={(model) => `${model.provider_name} - ${model.name}`}
+      getItemShortLabel={(model) => model.name}
       onSelect={(model) => onModelChange(model.model_id)}
-      leftIcon={Bot}
       width="w-64"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
@@ -99,9 +94,9 @@ export const ModelSelector = memo(function ModelSelector({
       searchPlaceholder="Search models..."
       renderItem={(model, isSelected) => (
         <span
-          className={`truncate text-xs font-medium text-text-primary ${isSelected ? 'dark:text-text-dark-primary' : 'dark:text-text-dark-secondary'}`}
+          className={`truncate text-xs font-medium ${isSelected ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-secondary dark:text-text-dark-secondary'}`}
         >
-          {model.provider_name} - {model.name}
+          {model.name}
         </span>
       )}
     />

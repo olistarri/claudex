@@ -61,7 +61,7 @@ export const Tree = memo(function Tree({
       onFileSelect={onFileSelect}
       onToggleFolder={onToggleFolder}
     >
-      <div className="flex h-full select-none flex-col bg-surface dark:bg-surface-dark">
+      <div className="flex h-full select-none flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
         <Header
           onDownload={onDownload}
           isDownloading={isDownloading}
@@ -75,12 +75,12 @@ export const Tree = memo(function Tree({
 
         <div className="flex-1 overflow-hidden">
           <div className="scrollbar-thin scrollbar-thumb-text-quaternary dark:scrollbar-thumb-text-dark-quaternary hover:scrollbar-thumb-text-tertiary dark:hover:scrollbar-thumb-text-dark-tertiary h-full overflow-y-auto">
-            <div className="p-3 pb-16">
+            <div className="px-2 py-1.5 pb-16">
               {hasActualFiles(files) ? (
                 searchQuery.trim() && !hasResults ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <p className="text-sm text-text-tertiary dark:text-text-dark-tertiary">
-                      No files found for "{searchQuery}"
+                    <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+                      No files match "{searchQuery}"
                     </p>
                   </div>
                 ) : (

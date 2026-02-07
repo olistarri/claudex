@@ -1,6 +1,6 @@
 import { Switch, ListManagementTab } from '@/components/ui';
 import type { CustomSkill } from '@/types';
-import { Zap, FileText } from 'lucide-react';
+import { Zap } from 'lucide-react';
 
 interface SkillsSettingsTabProps {
   skills: CustomSkill[] | null;
@@ -43,7 +43,7 @@ export const SkillsSettingsTab: React.FC<SkillsSettingsTabProps> = ({
       isMaxLimitReached={isMaxLimitReached}
       footerContent={
         isMaxLimitReached && (
-          <p className="mt-2 text-xs text-warning-600 dark:text-warning-400">
+          <p className="mt-2 text-xs text-text-quaternary dark:text-text-dark-quaternary">
             Maximum skill limit reached (10/10)
           </p>
         )
@@ -51,8 +51,7 @@ export const SkillsSettingsTab: React.FC<SkillsSettingsTabProps> = ({
       renderItem={(skill, index) => (
         <>
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Zap className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-            <h3 className="min-w-0 max-w-full truncate text-sm font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
+            <h3 className="min-w-0 max-w-full truncate text-xs font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
               {skill.name}
             </h3>
             <Switch
@@ -62,14 +61,16 @@ export const SkillsSettingsTab: React.FC<SkillsSettingsTabProps> = ({
               aria-label={`Toggle ${skill.name} skill`}
             />
           </div>
-          <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-            {skill.description}
-          </p>
-          <div className="flex items-center gap-3 text-xs text-text-quaternary dark:text-text-dark-quaternary">
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
+          {skill.description && (
+            <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              {skill.description}
+            </p>
+          )}
+          <div className="flex items-center gap-2 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+            <span>
               {skill.file_count} file{skill.file_count !== 1 ? 's' : ''}
             </span>
+            <span className="text-border dark:text-border-dark">/</span>
             <span>{formatBytes(skill.size_bytes)}</span>
           </div>
         </>

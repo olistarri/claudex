@@ -103,18 +103,18 @@ export const MarketplaceSettingsTab: React.FC = () => {
             <Spinner size="lg" />
           </div>
         ) : isError ? (
-          <div className="rounded-lg border border-error-200 bg-error-50 p-6 text-center dark:border-error-800 dark:bg-error-900/20">
-            <AlertCircle className="mx-auto mb-3 h-8 w-8 text-error-500 dark:text-error-400" />
-            <p className="mb-2 text-sm font-medium text-error-700 dark:text-error-300">
+          <div className="rounded-xl border border-border p-6 text-center dark:border-border-dark">
+            <AlertCircle className="mx-auto mb-3 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
+            <p className="mb-2 text-xs font-medium text-text-primary dark:text-text-dark-primary">
               Failed to load marketplace
             </p>
-            <p className="mb-4 text-xs text-error-600 dark:text-error-400">
+            <p className="mb-4 text-2xs text-text-tertiary dark:text-text-dark-tertiary">
               {error instanceof Error ? error.message : 'An error occurred while fetching plugins'}
             </p>
             <button
               onClick={() => refreshMutation.mutate()}
               disabled={refreshMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-md bg-error-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-error-700 disabled:opacity-50 dark:hover:bg-error-500"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors duration-200 hover:border-border-hover hover:text-text-primary disabled:opacity-50 dark:border-border-dark dark:text-text-dark-secondary dark:hover:border-border-dark-hover dark:hover:text-text-dark-primary"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`}
@@ -123,9 +123,9 @@ export const MarketplaceSettingsTab: React.FC = () => {
             </button>
           </div>
         ) : filteredPlugins.length === 0 ? (
-          <div className="rounded-lg border border-border p-8 text-center dark:border-border-dark">
-            <Store className="mx-auto mb-3 h-8 w-8 text-text-quaternary dark:text-text-dark-quaternary" />
-            <p className="text-sm text-text-tertiary dark:text-text-dark-tertiary">
+          <div className="rounded-xl border border-dashed border-border p-8 text-center dark:border-border-dark">
+            <Store className="mx-auto mb-3 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
+            <p className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
               {plugins.length === 0 ? 'No plugins available' : 'No plugins match your search'}
             </p>
           </div>

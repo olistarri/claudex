@@ -1,6 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { Clock, X, Pencil, Check, FileText, FileSpreadsheet } from 'lucide-react';
-import { UserAvatar } from './MessageAvatars';
+import { X, Pencil, Check, FileText, FileSpreadsheet } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { authService } from '@/services/authService';
 import type { LocalQueuedMessage, MessageAttachment as QueueAttachment } from '@/types/queue.types';
@@ -118,7 +117,7 @@ export const PendingMessage = memo(function PendingMessage({
       textareaRef.current.focus();
       textareaRef.current.setSelectionRange(editContent.length, editContent.length);
     }
-  }, [isEditing]);
+  }, [isEditing, editContent.length]);
 
   const handleStartEdit = useCallback(() => {
     setEditContent(message.content);
@@ -153,47 +152,9 @@ export const PendingMessage = memo(function PendingMessage({
   );
 
   return (
-    <div className="group rounded-lg px-4 py-2 opacity-60 transition-opacity hover:opacity-80 sm:rounded-2xl sm:px-6 sm:py-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="flex-shrink-0">
-            <UserAvatar />
-          </div>
-          <div className="flex flex-1 flex-wrap items-center gap-2 text-xs sm:gap-3">
-            <span className="font-medium text-text-secondary dark:text-text-dark-tertiary">
-              You
-            </span>
-            <span className="text-text-quaternary dark:text-text-dark-quaternary">•</span>
-            <span className="flex items-center gap-1 text-text-tertiary dark:text-text-dark-tertiary">
-              <Clock className="h-3 w-3" />
-              Pending...
-            </span>
-          </div>
-          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            {!isEditing && (
-              <>
-                <Button
-                  onClick={handleStartEdit}
-                  variant="unstyled"
-                  className="rounded-lg p-2 text-text-secondary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-                  aria-label="Edit message"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  onClick={onCancel}
-                  variant="unstyled"
-                  className="rounded-lg p-2 text-text-secondary hover:bg-error-100 hover:text-error-600 dark:text-text-dark-secondary dark:hover:bg-error-500/10 dark:hover:text-error-400"
-                  aria-label="Cancel message"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="min-w-0 space-y-2 sm:pl-14">
+    <div className="group px-4 py-1.5 sm:px-6 sm:py-2">
+      <div className="flex items-start">
+        <div className="min-w-0 flex-1">
           {isUploadingFiles && (
             <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-lg bg-surface-secondary dark:bg-surface-dark-secondary">
               <div className="h-4 w-4 animate-pulse rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
@@ -208,36 +169,62 @@ export const PendingMessage = memo(function PendingMessage({
           )}
 
           {isEditing ? (
-            <div className="space-y-2">
-              <textarea
-                ref={textareaRef}
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="bg-surface-primary dark:bg-surface-dark-primary w-full resize-none rounded-lg border border-border p-3 text-sm text-text-primary focus:border-brand-500 focus:outline-none dark:border-border-dark dark:text-text-dark-primary"
-                rows={3}
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={handleSaveEdit}
-                  variant="unstyled"
-                  className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                  Save
-                </Button>
-                <Button
-                  onClick={handleCancelEdit}
-                  variant="unstyled"
-                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover"
-                >
-                  Cancel
-                </Button>
+            <div className="flex items-center gap-1.5">
+              <div className="inline-block max-w-full rounded-xl border border-border-hover bg-surface-hover/60 dark:border-border-dark-hover dark:bg-surface-dark-tertiary/80">
+                <textarea
+                  ref={textareaRef}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full resize-none bg-transparent px-3 py-1.5 text-sm leading-5 text-text-primary placeholder:text-text-quaternary focus:outline-none dark:text-text-dark-primary"
+                  rows={1}
+                />
               </div>
+              <Button
+                onClick={handleSaveEdit}
+                variant="unstyled"
+                className="rounded-md p-1 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                aria-label="Save edit"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                onClick={handleCancelEdit}
+                variant="unstyled"
+                className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-error-100 hover:text-error-600 dark:text-text-dark-quaternary dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                aria-label="Cancel edit"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           ) : (
-            <div className="text-sm text-text-secondary dark:text-text-dark-secondary">
-              <p className="whitespace-pre-wrap leading-5">{message.content}</p>
+            <div className="flex items-center gap-2">
+              <div className="inline-block max-w-full rounded-xl bg-surface-hover/60 px-3 py-1.5 dark:bg-surface-dark-tertiary/80">
+                <p className="whitespace-pre-wrap text-sm leading-5 text-text-primary dark:text-text-dark-primary">
+                  {message.content}
+                </p>
+              </div>
+              <span className="animate-pulse-slow text-2xs font-medium text-text-quaternary dark:text-text-dark-quaternary">
+                Queued
+              </span>
+              <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <Button
+                  onClick={handleStartEdit}
+                  variant="unstyled"
+                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                  aria-label="Edit message"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button
+                  onClick={onCancel}
+                  variant="unstyled"
+                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-error-100 hover:text-error-600 dark:text-text-dark-quaternary dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                  aria-label="Cancel message"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

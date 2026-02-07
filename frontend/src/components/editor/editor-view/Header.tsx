@@ -33,58 +33,52 @@ export const Header = memo(function Header({
   if (!filePath) return null;
 
   return (
-    <div className="flex items-center justify-between border-b border-border bg-surface px-3 py-1.5 dark:border-border-dark dark:bg-surface-dark">
+    <div className="flex h-9 items-center justify-between border-b border-border/50 bg-surface-secondary px-3 dark:border-border-dark/50 dark:bg-surface-dark-secondary">
       <div className="flex min-w-0 items-center gap-2">
         {onToggleFileTree && (
           <button
             onClick={onToggleFileTree}
             className={cn(
               'shrink-0 rounded-md p-1',
-              'bg-surface-secondary dark:bg-surface-dark-secondary',
-              'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-              'text-text-secondary dark:text-text-dark-secondary',
+              'text-text-quaternary hover:text-text-secondary',
+              'dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
               'transition-colors duration-150',
             )}
             aria-label="Show file tree"
           >
-            <PanelLeft size={16} />
+            <PanelLeft size={14} />
           </button>
         )}
-        <span className="truncate text-xs text-text-secondary dark:text-text-dark-secondary">
+        <span className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary">
           {filePath}
         </span>
+        {hasUnsavedChanges && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
+        )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5">
         {error && (
-          <div className="flex items-center gap-1.5 text-error-500 dark:text-error-400">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span className="text-xs">{error}</span>
+          <div className="flex items-center gap-1 text-error-500 dark:text-error-400">
+            <AlertTriangle className="h-3 w-3" />
+            <span className="text-2xs">{error}</span>
           </div>
         )}
 
-        {onSave && (
+        {onSave && hasUnsavedChanges && (
           <Button
             onClick={onSave}
-            disabled={isSaving || !hasUnsavedChanges}
+            disabled={isSaving}
             variant="unstyled"
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
-              !hasUnsavedChanges || isSaving
-                ? 'cursor-not-allowed bg-surface-secondary text-text-quaternary opacity-50 dark:bg-surface-dark-secondary'
-                : 'bg-brand-500 text-white hover:bg-brand-600'
-            }`}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-3.5 w-3.5" />
-                Save
-              </>
+            className={cn(
+              'flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors duration-200',
+              isSaving
+                ? 'cursor-not-allowed text-text-quaternary dark:text-text-dark-quaternary'
+                : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
             )}
+          >
+            {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            {isSaving ? 'Saving' : 'Save'}
           </Button>
         )}
 
@@ -92,20 +86,21 @@ export const Header = memo(function Header({
           <Button
             onClick={() => (onTogglePreview ? onTogglePreview(!showPreview) : null)}
             variant="unstyled"
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-all ${
+            className={cn(
+              'flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors duration-200',
               showPreview
-                ? 'bg-brand-500 text-white hover:bg-brand-600'
-                : 'bg-surface-secondary text-text-secondary hover:bg-surface-hover dark:bg-surface-dark-secondary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover'
-            }`}
+                ? 'bg-surface-active text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
+                : 'text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
+            )}
           >
             {showPreview ? (
               <>
-                <Code className="h-3.5 w-3.5" />
-                Show Code
+                <Code className="h-3 w-3" />
+                Code
               </>
             ) : (
               <>
-                <FileText className="h-3.5 w-3.5" />
+                <FileText className="h-3 w-3" />
                 Preview
               </>
             )}

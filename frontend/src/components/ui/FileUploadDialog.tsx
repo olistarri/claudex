@@ -50,9 +50,9 @@ export const FileUploadDialog = memo(function FileUploadDialog({
       <div className="flex-1 space-y-4 overflow-auto p-4">
         <div
           {...dragHandlers}
-          className={`relative rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
+          className={`relative rounded-xl border-2 border-dashed p-4 text-center transition-colors duration-200 ${
             isDragging
-              ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+              ? 'border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary'
               : 'border-border dark:border-border-dark'
           }`}
         >
@@ -65,7 +65,7 @@ export const FileUploadDialog = memo(function FileUploadDialog({
                   onRemoveFile={removeFile}
                   compact={true}
                 />
-                <label className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border transition-colors hover:bg-surface-hover dark:border-border-dark dark:hover:bg-surface-dark-hover">
+                <label className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border transition-colors duration-200 hover:border-border-hover hover:bg-surface-hover dark:border-border-dark dark:hover:border-border-dark-hover dark:hover:bg-surface-dark-hover">
                   <Plus className="mb-1 h-6 w-6 text-text-tertiary dark:text-text-dark-tertiary" />
                   <span className="text-xs text-text-secondary dark:text-text-dark-secondary">
                     Add more
@@ -95,9 +95,9 @@ export const FileUploadDialog = memo(function FileUploadDialog({
                 </div>
               </div>
               <div>
-                <p className="text-sm text-text-secondary dark:text-text-dark-secondary">
+                <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
                   Drag and drop your files here, or{' '}
-                  <label className="cursor-pointer text-brand-500 hover:text-brand-600">
+                  <label className="cursor-pointer text-text-primary underline-offset-2 transition-colors duration-200 hover:underline dark:text-text-dark-primary">
                     browse
                     <Input
                       type="file"
@@ -131,11 +131,11 @@ export const FileUploadDialog = memo(function FileUploadDialog({
           </Button>
           <Button
             type="button"
-            variant="primary"
+            variant="outline"
             size="sm"
             onClick={handleUpload}
             disabled={files.length === 0}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
           >
             <FileUp className="h-3.5 w-3.5" />
             Upload {files.length > 0 && `(${files.length})`}

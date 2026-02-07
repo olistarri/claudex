@@ -71,7 +71,7 @@ export const SecretInput: React.FC<SecretInputProps> = ({
         variant="ghost"
         size="icon"
         className={cn(
-          'absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
+          'absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 rounded-md text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
           buttonClassName,
         )}
         aria-label={isVisible ? 'Hide value' : 'Show value'}

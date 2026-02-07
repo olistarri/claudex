@@ -27,7 +27,9 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
           <span className="text-success-600 dark:text-success-400">{completedCount} done</span>
         )}
         {inProgressCount > 0 && (
-          <span className="text-brand-600 dark:text-brand-400">{inProgressCount} active</span>
+          <span className="text-text-secondary dark:text-text-dark-secondary">
+            {inProgressCount} active
+          </span>
         )}
         {pendingCount > 0 && (
           <span className="text-text-tertiary dark:text-text-dark-tertiary">
@@ -45,7 +47,7 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
       case 'completed':
         return <CheckCircle2 className="h-4 w-4 text-success-600 dark:text-success-400" />;
       case 'in_progress':
-        return <Clock className="h-4 w-4 text-brand-600 dark:text-brand-400" />;
+        return <Clock className="h-4 w-4 text-text-secondary dark:text-text-dark-secondary" />;
       case 'pending':
       default:
         return <Circle className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />;
@@ -71,7 +73,7 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
       expandable={todoCount > 0 && toolStatus === 'completed'}
     >
       {todoCount > 0 && toolStatus === 'completed' && (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
+        <div>
           <div className="mb-2 flex gap-3 text-2xs">{summaryMeta}</div>
           <div className="space-y-1">
             {todos.map((todo, index) => (

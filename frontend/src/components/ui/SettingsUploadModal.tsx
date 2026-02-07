@@ -65,46 +65,46 @@ export const SettingsUploadModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-surface p-6 dark:bg-surface-dark">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-text-primary dark:text-text-dark-primary">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-surface shadow-strong dark:border-border-dark dark:bg-surface-dark">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3 dark:border-border-dark">
+          <h2 className="text-sm font-semibold text-text-primary dark:text-text-dark-primary">
             {title}
           </h2>
           <button
             onClick={handleClose}
-            className="text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+            className="rounded-lg p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 p-5">
           <div
-            className={`rounded-lg border-2 border-dashed p-8 text-center ${
+            className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors duration-200 ${
               isDragging
-                ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/10'
+                ? 'border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary'
                 : 'border-border dark:border-border-dark'
             }`}
             {...dragHandlers}
           >
             {selectedFile ? (
               <div>
-                <Icon className="mx-auto mb-2 h-12 w-12 text-brand-600 dark:text-brand-400" />
-                <p className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
+                <Icon className="mx-auto mb-2 h-8 w-8 text-text-secondary dark:text-text-dark-secondary" />
+                <p className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
                   {selectedFile.name}
                 </p>
-                <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                <p className="mt-1 text-2xs text-text-tertiary dark:text-text-dark-tertiary">
                   {(selectedFile.size / 1024).toFixed(1)} KB
                 </p>
               </div>
             ) : (
               <div>
-                <Upload className="mx-auto mb-2 h-12 w-12 text-text-quaternary dark:text-text-dark-quaternary" />
-                <p className="mb-1 text-sm text-text-primary dark:text-text-dark-primary">
+                <Upload className="mx-auto mb-2 h-6 w-6 text-text-quaternary dark:text-text-dark-quaternary" />
+                <p className="mb-1 text-xs text-text-secondary dark:text-text-dark-secondary">
                   Drop your {acceptedExtension} file here or
                 </p>
-                <label className="cursor-pointer text-sm text-brand-600 hover:underline dark:text-brand-400">
+                <label className="cursor-pointer text-xs text-text-primary underline-offset-2 transition-colors duration-200 hover:underline dark:text-text-dark-primary">
                   browse files
                   <input
                     type="file"
@@ -117,25 +117,28 @@ export const SettingsUploadModal = ({
             )}
           </div>
 
-          <div className="rounded-md border border-border bg-surface-secondary p-3 dark:border-border-dark dark:bg-surface-dark-secondary">
-            <p className="text-xs text-text-secondary dark:text-text-dark-secondary">{hintText}</p>
+          <div className="rounded-lg border border-border bg-surface-secondary p-3 dark:border-border-dark dark:bg-surface-dark-secondary">
+            <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">{hintText}</p>
           </div>
         </div>
 
         {error && (
-          <div className="mt-4 rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-            <p className="text-xs text-error-700 dark:text-error-400">{error}</p>
+          <div className="px-5 pb-2">
+            <div className="rounded-xl border border-border p-3 dark:border-border-dark">
+              <p className="text-xs text-text-secondary dark:text-text-dark-secondary">{error}</p>
+            </div>
           </div>
         )}
 
-        <div className="mt-4 flex gap-2">
-          <Button onClick={handleClose} variant="outline" className="flex-1">
+        <div className="flex gap-2 border-t border-border px-5 py-3 dark:border-border-dark">
+          <Button onClick={handleClose} variant="outline" size="sm" className="flex-1">
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            variant="primary"
-            className="flex-1"
+            variant="outline"
+            size="sm"
+            className="flex-1 border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
             disabled={!selectedFile || uploading}
             isLoading={uploading}
           >

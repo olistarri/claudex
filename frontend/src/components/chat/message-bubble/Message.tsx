@@ -2,7 +2,6 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { CheckCircle2, Copy, GitFork, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MessageContent } from './MessageContent';
-import { UserAvatar, BotAvatar } from './MessageAvatars';
 import {
   useModelsQuery,
   useForkChatMutation,
@@ -66,7 +65,8 @@ export const Message = memo(function Message({
   const modelName = useMemo(() => {
     if (!modelId) return null;
     const model = models.find((m) => m.model_id === modelId);
-    return model?.name || modelId;
+    if (model?.name) return model.name;
+    return modelId.includes(':') ? modelId.split(':').pop()! : modelId;
   }, [modelId, models]);
 
   const restoreMutation = useRestoreCheckpointMutation({
@@ -113,13 +113,11 @@ export const Message = memo(function Message({
   }, [chatId, id, isForking, forkMutation]);
 
   return (
-    <div className="group px-4 py-2 sm:px-6 sm:py-3">
-      <div className="flex items-start gap-3 sm:gap-4">
-        <div className="mt-1 flex-shrink-0">{isBot ? <BotAvatar /> : <UserAvatar />}</div>
-
+    <div className="group px-4 py-1.5 sm:px-6 sm:py-2">
+      <div className="flex items-start">
         <div className="min-w-0 flex-1">
           {isBot ? (
-            <div className="prose prose-sm max-w-none break-words text-text-primary dark:text-text-dark-primary">
+            <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
               <MessageContent
                 content={content}
                 isBot={isBot}
@@ -131,8 +129,8 @@ export const Message = memo(function Message({
               />
             </div>
           ) : (
-            <div className="inline-block max-w-full rounded-2xl border border-border bg-surface-secondary px-4 py-2.5 dark:border-border-dark dark:bg-surface-dark-secondary">
-              <div className="prose prose-sm max-w-none break-words text-text-primary dark:text-text-dark-primary">
+            <div className="inline-block max-w-full rounded-xl bg-surface-hover/60 px-3 py-1.5 dark:bg-surface-dark-tertiary/80">
+              <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
                 <MessageContent
                   content={content}
                   isBot={isBot}
@@ -145,22 +143,22 @@ export const Message = memo(function Message({
           )}
 
           {isBot && content.trim() && !isThisMessageStreaming && (
-            <div className="mt-3 flex items-center justify-between">
-              <div className="flex items-center gap-1">
+            <div className="mt-2 flex items-center justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <div className="flex items-center gap-0.5">
                 <Tooltip content={copiedMessageId === id ? 'Copied!' : 'Copy'} position="bottom">
                   <Button
                     onClick={() => onCopy(content, id)}
                     variant="unstyled"
-                    className={`relative overflow-hidden rounded-lg p-1.5 transition-all duration-200 ${
+                    className={`relative overflow-hidden rounded-md p-1 transition-all duration-200 ${
                       copiedMessageId === id
                         ? 'bg-success-100 text-success-600 dark:bg-success-500/10 dark:text-success-400'
-                        : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                        : 'text-text-quaternary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
                     }`}
                   >
                     {copiedMessageId === id ? (
-                      <CheckCircle2 className="h-4 w-4" />
+                      <CheckCircle2 className="h-3.5 w-3.5" />
                     ) : (
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-3.5 w-3.5" />
                     )}
                   </Button>
                 </Tooltip>
@@ -172,13 +170,17 @@ export const Message = memo(function Message({
                         onClick={handleRestore}
                         disabled={isRestoring || isGloballyStreaming}
                         variant="unstyled"
-                        className={`relative rounded-lg p-1.5 transition-all duration-200 ${
+                        className={`relative rounded-md p-1 transition-all duration-200 ${
                           isRestoring || isGloballyStreaming
                             ? 'cursor-not-allowed opacity-50'
-                            : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                            : 'text-text-quaternary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
                         }`}
                       >
-                        {isRestoring ? <Spinner size="sm" /> : <RotateCcw className="h-4 w-4" />}
+                        {isRestoring ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        )}
                       </Button>
                     </Tooltip>
 
@@ -188,13 +190,13 @@ export const Message = memo(function Message({
                           onClick={handleFork}
                           disabled={isForking || isGloballyStreaming}
                           variant="unstyled"
-                          className={`relative rounded-lg p-1.5 transition-all duration-200 ${
+                          className={`relative rounded-md p-1 transition-all duration-200 ${
                             isForking || isGloballyStreaming
                               ? 'cursor-not-allowed opacity-50'
-                              : 'text-text-tertiary hover:bg-surface-secondary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                              : 'text-text-quaternary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
                           }`}
                         >
-                          {isForking ? <Spinner size="sm" /> : <GitFork className="h-4 w-4" />}
+                          {isForking ? <Spinner size="sm" /> : <GitFork className="h-3.5 w-3.5" />}
                         </Button>
                       </Tooltip>
                     )}
@@ -202,9 +204,9 @@ export const Message = memo(function Message({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              <div className="flex items-center gap-1.5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                 {modelName && <span>{modelName}</span>}
-                {modelName && relativeTime && <span>•</span>}
+                {modelName && relativeTime && <span>·</span>}
                 {relativeTime && (
                   <Tooltip content={fullTimestamp} position="bottom">
                     <span className="cursor-default">{relativeTime}</span>

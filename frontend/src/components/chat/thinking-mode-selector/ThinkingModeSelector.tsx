@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { Brain } from 'lucide-react';
 import { Dropdown } from '@/components/ui';
 import { useUIStore } from '@/store';
 
@@ -39,20 +38,19 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       getItemKey={(mode) => mode.value || 'off'}
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => setThinkingMode(mode.value)}
-      leftIcon={Brain}
       width="w-32"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
       forceCompact={isSplitMode}
       renderItem={(mode, isSelected) => (
-        <div className="flex w-full items-center justify-between">
+        <div className="flex w-full items-center justify-between gap-3">
           <span
-            className={`text-xs font-medium text-text-primary ${isSelected ? 'dark:text-text-dark-primary' : 'dark:text-text-dark-secondary'}`}
+            className={`text-xs font-medium ${isSelected ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-secondary dark:text-text-dark-secondary'}`}
           >
             {mode.label}
           </span>
-          <span className="text-2xs text-text-quaternary dark:text-text-dark-tertiary">
+          <span className="text-2xs tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
             {mode.tokens}
           </span>
         </div>

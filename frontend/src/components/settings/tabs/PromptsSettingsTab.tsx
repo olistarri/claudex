@@ -34,17 +34,14 @@ export const PromptsSettingsTab: React.FC<PromptsSettingsTabProps> = ({
       onDelete={onDeletePrompt}
       renderItem={(prompt) => (
         <>
-          <div className="mb-1 flex items-center gap-2">
-            <FileText className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-            <h3 className="truncate text-sm font-medium text-text-primary dark:text-text-dark-primary">
+          <div className="mb-2 flex items-center gap-2">
+            <h3 className="truncate text-xs font-medium text-text-primary dark:text-text-dark-primary">
               {prompt.name}
             </h3>
           </div>
-          <div className="mt-2 rounded bg-surface-tertiary p-2 dark:bg-surface-dark-tertiary">
-            <p className="line-clamp-3 font-mono text-xs text-text-secondary dark:text-text-dark-secondary">
-              {prompt.content}
-            </p>
-          </div>
+          <p className="line-clamp-3 font-mono text-2xs leading-relaxed text-text-quaternary dark:text-text-dark-quaternary">
+            {prompt.content}
+          </p>
         </>
       )}
       logContext="PromptsSettingsTab"

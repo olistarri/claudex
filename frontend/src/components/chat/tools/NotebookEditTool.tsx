@@ -57,48 +57,36 @@ const NotebookEditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       expandable={Boolean(hasExpandableContent)}
     >
       {hasExpandableContent && (
-        <div className="space-y-3 border-t border-border/50 p-3 dark:border-border-dark/50">
+        <div className="space-y-1.5">
           {notebookPath && (
-            <div className="space-y-0.5">
-              <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Notebook
-              </div>
-              <div className="truncate rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                {notebookPath}
-              </div>
+            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
+              {notebookPath}
             </div>
           )}
-          <div className="flex gap-4">
-            {cellId && (
-              <div className="space-y-0.5">
-                <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                  Cell ID
-                </div>
-                <div className="rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                  {cellId}
-                </div>
-              </div>
-            )}
-            {cellType && (
-              <div className="space-y-0.5">
-                <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                  Type
-                </div>
-                <div className="rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                  {cellType}
-                </div>
-              </div>
-            )}
-          </div>
-          {newSource && editMode !== 'delete' && (
-            <div className="space-y-0.5">
-              <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Content
-              </div>
-              <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                <pre className="whitespace-pre-wrap break-all">{newSource}</pre>
-              </div>
+          {(cellId || cellType) && (
+            <div className="flex gap-3 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              {cellId && (
+                <span>
+                  cell:{' '}
+                  <span className="font-mono text-text-tertiary dark:text-text-dark-tertiary">
+                    {cellId}
+                  </span>
+                </span>
+              )}
+              {cellType && (
+                <span>
+                  type:{' '}
+                  <span className="font-mono text-text-tertiary dark:text-text-dark-tertiary">
+                    {cellType}
+                  </span>
+                </span>
+              )}
             </div>
+          )}
+          {newSource && editMode !== 'delete' && (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-quaternary">
+              {newSource}
+            </pre>
           )}
         </div>
       )}

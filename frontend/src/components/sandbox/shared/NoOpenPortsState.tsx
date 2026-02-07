@@ -8,16 +8,18 @@ interface NoOpenPortsStateProps {
 
 export const NoOpenPortsState = ({ onRefresh, loading = false }: NoOpenPortsStateProps) => {
   return (
-    <div className="flex h-full flex-col items-center justify-center text-text-tertiary dark:text-text-dark-tertiary">
-      <p className="mb-2 text-xs">No open ports detected</p>
+    <div className="flex h-full flex-col items-center justify-center gap-3 bg-surface-secondary dark:bg-surface-dark-secondary">
+      <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+        No open ports detected
+      </p>
       <Button
         onClick={onRefresh}
         disabled={loading}
         variant="unstyled"
-        className="flex items-center gap-1.5 rounded-md bg-surface-secondary px-2.5 py-1 text-xs transition-colors hover:bg-surface-hover dark:bg-surface-dark-secondary dark:hover:bg-surface-dark-hover"
+        className="flex items-center gap-1 rounded-md px-2 py-1 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-secondary"
       >
-        <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-        <span>Refresh</span>
+        <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+        Refresh
       </Button>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Send, Pause } from 'lucide-react';
+import { ArrowUp, Pause } from 'lucide-react';
 import { Button } from '@/components/ui';
 
 export interface SendButtonProps {
@@ -31,7 +31,8 @@ export function SendButton({
   if (showStopIcon) {
     colorClasses = 'bg-error-500 hover:bg-error-600';
   } else if (hasMessage) {
-    colorClasses = 'bg-text-primary dark:bg-text-dark-primary hover:opacity-80';
+    colorClasses =
+      'bg-text-primary dark:bg-text-dark-primary hover:bg-text-secondary dark:hover:bg-text-dark-secondary';
   } else {
     colorClasses = 'bg-surface-tertiary dark:bg-surface-dark-tertiary';
   }
@@ -45,11 +46,11 @@ export function SendButton({
 
   const renderIcon = () => {
     if (showStopIcon) {
-      return <Pause className="h-3.5 w-3.5 animate-pulse text-white" />;
+      return <Pause className="h-3.5 w-3.5 animate-pulse text-text-dark-primary" />;
     }
     return (
-      <Send
-        className={`h-3.5 w-3.5 transition-transform ${hasMessage ? 'text-text-dark-primary dark:text-text-primary' : 'text-text-quaternary'}`}
+      <ArrowUp
+        className={`h-4 w-4 transition-transform ${hasMessage ? 'text-text-dark-primary dark:text-text-primary' : 'text-text-quaternary'}`}
       />
     );
   };

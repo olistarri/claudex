@@ -68,31 +68,23 @@ const MCPToolInner: React.FC<MCPToolProps> = ({ tool }) => {
       expandable={hasDetails}
     >
       {hasDetails ? (
-        <div className="space-y-3 border-t border-border/50 p-3 dark:border-border-dark/50">
-          {hasInput ? (
-            <div className="space-y-2">
-              {inputEntries.map(([key, value]) => (
-                <div key={key} className="space-y-0.5">
-                  <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                    {key}
-                  </div>
-                  <div className="whitespace-pre-wrap break-all rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
+        <div className="space-y-1.5">
+          {hasInput
+            ? inputEntries.map(([key, value]) => (
+                <div key={key}>
+                  <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                    {key}:{' '}
+                  </span>
+                  <span className="whitespace-pre-wrap break-all font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary">
                     {formatValue(value)}
-                  </div>
+                  </span>
                 </div>
-              ))}
-            </div>
-          ) : null}
-
+              ))
+            : null}
           {hasResult && toolStatus === 'completed' ? (
-            <div className="space-y-0.5">
-              <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Result
-              </div>
-              <div className="whitespace-pre-wrap break-all rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-                {formatValue(tool.result)}
-              </div>
-            </div>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-quaternary">
+              {formatValue(tool.result)}
+            </pre>
           ) : null}
         </div>
       ) : null}

@@ -26,26 +26,21 @@ export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
   const [isValueVisible, setIsValueVisible] = useState(false);
 
   return (
-    <BaseModal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="2xl"
-      className="max-h-[90vh] overflow-y-auto shadow-strong"
-    >
-      <div className="p-6">
-        <h3 className="mb-4 text-lg font-semibold text-text-primary dark:text-text-dark-primary">
+    <BaseModal isOpen={isOpen} onClose={onClose} size="lg" className="max-h-[90vh] overflow-y-auto">
+      <div className="p-5">
+        <h3 className="mb-5 text-sm font-medium text-text-primary dark:text-text-dark-primary">
           {isEditing ? 'Edit Environment Variable' : 'Add Environment Variable'}
         </h3>
 
         {error && (
-          <div className="mb-4 rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-            <p className="text-xs text-error-700 dark:text-error-400">{error}</p>
+          <div className="mb-4 rounded-xl border border-border p-3 dark:border-border-dark">
+            <p className="text-xs text-text-secondary dark:text-text-dark-secondary">{error}</p>
           </div>
         )}
 
         <div className="space-y-4">
           <div>
-            <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+            <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
               Variable Name
             </Label>
             <Input
@@ -55,16 +50,15 @@ export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
                 onEnvVarChange('key', value);
               }}
               placeholder="OPENAI_API_KEY"
-              className="font-mono text-sm"
+              className="font-mono text-xs"
             />
-            <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-              Uppercase letters, numbers, and underscores only (e.g., OPENAI_API_KEY,
-              GEMINI_API_KEY)
+            <p className="mt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              Uppercase letters, numbers, and underscores only
             </p>
           </div>
 
           <div>
-            <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+            <Label className="mb-1.5 text-xs text-text-secondary dark:text-text-dark-secondary">
               Value
             </Label>
             <SecretInput
@@ -76,24 +70,25 @@ export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
               containerClassName="w-full"
               inputClassName="font-mono"
             />
-            <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-              The value for this environment variable (will be available in all sandboxes)
+            <p className="mt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              Available in all sandboxes
             </p>
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-2">
           <Button type="button" onClick={onClose} variant="outline" size="sm">
             Cancel
           </Button>
           <Button
             type="button"
             onClick={onSubmit}
-            variant="primary"
+            variant="outline"
             size="sm"
+            className="border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary"
             disabled={!envVar.key.trim() || !envVar.value.trim()}
           >
-            {isEditing ? 'Update Variable' : 'Add Variable'}
+            {isEditing ? 'Update' : 'Add Variable'}
           </Button>
         </div>
       </div>

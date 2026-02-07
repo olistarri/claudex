@@ -5,6 +5,7 @@ export * from './primitives/Select';
 export * from './primitives/SelectItem';
 export * from './primitives/Dropdown';
 export * from './primitives/Switch';
+export * from './primitives/SegmentedControl';
 export * from './primitives/Label';
 export * from './primitives/FieldMessage';
 export * from './primitives/Spinner';

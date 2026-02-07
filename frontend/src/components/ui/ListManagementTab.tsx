@@ -68,12 +68,17 @@ export const ListManagementTab = <T,>({
     pendingDeleteIndex !== null && items?.[pendingDeleteIndex] ? items[pendingDeleteIndex] : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
-            {title}
-          </h2>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              {description}
+            </p>
+          </div>
           <Button
             type="button"
             onClick={onAdd}
@@ -90,37 +95,33 @@ export const ListManagementTab = <T,>({
           </Button>
         </div>
 
-        <p className="mb-4 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-          {description}
-        </p>
-
         {!items || items.length === 0 ? (
-          <div className="rounded-lg border border-border p-8 text-center dark:border-border-dark">
-            <EmptyIcon className="mx-auto mb-3 h-8 w-8 text-text-quaternary dark:text-text-dark-quaternary" />
-            <p className="mb-3 text-sm text-text-tertiary dark:text-text-dark-tertiary">
+          <div className="rounded-xl border border-dashed border-border py-10 text-center dark:border-border-dark">
+            <EmptyIcon className="mx-auto mb-3 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
+            <p className="mb-3 text-xs text-text-tertiary dark:text-text-dark-tertiary">
               {emptyText}
             </p>
-            <Button type="button" onClick={onAdd} variant="primary" size="sm">
+            <Button type="button" onClick={onAdd} variant="outline" size="sm">
               {emptyButtonText}
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {items.map((item, index) => (
               <div
                 key={getItemKey(item, index)}
-                className="rounded-lg border border-border p-4 transition-colors hover:border-border-hover dark:border-border-dark dark:hover:border-border-dark-hover"
+                className="group rounded-xl border border-border p-4 transition-all duration-200 hover:border-border-hover dark:border-border-dark dark:hover:border-border-dark-hover"
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">{renderItem(item, index)}</div>
-                  <div className="ml-3 flex items-center gap-1">
+                  <div className="ml-3 flex items-center gap-0.5">
                     {onEdit && (
                       <Button
                         type="button"
                         onClick={() => onEdit(index)}
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
+                        className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                         aria-label="Edit item"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -131,7 +132,7 @@ export const ListManagementTab = <T,>({
                       onClick={() => setPendingDeleteIndex(index)}
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-400/20"
+                      className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
                       aria-label="Delete item"
                       disabled={deletingIndex === index}
                     >

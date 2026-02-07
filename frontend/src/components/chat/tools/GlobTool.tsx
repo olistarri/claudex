@@ -44,19 +44,12 @@ const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       expandable={hasFiles}
     >
       {hasFiles && (
-        <div className="border-t border-border/50 p-3 dark:border-border-dark/50">
-          <div className="space-y-0.5">
-            <div className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-              Matched files ({files.length})
+        <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-quaternary">
+          {files.map((file, idx) => (
+            <div key={idx} className="truncate">
+              {file}
             </div>
-            <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-              {files.map((file, idx) => (
-                <div key={idx} className="truncate">
-                  {file}
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </ToolCard>

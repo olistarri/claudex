@@ -40,7 +40,7 @@ export const CommandsSettingsTab: React.FC<CommandsSettingsTabProps> = ({
       isMaxLimitReached={isMaxLimitReached}
       footerContent={
         isMaxLimitReached && (
-          <p className="mt-2 text-xs text-warning-600 dark:text-warning-400">
+          <p className="mt-2 text-xs text-text-quaternary dark:text-text-dark-quaternary">
             Maximum command limit reached (10/10)
           </p>
         )
@@ -48,11 +48,10 @@ export const CommandsSettingsTab: React.FC<CommandsSettingsTabProps> = ({
       renderItem={(command, index) => (
         <>
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Terminal className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-            <h3 className="min-w-0 max-w-full truncate font-mono text-sm font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
+            <h3 className="min-w-0 max-w-full truncate font-mono text-xs font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
               /{command.name}
               {command.argument_hint && (
-                <span className="ml-1 font-normal text-text-tertiary dark:text-text-dark-tertiary">
+                <span className="ml-1 font-normal text-text-quaternary dark:text-text-dark-quaternary">
                   {command.argument_hint}
                 </span>
               )}
@@ -64,17 +63,22 @@ export const CommandsSettingsTab: React.FC<CommandsSettingsTabProps> = ({
               aria-label={`Toggle ${command.name} command`}
             />
           </div>
-          <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-            {command.description}
-          </p>
+          {command.description && (
+            <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+              {command.description}
+            </p>
+          )}
           {(command.allowed_tools || command.model) && (
-            <div className="flex items-center gap-3 text-xs text-text-quaternary dark:text-text-dark-quaternary">
+            <div className="flex items-center gap-2 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
               {command.allowed_tools && (
                 <span>
                   Tools: {command.allowed_tools.length === 0 ? 'All' : command.allowed_tools.length}
                 </span>
               )}
-              {command.model && <span className="capitalize">Model: {command.model}</span>}
+              {command.allowed_tools && command.model && (
+                <span className="text-border dark:text-border-dark">/</span>
+              )}
+              {command.model && <span className="capitalize">{command.model}</span>}
             </div>
           )}
         </>

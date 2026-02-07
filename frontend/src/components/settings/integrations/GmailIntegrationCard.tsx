@@ -61,7 +61,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-surface-primary dark:bg-surface-dark-primary rounded-lg border border-border p-6 dark:border-border-dark">
+      <div className="rounded-xl border border-border p-5 dark:border-border-dark">
         <div className="flex items-center justify-center py-8">
           <Spinner size="md" />
         </div>
@@ -70,11 +70,11 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
   }
 
   return (
-    <div className="bg-surface-primary dark:bg-surface-dark-primary rounded-lg border border-border p-6 dark:border-border-dark">
+    <div className="rounded-xl border border-border p-5 dark:border-border-dark">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-error-100 dark:bg-error-900/30">
-            <Mail className="h-5 w-5 text-error-600 dark:text-error-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-tertiary dark:bg-surface-dark-tertiary">
+            <Mail className="h-4 w-4 text-text-tertiary dark:text-text-dark-tertiary" />
           </div>
           <div>
             <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
@@ -102,7 +102,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
       <div className="mt-4">
         {!status.has_oauth_client && (
           <div className="space-y-4">
-            <div className="rounded-lg bg-surface-secondary p-4 dark:bg-surface-dark-secondary">
+            <div className="rounded-xl border border-border p-4 dark:border-border-dark">
               <h4 className="mb-2 text-xs font-medium text-text-primary dark:text-text-dark-primary">
                 Setup Instructions
               </h4>
@@ -126,7 +126,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
                 </li>
                 <li>
                   If using Web application, add this redirect URI:{' '}
-                  <code className="bg-surface-primary dark:bg-surface-dark-primary rounded px-1 py-0.5 text-[11px]">
+                  <code className="rounded bg-surface-tertiary px-1 py-0.5 text-2xs dark:bg-surface-dark-tertiary">
                     https://YOUR_DOMAIN/api/v1/integrations/gmail/callback
                   </code>
                 </li>
@@ -147,7 +147,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
               disabled={isUploading}
               className="w-full"
             >
-              {isUploading ? <Spinner size="sm" /> : <Upload className="h-4 w-4" />}
+              {isUploading ? <Spinner size="sm" /> : <Upload className="h-3.5 w-3.5" />}
               Upload gcp-oauth.keys.json
             </Button>
           </div>
@@ -160,7 +160,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
             </p>
             <div className="flex gap-2">
               <Button variant="primary" size="sm" onClick={onConnect} className="flex-1">
-                <Link2 className="h-4 w-4" />
+                <Link2 className="h-3.5 w-3.5" />
                 Connect Gmail
               </Button>
               <Button
@@ -169,7 +169,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
                 onClick={() => setIsDeleteDialogOpen(true)}
                 disabled={isDeleting}
               >
-                {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-4 w-4" />}
+                {isDeleting ? <Spinner size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
               </Button>
             </div>
           </div>
@@ -177,7 +177,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
 
         {status.connected && (
           <div className="space-y-4">
-            <div className="rounded-lg bg-surface-secondary p-3 dark:bg-surface-dark-secondary">
+            <div className="rounded-xl border border-border p-3 dark:border-border-dark">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
@@ -198,7 +198,7 @@ export const GmailIntegrationCard: React.FC<GmailIntegrationCardProps> = ({
               disabled={isDisconnecting}
               className="w-full"
             >
-              {isDisconnecting ? <Spinner size="sm" /> : <Unlink className="h-4 w-4" />}
+              {isDisconnecting ? <Spinner size="sm" /> : <Unlink className="h-3.5 w-3.5" />}
               Disconnect Gmail
             </Button>
           </div>

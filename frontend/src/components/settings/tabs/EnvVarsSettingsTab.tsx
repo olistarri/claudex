@@ -11,8 +11,8 @@ interface EnvVarsSettingsTabProps {
 }
 
 const maskValue = (value: string) => {
-  if (value.length <= 4) return '••••';
-  return `${value.slice(0, 4)}${'•'.repeat(Math.min(value.length - 4, 20))}`;
+  if (value.length <= 4) return '····';
+  return `${value.slice(0, 4)}${'·'.repeat(Math.min(value.length - 4, 16))}`;
 };
 
 export const EnvVarsSettingsTab: React.FC<EnvVarsSettingsTabProps> = ({
@@ -50,7 +50,7 @@ export const EnvVarsSettingsTab: React.FC<EnvVarsSettingsTabProps> = ({
       emptyIcon={Key}
       emptyText="No custom environment variables configured yet"
       emptyButtonText="Add Your First Environment Variable"
-      addButtonText="Add Environment Variable"
+      addButtonText="Add Variable"
       deleteConfirmTitle="Delete Environment Variable"
       deleteConfirmMessage={(envVar) =>
         `Are you sure you want to delete "${envVar.key}"? This action cannot be undone.`
@@ -61,36 +61,31 @@ export const EnvVarsSettingsTab: React.FC<EnvVarsSettingsTabProps> = ({
       onDelete={handleDelete}
       renderItem={(envVar) => (
         <>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <Key className="h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-            <h3 className="min-w-0 max-w-full truncate font-mono text-sm font-medium text-text-primary dark:text-text-dark-primary">
+          <div className="mb-2 flex items-center gap-2">
+            <h3 className="min-w-0 max-w-full truncate font-mono text-xs font-medium text-text-primary dark:text-text-dark-primary">
               {envVar.key}
             </h3>
           </div>
-          <div className="rounded bg-surface-tertiary p-2 dark:bg-surface-dark-tertiary">
-            <div className="flex items-center justify-between gap-2">
-              <p className="break-all font-mono text-xs text-text-secondary dark:text-text-dark-secondary">
-                {revealedValues[envVar.key] ? envVar.value : maskValue(envVar.value)}
-              </p>
-              <Button
-                type="button"
-                onClick={() => toggleValueVisibility(envVar.key)}
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 flex-shrink-0 text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
-                aria-label={
-                  revealedValues[envVar.key]
-                    ? `Hide ${envVar.key} value`
-                    : `Show ${envVar.key} value`
-                }
-              >
-                {revealedValues[envVar.key] ? (
-                  <EyeOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <p className="break-all font-mono text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              {revealedValues[envVar.key] ? envVar.value : maskValue(envVar.value)}
+            </p>
+            <Button
+              type="button"
+              onClick={() => toggleValueVisibility(envVar.key)}
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 flex-shrink-0 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+              aria-label={
+                revealedValues[envVar.key] ? `Hide ${envVar.key} value` : `Show ${envVar.key} value`
+              }
+            >
+              {revealedValues[envVar.key] ? (
+                <EyeOff className="h-3 w-3" />
+              ) : (
+                <Eye className="h-3 w-3" />
+              )}
+            </Button>
           </div>
         </>
       )}

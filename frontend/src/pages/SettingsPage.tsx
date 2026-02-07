@@ -1,5 +1,23 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Settings as SettingsIcon, AlertCircle, FileText, FileArchive } from 'lucide-react';
+import {
+  AlertCircle,
+  FileText,
+  FileArchive,
+  Settings2,
+  Layers,
+  Link2,
+  Store,
+  Plug,
+  Bot,
+  Zap,
+  Terminal,
+  MessageSquare,
+  Key,
+  ScrollText,
+  CalendarClock,
+  ChevronLeft,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -8,12 +26,9 @@ import {
   queryKeys,
   useSettingsQuery,
   useUpdateSettingsMutation,
-  useInfiniteChatsQuery,
-  useDeleteChatMutation,
   useDeleteAllChatsMutation,
   useModelsQuery,
 } from '@/hooks/queries';
-import { Sidebar, useLayoutSidebar } from '@/components/layout';
 import {
   Button,
   ConfirmDialog,
@@ -121,52 +136,62 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
   tasks: [],
 };
 
+interface SettingsNavItem {
+  id: TabKey;
+  label: string;
+  icon: LucideIcon;
+}
+
+interface SettingsNavGroup {
+  label: string;
+  items: SettingsNavItem[];
+}
+
+const SETTINGS_NAV: SettingsNavGroup[] = [
+  {
+    label: 'Account',
+    items: [
+      { id: 'general', label: 'General', icon: Settings2 },
+      { id: 'providers', label: 'Providers', icon: Layers },
+      { id: 'integrations', label: 'Integrations', icon: Link2 },
+      { id: 'marketplace', label: 'Marketplace', icon: Store },
+    ],
+  },
+  {
+    label: 'Extensions',
+    items: [
+      { id: 'mcp', label: 'MCP Servers', icon: Plug },
+      { id: 'agents', label: 'Agents', icon: Bot },
+      { id: 'skills', label: 'Skills', icon: Zap },
+      { id: 'commands', label: 'Commands', icon: Terminal },
+    ],
+  },
+  {
+    label: 'Configuration',
+    items: [
+      { id: 'prompts', label: 'Prompts', icon: MessageSquare },
+      { id: 'env_vars', label: 'Env Variables', icon: Key },
+      { id: 'instructions', label: 'Instructions', icon: ScrollText },
+      { id: 'tasks', label: 'Tasks', icon: CalendarClock },
+    ],
+  },
+];
+
+const TAB_LABELS: Record<TabKey, string> = Object.fromEntries(
+  SETTINGS_NAV.flatMap((g) => g.items).map((item) => [item.id, item.label]),
+) as Record<TabKey, string>;
+
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { data: models = [] } = useModelsQuery();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>('general');
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
-
-  const tabButtonClasses = (isActive: boolean) =>
-    `${
-      isActive
-        ? 'border-b-2 border-text-primary dark:border-text-dark-primary text-text-primary dark:text-text-dark-primary'
-        : 'text-text-tertiary dark:text-text-dark-tertiary hover:text-text-secondary dark:hover:text-text-dark-secondary'
-    } pb-2 text-xs font-medium transition-colors`;
-
-  const tabs: { id: TabKey; label: string }[] = [
-    { id: 'general', label: 'General' },
-    { id: 'providers', label: 'Providers' },
-    { id: 'integrations', label: 'Integrations' },
-    { id: 'marketplace', label: 'Marketplace' },
-    { id: 'mcp', label: 'MCP' },
-    { id: 'agents', label: 'Agents' },
-    { id: 'skills', label: 'Skills' },
-    { id: 'commands', label: 'Commands' },
-    { id: 'prompts', label: 'Prompts' },
-    { id: 'env_vars', label: 'Environment Variables' },
-    { id: 'instructions', label: 'Instructions' },
-    { id: 'tasks', label: 'Tasks' },
-  ];
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const generalSecretFields = getGeneralSecretFields();
 
   const { data: settings, isLoading: loading, error: fetchError } = useSettingsQuery();
-  const {
-    data: chatsData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteChatsQuery();
-
-  const chats = useMemo(() => {
-    if (!chatsData?.pages) return [];
-    return chatsData.pages.flatMap((page) => page.items);
-  }, [chatsData?.pages]);
-
-  const { mutate: deleteChat } = useDeleteChatMutation();
   const deleteAllChats = useDeleteAllChatsMutation();
 
   const [localSettings, setLocalSettings] = useState<UserSettings>(
@@ -439,27 +464,6 @@ const SettingsPage: React.FC = () => {
     setRevealedFields((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const handleChatSelect = useCallback(
-    (chatId: string) => {
-      setSelectedChatId(chatId);
-      navigate(`/chat/${chatId}`);
-    },
-    [navigate],
-  );
-
-  const handleDeleteChat = useCallback(
-    (chatId: string) => {
-      deleteChat(chatId, {
-        onSuccess: () => {
-          if (selectedChatId === chatId) {
-            setSelectedChatId(null);
-          }
-        },
-      });
-    },
-    [deleteChat, selectedChatId],
-  );
-
   const handleDeleteAllChats = () => {
     setIsDeleteAllDialogOpen(true);
   };
@@ -484,36 +488,10 @@ const SettingsPage: React.FC = () => {
     handleInputChange('timezone', timezone);
   };
 
-  const sidebarContent = useMemo(
-    () => (
-      <Sidebar
-        chats={chats}
-        selectedChatId={selectedChatId}
-        onChatSelect={handleChatSelect}
-        onDeleteChat={handleDeleteChat}
-        hasNextPage={hasNextPage}
-        fetchNextPage={fetchNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-      />
-    ),
-    [
-      chats,
-      fetchNextPage,
-      handleChatSelect,
-      handleDeleteChat,
-      hasNextPage,
-      isFetchingNextPage,
-      selectedChatId,
-    ],
-  );
-
-  useLayoutSidebar(sidebarContent);
-
   const confirmDeleteAllChats = async () => {
     try {
       await deleteAllChats.mutateAsync();
       toast.success('All chats deleted successfully');
-      setSelectedChatId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete all chats');
     } finally {
@@ -530,233 +508,351 @@ const SettingsPage: React.FC = () => {
   const errorMessage =
     getErrorMessage(fetchError) ?? getErrorMessage(manualUpdateMutation.error) ?? null;
 
+  const handleTabChange = useCallback((tab: TabKey) => {
+    setActiveTab(tab);
+    setMobileNavOpen(false);
+  }, []);
+
   if (loading) {
     return (
-      <div className="min-h-viewport flex items-center justify-center bg-surface-secondary dark:bg-surface-dark-secondary">
-        <Spinner size="lg" className="text-brand-600" />
+      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
+        <Spinner size="lg" className="text-text-quaternary dark:text-text-dark-quaternary" />
       </div>
     );
   }
 
   if (fetchError && !settings) {
     return (
-      <div className="min-h-viewport flex items-center justify-center bg-surface-secondary dark:bg-surface-dark-secondary">
+      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
         <div className="text-text-primary dark:text-text-dark-primary">Failed to load settings</div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-full overflow-x-hidden bg-surface-secondary dark:bg-surface-dark-secondary">
-      <div className="flex min-w-0 flex-1 justify-center px-4 py-6">
-        <div className="w-full min-w-0 max-w-3xl">
-          <div className="mb-6">
-            <h1 className="flex items-center gap-2 text-xl font-semibold text-text-primary dark:text-text-dark-primary">
-              <SettingsIcon className="h-4 w-4" />
-              Settings
-            </h1>
-          </div>
+    <div className="flex h-full overflow-hidden bg-surface dark:bg-surface-dark">
+      {/* Vertical settings navigation — desktop */}
+      <nav
+        className="hidden w-56 shrink-0 flex-col border-r border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary md:flex"
+        aria-label="Settings sections"
+      >
+        <div className="border-b border-border px-5 py-4 dark:border-border-dark">
+          <Button
+            onClick={() => navigate('/')}
+            variant="unstyled"
+            className="group flex items-center gap-1.5 text-xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+          >
+            <ChevronLeft className="h-3 w-3 transition-transform duration-200 group-hover:-translate-x-0.5" />
+            Back
+          </Button>
+          <h1 className="mt-3 text-sm font-semibold text-text-primary dark:text-text-dark-primary">
+            Settings
+          </h1>
+        </div>
 
-          <div className="mb-6">
-            <nav
-              className="scrollbar-none -mx-4 flex overflow-x-auto border-b border-border px-4 dark:border-border-dark sm:mx-0 sm:px-0"
-              role="tablist"
-              aria-label="Settings sections"
-            >
-              {tabs.map((tab) => (
-                <Button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  variant="unstyled"
-                  className={cn(
-                    tabButtonClasses(activeTab === tab.id),
-                    'mr-4 shrink-0 whitespace-nowrap last:mr-0 sm:mr-6',
-                  )}
-                  role="tab"
-                  aria-selected={activeTab === tab.id}
-                  aria-controls={`${tab.id}-panel`}
-                  id={`${tab.id}-tab`}
-                >
-                  {tab.label}
-                </Button>
-              ))}
-            </nav>
-          </div>
-
-          {hasUnsavedChanges && (
-            <div className="animate-in fade-in slide-in-from-top-2 mb-4 flex flex-col gap-3 rounded-lg border border-l-4 border-border border-l-brand-500 bg-surface-secondary p-4 shadow-sm duration-300 dark:border-border-dark dark:border-l-brand-600 dark:bg-surface-dark-secondary sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 shrink-0 text-brand-600 dark:text-brand-500" />
-                <span className="text-sm font-semibold text-text-primary dark:text-text-dark-primary">
-                  You have unsaved changes
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {SETTINGS_NAV.map((group) => (
+            <div key={group.label} className="mb-1">
+              <div className="px-2 pb-1 pt-3">
+                <span className="text-2xs font-medium uppercase tracking-widest text-text-quaternary dark:text-text-dark-quaternary">
+                  {group.label}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  onClick={handleCancel}
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 text-text-secondary dark:text-text-dark-secondary sm:flex-none"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleSave}
-                  variant="primary"
-                  size="sm"
-                  className="flex-1 sm:flex-none"
-                  isLoading={manualUpdateMutation.isPending}
-                  loadingText="Saving..."
-                >
-                  Save Changes
-                </Button>
+              <div className="space-y-px">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <Button
+                      key={item.id}
+                      onClick={() => handleTabChange(item.id)}
+                      variant="unstyled"
+                      className={cn(
+                        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors duration-200',
+                        isActive
+                          ? 'bg-surface-hover font-medium text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
+                          : 'text-text-tertiary hover:bg-surface-hover/50 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover/50 dark:hover:text-text-dark-secondary',
+                      )}
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-controls={`${item.id}-panel`}
+                      id={`${item.id}-tab`}
+                    >
+                      <Icon
+                        className={cn(
+                          'h-3.5 w-3.5 shrink-0 transition-colors duration-200',
+                          isActive
+                            ? 'text-text-secondary dark:text-text-dark-secondary'
+                            : 'text-text-quaternary dark:text-text-dark-quaternary',
+                        )}
+                      />
+                      {item.label}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
-          )}
+          ))}
+        </div>
+      </nav>
 
-          {errorMessage && (
-            <div className="mb-4 rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-              <p className="text-xs text-error-700 dark:text-error-400">{errorMessage}</p>
-            </div>
-          )}
-
-          <ErrorBoundary>
-            <div className="min-w-0 space-y-6">
-              {activeTab === 'general' && (
-                <div role="tabpanel" id="general-panel" aria-labelledby="general-tab">
-                  <GeneralSettingsTab
-                    fields={generalSecretFields}
-                    settings={localSettings}
-                    savedSettings={settings}
-                    revealedFields={revealedFields}
-                    onSecretChange={handleSecretFieldChange}
-                    onToggleVisibility={toggleFieldVisibility}
-                    onDeleteAllChats={handleDeleteAllChats}
-                    onNotificationSoundChange={handleNotificationSoundChange}
-                    onAutoCompactDisabledChange={handleAutoCompactDisabledChange}
-                    onAttributionDisabledChange={handleAttributionDisabledChange}
-                    onSandboxProviderChange={handleSandboxProviderChange}
-                    onTimezoneChange={handleTimezoneChange}
-                  />
-                </div>
+      {/* Mobile top bar for settings nav */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 dark:border-border-dark md:hidden">
+          <Button
+            onClick={() => navigate('/')}
+            variant="unstyled"
+            className="p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            variant="unstyled"
+            className="flex items-center gap-2 text-xs font-medium text-text-primary dark:text-text-dark-primary"
+          >
+            {TAB_LABELS[activeTab]}
+            <svg
+              className={cn(
+                'h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
+                mobileNavOpen && 'rotate-180',
               )}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </Button>
+        </div>
 
-              {activeTab === 'providers' && (
-                <div role="tabpanel" id="providers-panel" aria-labelledby="providers-tab">
-                  <ProvidersSettingsTab
-                    providers={localSettings.custom_providers ?? null}
-                    onAddProvider={handleAddProvider}
-                    onEditProvider={handleEditProvider}
-                    onDeleteProvider={handleDeleteProvider}
-                    onToggleProvider={handleToggleProvider}
-                  />
+        {/* Mobile dropdown nav */}
+        {mobileNavOpen && (
+          <div className="animate-in fade-in border-b border-border bg-surface px-3 py-2 duration-150 dark:border-border-dark dark:bg-surface-dark md:hidden">
+            {SETTINGS_NAV.map((group) => (
+              <div key={group.label} className="mb-1">
+                <div className="px-2 pb-1 pt-2">
+                  <span className="text-2xs font-medium uppercase tracking-widest text-text-quaternary dark:text-text-dark-quaternary">
+                    {group.label}
+                  </span>
                 </div>
-              )}
+                <div className="space-y-px">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <Button
+                        key={item.id}
+                        onClick={() => handleTabChange(item.id)}
+                        variant="unstyled"
+                        className={cn(
+                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors duration-200',
+                          isActive
+                            ? 'bg-surface-hover font-medium text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
+                            : 'text-text-tertiary hover:bg-surface-hover/50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover/50',
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            'h-3.5 w-3.5 shrink-0',
+                            isActive
+                              ? 'text-text-secondary dark:text-text-dark-secondary'
+                              : 'text-text-quaternary dark:text-text-dark-quaternary',
+                          )}
+                        />
+                        {item.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-              {activeTab === 'integrations' && (
-                <div role="tabpanel" id="integrations-panel" aria-labelledby="integrations-tab">
-                  <IntegrationsSettingsTab />
+        {/* Main content area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+            {hasUnsavedChanges && (
+              <div className="animate-in fade-in slide-in-from-top-2 mb-5 flex flex-col gap-3 rounded-xl border border-border p-4 duration-300 dark:border-border-dark sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-tertiary dark:bg-surface-dark-tertiary">
+                    <AlertCircle className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
+                  </div>
+                  <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
+                    You have unsaved changes
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleCancel}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-text-secondary dark:text-text-dark-secondary sm:flex-none"
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    variant="primary"
+                    size="sm"
+                    className="flex-1 sm:flex-none"
+                    isLoading={manualUpdateMutation.isPending}
+                    loadingText="Saving..."
+                  >
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
 
-              {activeTab === 'marketplace' && (
-                <div role="tabpanel" id="marketplace-panel" aria-labelledby="marketplace-tab">
-                  <MarketplaceSettingsTab />
-                </div>
-              )}
+            {errorMessage && (
+              <div className="mb-5 rounded-xl border border-border p-3 dark:border-border-dark">
+                <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
+                  {errorMessage}
+                </p>
+              </div>
+            )}
 
-              {activeTab === 'mcp' && (
-                <div role="tabpanel" id="mcp-panel" aria-labelledby="mcp-tab">
-                  <McpSettingsTab
-                    mcps={localSettings.custom_mcps ?? null}
-                    onAddMcp={mcpCrud.handleAdd}
-                    onEditMcp={mcpCrud.handleEdit}
-                    onDeleteMcp={mcpCrud.handleDelete}
-                    onToggleMcp={mcpCrud.handleToggleEnabled}
-                  />
-                </div>
-              )}
+            <ErrorBoundary>
+              <div className="min-w-0 space-y-6">
+                {activeTab === 'general' && (
+                  <div role="tabpanel" id="general-panel" aria-labelledby="general-tab">
+                    <GeneralSettingsTab
+                      fields={generalSecretFields}
+                      settings={localSettings}
+                      savedSettings={settings}
+                      revealedFields={revealedFields}
+                      onSecretChange={handleSecretFieldChange}
+                      onToggleVisibility={toggleFieldVisibility}
+                      onDeleteAllChats={handleDeleteAllChats}
+                      onNotificationSoundChange={handleNotificationSoundChange}
+                      onAutoCompactDisabledChange={handleAutoCompactDisabledChange}
+                      onAttributionDisabledChange={handleAttributionDisabledChange}
+                      onSandboxProviderChange={handleSandboxProviderChange}
+                      onTimezoneChange={handleTimezoneChange}
+                    />
+                  </div>
+                )}
 
-              {activeTab === 'agents' && (
-                <div role="tabpanel" id="agents-panel" aria-labelledby="agents-tab">
-                  <AgentsSettingsTab
-                    agents={localSettings.custom_agents ?? null}
-                    onAddAgent={agentManagement.handleAdd}
-                    onEditAgent={agentManagement.handleEdit}
-                    onDeleteAgent={agentManagement.handleDelete}
-                    onToggleAgent={agentManagement.handleToggle}
-                  />
-                </div>
-              )}
+                {activeTab === 'providers' && (
+                  <div role="tabpanel" id="providers-panel" aria-labelledby="providers-tab">
+                    <ProvidersSettingsTab
+                      providers={localSettings.custom_providers ?? null}
+                      onAddProvider={handleAddProvider}
+                      onEditProvider={handleEditProvider}
+                      onDeleteProvider={handleDeleteProvider}
+                      onToggleProvider={handleToggleProvider}
+                    />
+                  </div>
+                )}
 
-              {activeTab === 'skills' && (
-                <div role="tabpanel" id="skills-panel" aria-labelledby="skills-tab">
-                  <SkillsSettingsTab
-                    skills={localSettings.custom_skills ?? null}
-                    onAddSkill={skillManagement.handleAdd}
-                    onDeleteSkill={skillManagement.handleDelete}
-                    onToggleSkill={skillManagement.handleToggle}
-                  />
-                </div>
-              )}
+                {activeTab === 'integrations' && (
+                  <div role="tabpanel" id="integrations-panel" aria-labelledby="integrations-tab">
+                    <IntegrationsSettingsTab />
+                  </div>
+                )}
 
-              {activeTab === 'commands' && (
-                <div role="tabpanel" id="commands-panel" aria-labelledby="commands-tab">
-                  <CommandsSettingsTab
-                    commands={localSettings.custom_slash_commands ?? null}
-                    onAddCommand={commandManagement.handleAdd}
-                    onEditCommand={commandManagement.handleEdit}
-                    onDeleteCommand={commandManagement.handleDelete}
-                    onToggleCommand={commandManagement.handleToggle}
-                  />
-                </div>
-              )}
+                {activeTab === 'marketplace' && (
+                  <div role="tabpanel" id="marketplace-panel" aria-labelledby="marketplace-tab">
+                    <MarketplaceSettingsTab />
+                  </div>
+                )}
 
-              {activeTab === 'prompts' && (
-                <div role="tabpanel" id="prompts-panel" aria-labelledby="prompts-tab">
-                  <PromptsSettingsTab
-                    prompts={localSettings.custom_prompts ?? null}
-                    onAddPrompt={promptCrud.handleAdd}
-                    onEditPrompt={promptCrud.handleEdit}
-                    onDeletePrompt={promptCrud.handleDelete}
-                  />
-                </div>
-              )}
+                {activeTab === 'mcp' && (
+                  <div role="tabpanel" id="mcp-panel" aria-labelledby="mcp-tab">
+                    <McpSettingsTab
+                      mcps={localSettings.custom_mcps ?? null}
+                      onAddMcp={mcpCrud.handleAdd}
+                      onEditMcp={mcpCrud.handleEdit}
+                      onDeleteMcp={mcpCrud.handleDelete}
+                      onToggleMcp={mcpCrud.handleToggleEnabled}
+                    />
+                  </div>
+                )}
 
-              {activeTab === 'env_vars' && (
-                <div role="tabpanel" id="env_vars-panel" aria-labelledby="env_vars-tab">
-                  <EnvVarsSettingsTab
-                    envVars={localSettings.custom_env_vars ?? null}
-                    onAddEnvVar={envVarCrud.handleAdd}
-                    onEditEnvVar={envVarCrud.handleEdit}
-                    onDeleteEnvVar={envVarCrud.handleDelete}
-                  />
-                </div>
-              )}
+                {activeTab === 'agents' && (
+                  <div role="tabpanel" id="agents-panel" aria-labelledby="agents-tab">
+                    <AgentsSettingsTab
+                      agents={localSettings.custom_agents ?? null}
+                      onAddAgent={agentManagement.handleAdd}
+                      onEditAgent={agentManagement.handleEdit}
+                      onDeleteAgent={agentManagement.handleDelete}
+                      onToggleAgent={agentManagement.handleToggle}
+                    />
+                  </div>
+                )}
 
-              {activeTab === 'instructions' && (
-                <div role="tabpanel" id="instructions-panel" aria-labelledby="instructions-tab">
-                  <InstructionsSettingsTab
-                    instructions={localSettings.custom_instructions || ''}
-                    onInstructionsChange={(value) =>
-                      handleInputChange('custom_instructions', value)
-                    }
-                  />
-                </div>
-              )}
+                {activeTab === 'skills' && (
+                  <div role="tabpanel" id="skills-panel" aria-labelledby="skills-tab">
+                    <SkillsSettingsTab
+                      skills={localSettings.custom_skills ?? null}
+                      onAddSkill={skillManagement.handleAdd}
+                      onDeleteSkill={skillManagement.handleDelete}
+                      onToggleSkill={skillManagement.handleToggle}
+                    />
+                  </div>
+                )}
 
-              {activeTab === 'tasks' && (
-                <div role="tabpanel" id="tasks-panel" aria-labelledby="tasks-tab">
-                  <TasksSettingsTab
-                    onAddTask={taskManagement.handleAddTask}
-                    onEditTask={taskManagement.handleEditTask}
-                  />
-                </div>
-              )}
-            </div>
-          </ErrorBoundary>
+                {activeTab === 'commands' && (
+                  <div role="tabpanel" id="commands-panel" aria-labelledby="commands-tab">
+                    <CommandsSettingsTab
+                      commands={localSettings.custom_slash_commands ?? null}
+                      onAddCommand={commandManagement.handleAdd}
+                      onEditCommand={commandManagement.handleEdit}
+                      onDeleteCommand={commandManagement.handleDelete}
+                      onToggleCommand={commandManagement.handleToggle}
+                    />
+                  </div>
+                )}
+
+                {activeTab === 'prompts' && (
+                  <div role="tabpanel" id="prompts-panel" aria-labelledby="prompts-tab">
+                    <PromptsSettingsTab
+                      prompts={localSettings.custom_prompts ?? null}
+                      onAddPrompt={promptCrud.handleAdd}
+                      onEditPrompt={promptCrud.handleEdit}
+                      onDeletePrompt={promptCrud.handleDelete}
+                    />
+                  </div>
+                )}
+
+                {activeTab === 'env_vars' && (
+                  <div role="tabpanel" id="env_vars-panel" aria-labelledby="env_vars-tab">
+                    <EnvVarsSettingsTab
+                      envVars={localSettings.custom_env_vars ?? null}
+                      onAddEnvVar={envVarCrud.handleAdd}
+                      onEditEnvVar={envVarCrud.handleEdit}
+                      onDeleteEnvVar={envVarCrud.handleDelete}
+                    />
+                  </div>
+                )}
+
+                {activeTab === 'instructions' && (
+                  <div role="tabpanel" id="instructions-panel" aria-labelledby="instructions-tab">
+                    <InstructionsSettingsTab
+                      instructions={localSettings.custom_instructions || ''}
+                      onInstructionsChange={(value) =>
+                        handleInputChange('custom_instructions', value)
+                      }
+                    />
+                  </div>
+                )}
+
+                {activeTab === 'tasks' && (
+                  <div role="tabpanel" id="tasks-panel" aria-labelledby="tasks-tab">
+                    <TasksSettingsTab
+                      onAddTask={taskManagement.handleAddTask}
+                      onEditTask={taskManagement.handleEditTask}
+                    />
+                  </div>
+                )}
+              </div>
+            </ErrorBoundary>
+          </div>
         </div>
       </div>
 

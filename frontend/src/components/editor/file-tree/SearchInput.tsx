@@ -73,13 +73,13 @@ export function SearchInput({
         className={cn(
           'h-7 w-full py-1 pl-7 pr-7',
           'text-xs',
-          'bg-surface-secondary dark:bg-surface-dark-secondary',
+          'bg-transparent',
           'text-text-primary dark:text-text-dark-primary',
           'placeholder:text-text-quaternary dark:placeholder:text-text-dark-quaternary',
-          'border border-border dark:border-border-dark',
+          'border border-border/50 dark:border-border-dark/50',
           'rounded-md',
-          'focus:outline-none focus:ring-1 focus:ring-brand-500 dark:focus:ring-brand-400',
-          'transition-all duration-150',
+          'focus:border-border-hover focus:outline-none dark:focus:border-border-dark-hover',
+          'transition-colors duration-150',
         )}
       />
 
@@ -87,7 +87,7 @@ export function SearchInput({
         <Button
           onClick={handleClear}
           variant="unstyled"
-          className="absolute right-1 rounded bg-transparent p-1 text-text-quaternary transition-colors hover:bg-surface-hover hover:text-text-primary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+          className="absolute right-1 rounded p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:hover:text-text-dark-secondary"
           title="Clear search"
           aria-label="Clear search"
         >
