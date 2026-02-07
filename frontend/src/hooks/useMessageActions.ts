@@ -69,6 +69,9 @@ export function useMessageActions({
       setCurrentMessageId(null);
       setError(null);
       setWasAborted(false);
+      if (filesToSend && filesToSend.length > 0 && userMessage?.id) {
+        setPendingUserMessageId(userMessage.id);
+      }
 
       try {
         const { promptName, cleanedMessage } = extractPromptMention(normalizedPrompt);
@@ -107,6 +110,7 @@ export function useMessageActions({
         });
         addMessageToCache(initialMessage, userMessage);
       } catch (streamStartError) {
+        setPendingUserMessageId(null);
         setStreamState('error');
         const error =
           streamStartError instanceof Error
@@ -127,6 +131,7 @@ export function useMessageActions({
       setError,
       setWasAborted,
       setMessages,
+      setPendingUserMessageId,
     ],
   );
 
@@ -182,7 +187,6 @@ export function useMessageActions({
           clearReviewsForChat(chatId);
         }
 
-        setPendingUserMessageId(null);
         return { success: true };
       } catch (error) {
         logger.error('Failed to send message', 'useMessageActions', error);

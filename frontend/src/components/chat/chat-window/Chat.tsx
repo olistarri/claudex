@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { findLastBotMessageIndex } from '@/utils/message';
+import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { Message } from '@/components/chat/message-bubble/Message';
 import { PendingMessage } from '@/components/chat/message-bubble/PendingMessage';
 import { Input } from '@/components/chat/message-input/Input';
@@ -33,6 +34,7 @@ const SCROLL_THRESHOLD_PERCENT = 20;
 
 export interface ChatProps {
   messages: MessageType[];
+  pendingUserMessageId?: string | null;
   copiedMessageId: string | null;
   isLoading: boolean;
   isStreaming: boolean;
@@ -71,6 +73,7 @@ export interface ChatProps {
 
 export const Chat = memo(function Chat({
   messages,
+  pendingUserMessageId = null,
   copiedMessageId,
   isLoading,
   isStreaming,
@@ -309,6 +312,14 @@ export const Chat = memo(function Chat({
   }, [isInitialLoading, messages.length]);
 
   const lastBotMessageIndex = useMemo(() => findLastBotMessageIndex(messages), [messages]);
+  const latestUserMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (!messages[i].is_bot) {
+        return messages[i].id;
+      }
+    }
+    return null;
+  }, [messages]);
 
   const canShowPermissionInline =
     pendingPermissionRequest &&
@@ -361,6 +372,18 @@ export const Chat = memo(function Chat({
                 const isLastBotMessage = msg.is_bot && index === lastBotMessageIndex;
                 const showPermissionAfterThis =
                   isLastBotMessage && !messageIsStreaming && canShowPermissionInline;
+                const localAttachmentIds =
+                  msg.attachments
+                    ?.filter((attachment) => isBrowserObjectUrl(attachment.file_url))
+                    .map((attachment) => attachment.id) ?? [];
+                const isLatestUserMessage = !msg.is_bot && msg.id === latestUserMessageId;
+                const shouldShowUploadingOverlay =
+                  localAttachmentIds.length > 0 &&
+                  (pendingUserMessageId === msg.id ||
+                    (isLatestUserMessage && (pendingUserMessageId !== null || isLoading)));
+                const uploadingAttachmentIds = shouldShowUploadingOverlay
+                  ? localAttachmentIds
+                  : undefined;
 
                 return (
                   <React.Fragment key={msg.id}>
@@ -379,6 +402,7 @@ export const Chat = memo(function Chat({
                       onRestoreSuccess={onRestoreSuccess}
                       isLastBotMessage={isLastBotMessage && !messageIsStreaming}
                       onSuggestionSelect={isLastBotMessage ? handleSuggestionSelect : undefined}
+                      uploadingAttachmentIds={uploadingAttachmentIds}
                     />
                     {showPermissionAfterThis && (
                       <div className="px-4 sm:px-6">

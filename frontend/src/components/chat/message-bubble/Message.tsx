@@ -19,6 +19,7 @@ export interface MessageProps {
   content: string;
   isBot: boolean;
   attachments?: MessageAttachment[];
+  uploadingAttachmentIds?: string[];
   copiedMessageId: string | null;
   onCopy: (content: string, id: string) => void;
   error?: string | null;
@@ -47,6 +48,7 @@ export const Message = memo(function Message({
   onRestoreSuccess,
   isLastBotMessage,
   onSuggestionSelect,
+  uploadingAttachmentIds,
 }: MessageProps) {
   const { chatId, sandboxId } = useChatContext();
   const { data: models = [] } = useModelsQuery();
@@ -135,6 +137,7 @@ export const Message = memo(function Message({
                   content={content}
                   isBot={isBot}
                   attachments={attachments}
+                  uploadingAttachmentIds={uploadingAttachmentIds}
                   isStreaming={isThisMessageStreaming}
                   chatId={chatId}
                 />

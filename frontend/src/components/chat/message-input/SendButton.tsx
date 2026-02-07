@@ -1,4 +1,4 @@
-import { ArrowUp, Pause } from 'lucide-react';
+import { ArrowUp, LoaderCircle, Pause } from 'lucide-react';
 import { Button } from '@/components/ui';
 
 export interface SendButtonProps {
@@ -9,6 +9,7 @@ export interface SendButtonProps {
   type?: 'button' | 'submit';
   hasMessage?: boolean;
   className?: string;
+  showLoadingSpinner?: boolean;
 }
 
 export function SendButton({
@@ -19,16 +20,21 @@ export function SendButton({
   type = 'button',
   hasMessage = false,
   className = '',
+  showLoadingSpinner = false,
 }: SendButtonProps) {
   const baseClasses =
     'p-1.5 rounded-full transition-all duration-200 transform disabled:opacity-50 disabled:cursor-not-allowed active:scale-95';
 
   const scaleClass = hasMessage && !disabled ? 'scale-100' : 'scale-90';
 
-  const showStopIcon = (isLoading || isStreaming) && !hasMessage;
+  const showSpinnerIcon = showLoadingSpinner && isLoading && !isStreaming;
+  const showStopIcon = !showSpinnerIcon && (isLoading || isStreaming) && !hasMessage;
 
   let colorClasses;
-  if (showStopIcon) {
+  if (showSpinnerIcon) {
+    colorClasses =
+      'bg-text-primary dark:bg-text-dark-primary hover:bg-text-secondary dark:hover:bg-text-dark-secondary';
+  } else if (showStopIcon) {
     colorClasses = 'bg-error-500 hover:bg-error-600';
   } else if (hasMessage) {
     colorClasses =
@@ -40,11 +46,18 @@ export function SendButton({
   const cursorClass = !isLoading && !isStreaming && !hasMessage ? 'cursor-not-allowed' : '';
 
   const getAriaLabel = () => {
+    if (showSpinnerIcon) return 'Starting chat';
     if (showStopIcon) return 'Stop generating';
     return 'Send message';
   };
 
   const renderIcon = () => {
+    if (showSpinnerIcon) {
+      return (
+        <LoaderCircle className="h-4 w-4 animate-spin text-text-dark-primary dark:text-text-primary" />
+      );
+    }
+
     if (showStopIcon) {
       return <Pause className="h-3.5 w-3.5 animate-pulse text-text-dark-primary" />;
     }

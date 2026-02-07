@@ -33,6 +33,7 @@ interface UseChatStreamingParams {
 interface UseChatStreamingResult {
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
+  pendingUserMessageId: string | null;
   inputMessage: string;
   setInputMessage: Dispatch<SetStateAction<string>>;
   inputFiles: File[];
@@ -77,6 +78,7 @@ export function useChatStreaming({
   const [currentMessageId, setCurrentMessageId] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [wasAborted, setWasAborted] = useState(false);
+  const [pendingUserMessageId, setPendingUserMessageIdState] = useState<string | null>(null);
   const pendingStopRef = useRef<Set<string>>(new Set());
   const prevChatIdRef = useRef<string | undefined>(chatId);
   const lastConnectedStreamRef = useRef<string | null>(null);
@@ -126,6 +128,7 @@ export function useChatStreaming({
     setCurrentMessageId,
     setError,
     pendingStopRef,
+    onPendingUserMessageIdChange: setPendingUserMessageIdState,
   });
 
   useEffect(() => {
@@ -162,6 +165,7 @@ export function useChatStreaming({
       setCurrentMessageId(null);
       setError(null);
       setWasAborted(false);
+      setPendingUserMessageIdState(null);
       prevChatIdRef.current = chatId;
     }
 
@@ -257,6 +261,7 @@ export function useChatStreaming({
       setStreamState('idle');
       setCurrentMessageId(null);
       setWasAborted(true);
+      setPendingUserMessageId(null);
 
       try {
         if (messageId) {
@@ -269,7 +274,7 @@ export function useChatStreaming({
         pendingStopRef.current.clear();
       }
     },
-    [chatId, stopStream],
+    [chatId, setPendingUserMessageId, stopStream],
   );
 
   const handleDismissError = useCallback(() => {
@@ -307,6 +312,7 @@ export function useChatStreaming({
   return {
     messages,
     setMessages,
+    pendingUserMessageId,
     inputMessage,
     setInputMessage,
     inputFiles,

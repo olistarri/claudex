@@ -179,6 +179,7 @@ export function LandingPage() {
                 onAttach={handleFileAttach}
                 attachedFiles={attachedFiles}
                 isLoading={isLoading}
+                showLoadingSpinner={true}
                 selectedModelId={selectedModelId}
                 onModelChange={selectModel}
                 showTip={false}

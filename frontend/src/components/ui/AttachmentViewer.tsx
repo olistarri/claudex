@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { FileText, FileSpreadsheet, Download } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import type { MessageAttachment } from '@/types';
 import { Button } from './primitives/Button';
+import { Spinner } from './primitives/Spinner';
 import { cn } from '@/utils/cn';
 import { apiClient } from '@/lib/api';
 import { fetchAttachmentBlob, downloadAttachmentFile } from '@/utils/file';
@@ -12,6 +13,7 @@ import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 
 interface AttachmentViewerProps {
   attachments?: MessageAttachment[];
+  uploadingAttachmentIds?: string[];
 }
 
 interface ImageState {
@@ -75,9 +77,9 @@ const getDefaultFilename = (fileType: string, index: number): string => {
 
 const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
   return (
-    <div className="absolute inset-x-0 bottom-0 overflow-hidden rounded-b bg-black/40">
-      <div className="relative h-0.5 w-full overflow-hidden">
-        <div className="absolute inset-y-0 w-1/3 animate-shimmer rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
+    <div className="pointer-events-none absolute inset-0 rounded bg-black/35">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <Spinner size="xs" className="text-white" />
       </div>
     </div>
   );
@@ -137,10 +139,12 @@ function ImageThumbnail({
   attachment,
   state,
   index,
+  isUploading = false,
 }: {
   attachment: MessageAttachment;
   state: ImageState;
   index: number;
+  isUploading?: boolean;
 }) {
   const filename = attachment.filename || getDefaultFilename('image', index);
 
@@ -168,6 +172,7 @@ function ImageThumbnail({
           alt={filename}
           className="block h-10 w-10 cursor-default rounded object-cover"
         />
+        {isUploading && <LoadingProgressOverlay />}
       </div>
     );
   }
@@ -175,10 +180,14 @@ function ImageThumbnail({
   return null;
 }
 
-function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
+function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: AttachmentViewerProps) {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const ownedObjectUrlsRef = useRef<Set<string>>(new Set());
+  const uploadingIdSet = useMemo(
+    () => new Set(uploadingAttachmentIds ?? []),
+    [uploadingAttachmentIds],
+  );
 
   const handleDownload = useCallback(async (url: string, fileName: string) => {
     if (!url) return;
@@ -260,6 +269,8 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {attachments.map((attachment, index) => {
+        const isUploadingAttachment = uploadingIdSet.has(attachment.id);
+
         if (attachment.file_type === 'image') {
           const state = imageStates[attachment.id] || {
             isLoading: true,
@@ -273,7 +284,12 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
               attachment={attachment}
               onDownload={handleDownload}
             >
-              <ImageThumbnail attachment={attachment} state={state} index={index} />
+              <ImageThumbnail
+                attachment={attachment}
+                state={state}
+                index={index}
+                isUploading={isUploadingAttachment}
+              />
             </ThumbnailWrapper>
           );
         }
@@ -285,7 +301,7 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
               attachment={attachment}
               onDownload={handleDownload}
             >
-              <IconThumbnail attachment={attachment} />
+              <IconThumbnail attachment={attachment} isLoading={isUploadingAttachment} />
             </ThumbnailWrapper>
           );
         }
@@ -297,7 +313,7 @@ function AttachmentViewerInner({ attachments }: AttachmentViewerProps) {
               attachment={attachment}
               onDownload={handleDownload}
             >
-              <IconThumbnail attachment={attachment} />
+              <IconThumbnail attachment={attachment} isLoading={isUploadingAttachment} />
             </ThumbnailWrapper>
           );
         }
