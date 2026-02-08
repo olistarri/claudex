@@ -8,7 +8,7 @@ from redis.asyncio import Redis
 
 from app.constants import (
     REDIS_KEY_CHAT_REVOKED,
-    REDIS_KEY_CHAT_STREAM,
+    REDIS_KEY_CHAT_STREAM_LIVE,
     REDIS_KEY_CHAT_TASK,
 )
 from app.core.config import get_settings
@@ -21,8 +21,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-STREAM_MAX_LEN = 10_000
-
 
 class StreamPublisher:
     def __init__(self, chat_id: str) -> None:
@@ -34,10 +32,6 @@ class StreamPublisher:
     ) -> None:
         try:
             self._redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
-            if not skip_stream_delete:
-                await self._redis.delete(
-                    REDIS_KEY_CHAT_STREAM.format(chat_id=self.chat_id)
-                )
             await self._redis.setex(
                 REDIS_KEY_CHAT_TASK.format(chat_id=self.chat_id),
                 settings.TASK_TTL_SECONDS,
@@ -52,32 +46,31 @@ class StreamPublisher:
         return self._redis
 
     async def publish(
-        self, kind: str, payload: dict[str, Any] | str | None = None
+        self, _kind: str, payload: dict[str, Any] | str | None = None
     ) -> None:
         if not self._redis:
             return
 
-        fields: dict[str, str | int | float] = {"kind": kind}
-        if payload is not None:
-            if isinstance(payload, str):
-                fields["payload"] = payload
-            else:
-                fields["payload"] = json.dumps(payload, ensure_ascii=False)
-
         try:
-            await self._redis.xadd(
-                REDIS_KEY_CHAT_STREAM.format(chat_id=self.chat_id),
-                fields,
-                maxlen=STREAM_MAX_LEN,
-                approximate=True,
+            live_payload = (
+                payload
+                if isinstance(payload, str)
+                else json.dumps(payload or {}, ensure_ascii=False)
+            )
+            await self._redis.publish(
+                REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=self.chat_id),
+                live_payload,
             )
         except Exception as exc:
             logger.warning(
-                "Failed to append stream entry for chat %s: %s", self.chat_id, exc
+                "Failed to publish live stream entry for chat %s: %s", self.chat_id, exc
             )
 
     async def publish_event(self, event: StreamEvent) -> None:
         await self.publish(StreamEventKind.CONTENT.value, {"event": event})
+
+    async def publish_envelope(self, envelope: dict[str, Any]) -> None:
+        await self.publish(StreamEventKind.STREAM.value, envelope)
 
     async def publish_complete(self) -> None:
         await self.publish(StreamEventKind.COMPLETE.value)
@@ -113,12 +106,7 @@ class StreamPublisher:
         await self.publish(event_type, payload)
 
     async def clear_stream(self) -> None:
-        if not self._redis:
-            return
-        try:
-            await self._redis.delete(REDIS_KEY_CHAT_STREAM.format(chat_id=self.chat_id))
-        except Exception as exc:
-            logger.warning("Failed to clear stream for chat %s: %s", self.chat_id, exc)
+        return
 
     async def cleanup(self) -> None:
         if not self._redis:

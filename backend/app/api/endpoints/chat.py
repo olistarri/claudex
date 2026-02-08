@@ -1,8 +1,7 @@
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from celery.exceptions import NotRegistered
@@ -15,12 +14,9 @@ from app.constants import (
     REDIS_KEY_CHAT_CANCEL,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
     REDIS_KEY_CHAT_REVOKED,
-    REDIS_KEY_CHAT_STREAM,
     REDIS_KEY_CHAT_TASK,
     REDIS_KEY_PERMISSION_RESPONSE,
-    STREAM_STATUS_CANCELLED,
 )
-from app.models.db_models import StreamEventKind
 from app.core.celery import celery_app
 from app.core.config import get_settings
 from app.core.deps import get_chat_service
@@ -40,6 +36,7 @@ from app.models.schemas import (
     EnhancePromptResponse,
     ForkChatRequest,
     ForkChatResponse,
+    MessageEvent,
     PaginatedChats,
     PaginationParams,
     PermissionRespondResponse,
@@ -57,10 +54,7 @@ from app.services.exceptions import (
 )
 from app.services.permission_manager import PermissionManager
 from app.services.queue import QueueService
-from app.utils.redis import redis_connection, redis_pubsub
-
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
+from app.utils.redis import redis_connection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -68,7 +62,8 @@ settings = get_settings()
 
 INACTIVE_TASK_RESPONSE = {
     "has_active_task": False,
-    "last_event_id": None,
+    "stream_id": None,
+    "last_seq": 0,
 }
 
 
@@ -82,176 +77,6 @@ async def _ensure_chat_access(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chat not found or access denied",
         )
-
-
-async def _monitor_stream_cancellation(
-    chat_id: UUID, cancel_event: asyncio.Event, redis: "Redis[str]"
-) -> None:
-    try:
-        async with redis_pubsub(
-            redis, REDIS_KEY_CHAT_CANCEL.format(chat_id=chat_id)
-        ) as pubsub:
-            while True:
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=1.0
-                )
-                if message and message.get("type") == "message":
-                    logger.info("Stream cancellation received for chat %s", chat_id)
-                    cancel_event.set()
-                    break
-    except asyncio.CancelledError:
-        logger.debug("Cancellation monitor task cancelled for chat %s", chat_id)
-        raise
-    except Exception as e:
-        logger.error(
-            "Error monitoring cancellation for chat %s: %s", chat_id, e, exc_info=True
-        )
-
-
-async def _replay_stream_backlog(
-    redis: "Redis[str]", stream_name: str, min_id: str
-) -> AsyncIterator[dict[str, Any]]:
-    # Replays missed events from Redis stream for SSE reconnection support.
-    # When a client reconnects with Last-Event-ID, this fetches all events since that ID.
-    # XRANGE returns entries between min and max IDs (inclusive). "+" means latest entry.
-    try:
-        backlog = await redis.xrange(stream_name, min=min_id, max="+")
-    except Exception as e:
-        logger.warning("Failed to replay stream backlog from %s: %s", stream_name, e)
-        backlog = []
-
-    for entry_id, fields in backlog:
-        formatted = {
-            "id": entry_id,
-            "event": fields.get("kind", "content"),
-            "data": fields.get("payload", "") or "",
-        }
-        yield formatted
-        if formatted["event"] in {
-            StreamEventKind.COMPLETE.value,
-            StreamEventKind.ERROR.value,
-        }:
-            return
-
-
-async def _stream_live_redis_events(
-    redis: "Redis[str]",
-    stream_name: str,
-    chat_id: UUID,
-    last_id: str,
-    cancel_event: asyncio.Event,
-) -> AsyncIterator[dict[str, Any]]:
-    # Polls Redis stream for new events using XREAD with 5s blocking timeout.
-    # Checks cancellation flag before each poll to enable responsive stream termination.
-    if (
-        await redis.get(REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id))
-        or cancel_event.is_set()
-    ):
-        logger.info("Stream already cancelled for chat %s", chat_id)
-        yield {
-            "event": StreamEventKind.COMPLETE.value,
-            "data": json.dumps({"status": STREAM_STATUS_CANCELLED}),
-        }
-        return
-
-    while True:
-        if cancel_event.is_set():
-            logger.info("Stream cancelled for chat %s", chat_id)
-            yield {
-                "event": StreamEventKind.COMPLETE.value,
-                "data": json.dumps({"status": STREAM_STATUS_CANCELLED}),
-            }
-            return
-
-        try:
-            # XREAD blocks up to 1s waiting for new entries after last_id.
-            # Returns immediately if new data arrives, or empty after timeout.
-            response = await redis.xread(
-                {stream_name: last_id},
-                block=1000,
-                count=10,
-            )
-        except Exception as e:
-            logger.debug("Redis xread error, retrying: %s", e)
-            await asyncio.sleep(0.5)
-            continue
-
-        if not response:
-            continue
-
-        _, messages = response[0]
-        for entry_id, fields in messages:
-            if entry_id == last_id:
-                continue
-
-            formatted = {
-                "id": entry_id,
-                "event": fields.get("kind", "content"),
-                "data": fields.get("payload", "") or "",
-            }
-            yield formatted
-            last_id = entry_id
-
-            if formatted["event"] in {
-                StreamEventKind.COMPLETE.value,
-                StreamEventKind.ERROR.value,
-            }:
-                return
-
-
-async def _create_event_stream(
-    chat_id: UUID, last_event_id: str | None
-) -> AsyncIterator[dict[str, Any]]:
-    # Two-phase SSE streaming: first replays any missed events (backlog), then switches
-    # to live polling. A concurrent monitor task watches for cancellation requests.
-    try:
-        async with redis_connection() as redis:
-            stream_name = REDIS_KEY_CHAT_STREAM.format(chat_id=chat_id)
-            min_id = f"({last_event_id})" if last_event_id else "-"
-            last_id = last_event_id
-
-            async for item in _replay_stream_backlog(redis, stream_name, min_id):
-                yield item
-                last_id = item["id"]
-                if item.get("event") in {
-                    StreamEventKind.COMPLETE.value,
-                    StreamEventKind.ERROR.value,
-                }:
-                    return
-
-            if not last_id:
-                last_id = "0-0"
-
-            cancel_event = asyncio.Event()
-            monitor_task = asyncio.create_task(
-                _monitor_stream_cancellation(chat_id, cancel_event, redis)
-            )
-
-            try:
-                async for event in _stream_live_redis_events(
-                    redis, stream_name, chat_id, last_id, cancel_event
-                ):
-                    yield event
-                    if event.get("event") in {
-                        StreamEventKind.COMPLETE.value,
-                        StreamEventKind.ERROR.value,
-                    }:
-                        return
-            finally:
-                monitor_task.cancel()
-                try:
-                    await monitor_task
-                except asyncio.CancelledError:
-                    pass
-
-    except Exception as exc:
-        logger.error(
-            "Error in event stream for chat %s: %s", chat_id, exc, exc_info=True
-        )
-        yield {
-            "event": StreamEventKind.ERROR.value,
-            "data": json.dumps({"error": str(exc)}),
-        }
 
 
 @router.post(
@@ -312,6 +137,7 @@ async def send_message(
         return {
             "chat_id": result["chat_id"],
             "message_id": result["message_id"],
+            "last_seq": result.get("last_seq", 0),
         }
     except ChatException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -523,12 +349,24 @@ async def stream_events(
 ) -> EventSourceResponse:
     await _ensure_chat_access(chat_id, chat_service, current_user)
 
-    last_event_id = request.headers.get("Last-Event-ID") or request.query_params.get(
-        "lastEventId"
+    def _parse_non_negative_seq(value: str | None) -> int:
+        if value is None:
+            return 0
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return parsed if parsed >= 0 else 0
+
+    # Browser EventSource reconnects send the current cursor via Last-Event-ID.
+    # Keep query-param baseline support and use whichever is more advanced.
+    after_seq = max(
+        _parse_non_negative_seq(request.query_params.get("after_seq")),
+        _parse_non_negative_seq(request.headers.get("Last-Event-ID")),
     )
 
     return EventSourceResponse(
-        _create_event_stream(chat_id, last_event_id),
+        chat_service.create_event_stream(chat_id, after_seq),
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
@@ -552,7 +390,6 @@ async def get_stream_status(
 
         task_key = REDIS_KEY_CHAT_TASK.format(chat_id=chat_id)
         revoked_key = REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id)
-        stream_key = REDIS_KEY_CHAT_STREAM.format(chat_id=chat_id)
 
         if latest_assistant_message:
             if latest_assistant_message.stream_status in [
@@ -588,19 +425,17 @@ async def get_stream_status(
                 await redis.delete(task_key)
                 return INACTIVE_TASK_RESPONSE.copy()
 
-            try:
-                # XREVRANGE reads stream in reverse (newest first). count=1 gets the latest entry.
-                latest_entry = await redis.xrevrange(stream_key, count=1)
-                last_event_id = latest_entry[0][0] if latest_entry else None
-            except RedisError:
-                last_event_id = None
-
             return {
                 "has_active_task": True,
                 "message_id": latest_assistant_message.id
                 if latest_assistant_message
                 else None,
-                "last_event_id": last_event_id,
+                "stream_id": latest_assistant_message.active_stream_id
+                if latest_assistant_message
+                else None,
+                "last_seq": latest_assistant_message.last_seq
+                if latest_assistant_message
+                else 0,
             }
     except RedisError as e:
         logger.error(
@@ -618,6 +453,22 @@ async def get_stream_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check chat status",
         )
+
+
+@router.get("/messages/{message_id}/events", response_model=list[MessageEvent])
+async def get_message_events(
+    message_id: UUID,
+    after_seq: int = 0,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> list[MessageEvent]:
+    message = await chat_service.message_service.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    await _ensure_chat_access(message.chat_id, chat_service, current_user)
+    return await chat_service.message_service.get_message_events_after_seq(
+        message_id, after_seq, limit=5000
+    )
 
 
 @router.delete("/chats/{chat_id}/stream", status_code=status.HTTP_204_NO_CONTENT)

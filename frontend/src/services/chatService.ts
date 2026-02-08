@@ -49,10 +49,11 @@ async function createCompletion(
       const taskResponse = await apiClient.postForm<{
         chat_id: string;
         message_id: string;
+        last_seq?: number;
       }>('/chat/chat', formData, signal);
 
       const payload = ensureResponse(taskResponse, 'Failed to start chat completion');
-      const eventSource = createEventSource(payload.chat_id, signal);
+      const eventSource = createEventSource(payload.chat_id, signal, payload.last_seq);
 
       return {
         source: eventSource,
@@ -66,7 +67,8 @@ async function createCompletion(
 async function checkChatStatus(chatId: string): Promise<{
   has_active_task: boolean;
   message_id?: string;
-  last_event_id?: string;
+  stream_id?: string;
+  last_seq?: number;
 } | null> {
   return serviceCall(() => apiClient.get(`/chat/chats/${chatId}/status`));
 }
@@ -75,11 +77,12 @@ async function reconnectToStream(
   chatId: string,
   messageId: string,
   signal?: AbortSignal,
+  afterSeq?: number,
 ): Promise<{
   source: EventSource;
   messageId: string;
 }> {
-  const eventSource = createEventSource(chatId, signal);
+  const eventSource = createEventSource(chatId, signal, afterSeq);
 
   return {
     source: eventSource,
@@ -213,20 +216,36 @@ async function getContextUsage(chatId: string): Promise<ContextUsage> {
   });
 }
 
-function createEventSource(chatId: string, signal?: AbortSignal): EventSource {
+function normalizePositiveInt(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return Math.floor(parsed);
+}
+
+function createEventSource(
+  chatId: string,
+  signal?: AbortSignal,
+  baselineSeq?: number,
+): EventSource {
   const token = authService.getToken();
   if (!token) {
     throw new Error('Authentication token required');
   }
 
-  const lastEventId = chatStorage.getEventId(chatId);
+  const storedSeq = normalizePositiveInt(chatStorage.getEventId(chatId));
+  const providedSeq = normalizePositiveInt(baselineSeq);
+  const afterSeq = Math.max(storedSeq, providedSeq);
+  if (afterSeq > storedSeq) {
+    chatStorage.setEventId(chatId, String(afterSeq));
+  }
+
   const baseUrl = `${apiClient.getBaseUrl()}/chat/chats/${chatId}/stream`;
 
   const params = new URLSearchParams();
   params.append('token', token);
-  if (lastEventId) {
-    params.append('lastEventId', lastEventId);
-  }
+  params.append('after_seq', String(afterSeq));
 
   const url = `${baseUrl}?${params.toString()}`;
   const eventSource = new EventSource(url);

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { logger } from '@/utils/logger';
 import { chatService } from '@/services/chatService';
+import { chatStorage } from '@/utils/storage';
 import type { Message, StreamState } from '@/types';
 
 interface UseStreamReconnectParams {
@@ -18,7 +19,7 @@ interface UseStreamReconnectParams {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   addMessageToCache: (message: Message) => void;
   updateMessageInCache: (messageId: string, updater: (msg: Message) => Message) => void;
-  replayStream: (messageId: string) => Promise<string>;
+  replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
 }
 
 // Handles reconnecting to active streams when returning to a chat.
@@ -61,13 +62,41 @@ export function useStreamReconnect({
 
             const messageExists = fetchedMessages.some((msg) => msg.id === targetMessageId);
             const existingMessage = fetchedMessages.find((msg) => msg.id === targetMessageId);
-            const previousContent = existingMessage?.content ?? JSON.stringify([]);
+            const previousSnapshot = existingMessage
+              ? {
+                  content_text: existingMessage.content_text,
+                  content_render: existingMessage.content_render,
+                  last_seq: existingMessage.last_seq,
+                  active_stream_id: existingMessage.active_stream_id ?? null,
+                }
+              : null;
+
+            const reconnectSeq = status.last_seq ?? existingMessage?.last_seq ?? 0;
+            const storedSeqRaw = chatStorage.getEventId(chatId);
+            const storedSeq = storedSeqRaw ? Number(storedSeqRaw) : Number.NaN;
+            const normalizedStoredSeq = Number.isFinite(storedSeq) && storedSeq > 0 ? storedSeq : 0;
+            const normalizedReconnectSeq = reconnectSeq > 0 ? reconnectSeq : 0;
+            // If the active assistant message is absent locally, start replay from 0 so
+            // we rebuild the full message instead of resuming from a truncated cursor.
+            const replayAfterSeq = messageExists
+              ? Math.max(normalizedStoredSeq, normalizedReconnectSeq)
+              : 0;
+            if (replayAfterSeq > 0) {
+              chatStorage.setEventId(chatId, String(replayAfterSeq));
+            } else {
+              chatStorage.removeEventId(chatId);
+            }
 
             if (!messageExists) {
               const placeholderMessage: Message = {
                 id: targetMessageId,
+                chat_id: chatId,
                 role: 'assistant',
-                content: JSON.stringify([]),
+                content_text: '',
+                content_render: { events: [], segments: [] },
+                last_seq: status.last_seq ?? 0,
+                active_stream_id: status.stream_id ?? null,
+                stream_status: 'in_progress',
                 created_at: new Date().toISOString(),
                 model_id: selectedModelId || '',
                 is_bot: true,
@@ -77,27 +106,20 @@ export function useStreamReconnect({
             }
 
             try {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === targetMessageId ? { ...msg, content: JSON.stringify([]) } : msg,
-                ),
-              );
-              updateMessageInCache(targetMessageId, (msg) => ({
-                ...msg,
-                content: JSON.stringify([]),
-              }));
-              await replayStream(targetMessageId);
+              await replayStream(targetMessageId, replayAfterSeq);
             } catch (replayError) {
               logger.error('Stream reconnect failed', 'useStreamReconnect', replayError);
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === targetMessageId ? { ...msg, content: previousContent } : msg,
-                ),
-              );
-              updateMessageInCache(targetMessageId, (msg) => ({
-                ...msg,
-                content: previousContent,
-              }));
+              if (previousSnapshot) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === targetMessageId ? { ...msg, ...previousSnapshot } : msg,
+                  ),
+                );
+                updateMessageInCache(targetMessageId, (msg) => ({
+                  ...msg,
+                  ...previousSnapshot,
+                }));
+              }
               setStreamState('idle');
               setCurrentMessageId(null);
             }

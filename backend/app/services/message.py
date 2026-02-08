@@ -1,15 +1,18 @@
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import select, delete, update, or_, and_
+from sqlalchemy import select, delete, update, or_, and_, func, insert
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models import (
     Message,
+    Chat,
     MessageAttachment,
+    MessageEvent,
     MessageRole,
     MessageStreamStatus,
 )
@@ -26,6 +29,38 @@ logger = logging.getLogger(__name__)
 class MessageService(BaseDbService[Message]):
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         super().__init__(session_factory)
+
+    @staticmethod
+    def _extract_user_text_content(content: str) -> str:
+        stripped = content.strip()
+        if not stripped:
+            return ""
+        if not (stripped.startswith("[") or stripped.startswith("{")):
+            return content
+
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return content
+
+        if isinstance(parsed, list):
+            items = parsed
+        elif isinstance(parsed, dict):
+            items = [parsed]
+        else:
+            return content
+
+        parts: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("type") or "").lower() != "user_text":
+                continue
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+
+        return "".join(parts) if parts else content
 
     @staticmethod
     def serialize_attachments(
@@ -58,9 +93,24 @@ class MessageService(BaseDbService[Message]):
         stream_status: MessageStreamStatus | None = None,
     ) -> Message:
         async with self.session_factory() as db:
-            message_kwargs: dict[str, UUID | str | MessageRole | None] = {
+            is_assistant = role == MessageRole.ASSISTANT
+            content_text = ""
+            content_render: dict[str, Any] = {"events": [], "segments": []}
+            if not is_assistant:
+                content_text = self._extract_user_text_content(content)
+                if content_text:
+                    content_render = {
+                        "events": [{"type": "user_text", "text": content_text}],
+                        "segments": [],
+                    }
+
+            message_kwargs: dict[str, Any] = {
                 "chat_id": chat_id,
-                "content": content,
+                "content": content if not is_assistant else "",
+                "content_text": content_text,
+                "content_render": content_render,
+                "last_seq": 0,
+                "active_stream_id": None,
                 "role": role,
                 "model_id": model_id,
                 "session_id": session_id,
@@ -121,6 +171,12 @@ class MessageService(BaseDbService[Message]):
                 )
 
             message.content = content
+            message.content_text = content
+            if message.role == MessageRole.USER:
+                message.content_render = {
+                    "events": [{"type": "user_text", "text": content}],
+                    "segments": [],
+                }
             message.updated_at = datetime.now(timezone.utc)
 
             db.add(message)
@@ -128,6 +184,115 @@ class MessageService(BaseDbService[Message]):
             await db.refresh(message, ["attachments"])
 
             return cast(Message, message)
+
+    async def update_message_snapshot(
+        self,
+        message_id: UUID,
+        *,
+        content_text: str,
+        content_render: dict[str, Any],
+        last_seq: int,
+        active_stream_id: UUID | None,
+        stream_status: MessageStreamStatus | None = None,
+        total_cost_usd: float | None = None,
+    ) -> Message | None:
+        async with self.session_factory() as db:
+            now = datetime.now(timezone.utc)
+            values: dict[str, Any] = {
+                "content": "",
+                "content_text": content_text,
+                "content_render": content_render,
+                "last_seq": func.greatest(Message.last_seq, last_seq),
+                "active_stream_id": active_stream_id,
+                "updated_at": now,
+            }
+            if stream_status is not None:
+                values["stream_status"] = stream_status
+            if total_cost_usd is not None:
+                values["total_cost_usd"] = total_cost_usd
+
+            stmt = update(Message).where(Message.id == message_id).values(**values)
+            result = await db.execute(stmt)
+            if int(getattr(result, "rowcount", 0)) == 0:
+                return None
+
+            await db.commit()
+
+            query = select(Message).filter(Message.id == message_id)
+            refreshed = await db.execute(query)
+            message = refreshed.scalar_one_or_none()
+            return cast(Message | None, message)
+
+    async def append_event_with_next_seq(
+        self,
+        *,
+        chat_id: UUID,
+        message_id: UUID,
+        stream_id: UUID,
+        event_type: str,
+        render_payload: dict[str, Any],
+        audit_payload: dict[str, Any] | None,
+    ) -> int:
+        async with self.session_factory() as db:
+            seq_result = await db.execute(
+                update(Chat)
+                .where(Chat.id == chat_id)
+                .values(last_event_seq=Chat.last_event_seq + 1)
+                .returning(Chat.last_event_seq)
+            )
+            next_seq = seq_result.scalar_one_or_none()
+            if next_seq is None:
+                raise MessageException(
+                    "Chat not found",
+                    error_code=ErrorCode.CHAT_NOT_FOUND,
+                    details={"chat_id": str(chat_id)},
+                    status_code=404,
+                )
+            next_seq = int(next_seq)
+
+            now = datetime.now(timezone.utc)
+            await db.execute(
+                insert(MessageEvent).values(
+                    id=uuid4(),
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    stream_id=stream_id,
+                    seq=next_seq,
+                    event_type=event_type,
+                    render_payload=render_payload,
+                    audit_payload=audit_payload,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+            await db.commit()
+            return next_seq
+
+    async def claim_stream_cancellation(
+        self,
+        *,
+        message_id: UUID,
+        stream_id: UUID,
+    ) -> bool:
+        async with self.session_factory() as db:
+            now = datetime.now(timezone.utc)
+            result = await db.execute(
+                update(Message)
+                .where(
+                    Message.id == message_id,
+                    Message.active_stream_id == stream_id,
+                    Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                )
+                .values(
+                    stream_status=MessageStreamStatus.INTERRUPTED,
+                    updated_at=now,
+                )
+                .returning(Message.id)
+            )
+            claimed = result.scalar_one_or_none() is not None
+            await db.commit()
+            return claimed
 
     async def update_message_status(
         self, message_id: UUID, status: MessageStreamStatus
@@ -213,6 +378,132 @@ class MessageService(BaseDbService[Message]):
             )
             result = await db.execute(query)
             return cast(Message | None, result.scalar_one_or_none())
+
+    async def append_event(
+        self,
+        *,
+        chat_id: UUID,
+        message_id: UUID,
+        stream_id: UUID,
+        seq: int,
+        event_type: str,
+        render_payload: dict[str, Any],
+        audit_payload: dict[str, Any] | None,
+    ) -> None:
+        await self.append_events(
+            [
+                {
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "stream_id": stream_id,
+                    "seq": seq,
+                    "event_type": event_type,
+                    "render_payload": render_payload,
+                    "audit_payload": audit_payload,
+                }
+            ]
+        )
+
+    async def append_events(self, events: list[dict[str, Any]]) -> None:
+        if not events:
+            return
+
+        now = datetime.now(timezone.utc)
+        rows: list[dict[str, Any]] = []
+        for event in events:
+            rows.append(
+                {
+                    "id": uuid4(),
+                    "chat_id": event["chat_id"],
+                    "message_id": event["message_id"],
+                    "stream_id": event["stream_id"],
+                    "seq": event["seq"],
+                    "event_type": event["event_type"],
+                    "render_payload": event["render_payload"],
+                    "audit_payload": event.get("audit_payload"),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+
+        async with self.session_factory() as db:
+            await db.execute(insert(MessageEvent), rows)
+            await db.commit()
+
+    async def get_chat_events_after_seq(
+        self,
+        chat_id: UUID,
+        after_seq: int,
+        limit: int = 500,
+    ) -> list[MessageEvent]:
+        async with self.session_factory() as db:
+            query = (
+                select(MessageEvent)
+                .where(MessageEvent.chat_id == chat_id, MessageEvent.seq > after_seq)
+                .order_by(MessageEvent.seq.asc())
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            return list(result.scalars().all())
+
+    async def get_stream_events_after_seq(
+        self,
+        *,
+        chat_id: UUID,
+        stream_id: UUID,
+        after_seq: int,
+        limit: int = 500,
+    ) -> list[MessageEvent]:
+        async with self.session_factory() as db:
+            query = (
+                select(MessageEvent)
+                .where(
+                    MessageEvent.chat_id == chat_id,
+                    MessageEvent.stream_id == stream_id,
+                    MessageEvent.seq > after_seq,
+                )
+                .order_by(MessageEvent.seq.asc())
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            return list(result.scalars().all())
+
+    async def get_latest_stream_event(
+        self,
+        *,
+        chat_id: UUID,
+        stream_id: UUID,
+    ) -> MessageEvent | None:
+        async with self.session_factory() as db:
+            query = (
+                select(MessageEvent)
+                .where(
+                    MessageEvent.chat_id == chat_id,
+                    MessageEvent.stream_id == stream_id,
+                )
+                .order_by(MessageEvent.seq.desc())
+                .limit(1)
+            )
+            result = await db.execute(query)
+            return cast(MessageEvent | None, result.scalar_one_or_none())
+
+    async def get_message_events_after_seq(
+        self,
+        message_id: UUID,
+        after_seq: int,
+        limit: int = 500,
+    ) -> list[MessageEvent]:
+        async with self.session_factory() as db:
+            query = (
+                select(MessageEvent)
+                .where(
+                    MessageEvent.message_id == message_id, MessageEvent.seq > after_seq
+                )
+                .order_by(MessageEvent.seq.asc())
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            return list(result.scalars().all())
 
     async def delete_messages_after(self, chat_id: UUID, message: Message) -> int:
         async with self.session_factory() as db:

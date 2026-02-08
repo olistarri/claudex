@@ -13,7 +13,7 @@ interface ParseCacheEntry {
   events: AssistantStreamEvent[];
 }
 
-const PARSE_CACHE_MAX_SIZE = 100;
+const PARSE_CACHE_MAX_SIZE = 20;
 const parseCache = new Map<string, ParseCacheEntry>();
 
 function getContentKey(content: string): string {
@@ -63,7 +63,7 @@ export const parseEventLog = (content: string | null | undefined): AssistantStre
   const cached = parseCache.get(cacheKey);
 
   if (cached && cached.content === content) {
-    return [...cached.events];
+    return cached.events;
   }
 
   const events = parseEventLogUncached(content);
@@ -77,11 +77,62 @@ export const parseEventLog = (content: string | null | undefined): AssistantStre
   return events;
 };
 
+export interface ContentRenderSnapshot {
+  events?: AssistantStreamEvent[];
+  segments?: unknown[];
+}
+
+export class StreamingContentAccumulator {
+  private events: AssistantStreamEvent[];
+  private textParts: string[];
+
+  constructor(initialEvents: AssistantStreamEvent[] = [], initialText = '') {
+    this.events = [...initialEvents];
+    this.textParts = [];
+
+    if (initialText) {
+      this.textParts.push(initialText);
+    } else if (initialEvents.length > 0) {
+      for (const event of initialEvents) {
+        if (event.type === 'assistant_text' && event.text) {
+          this.textParts.push(event.text);
+        }
+      }
+    }
+  }
+
+  push(event: AssistantStreamEvent): void {
+    this.events.push(event);
+    if (event.type === 'assistant_text' && event.text) {
+      this.textParts.push(event.text);
+    }
+  }
+
+  getEvents(): AssistantStreamEvent[] {
+    return this.events;
+  }
+
+  getContentText(): string {
+    return this.textParts.join('');
+  }
+
+  snapshot(): ContentRenderSnapshot {
+    return {
+      events: [...this.events],
+      segments: [],
+    };
+  }
+
+  serialize(): string {
+    return JSON.stringify(this.events);
+  }
+}
+
 export const appendEventToLog = (
   content: string | null | undefined,
   event: AssistantStreamEvent,
 ): string => {
-  const events = parseEventLog(content);
+  const events = [...parseEventLog(content)];
   events.push(event);
   return JSON.stringify(events);
 };

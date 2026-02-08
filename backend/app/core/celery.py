@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from celery import Celery
 
-from app.constants import REDIS_KEY_CHAT_STREAM
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -59,7 +58,6 @@ celery_app.conf.beat_schedule = {
 class SSEEventPublisher:
     def __init__(self, redis_client: "Redis[str]"):
         self.redis = redis_client
-        self._stream_max_len = 10_000
 
     async def _publish_event(
         self, chat_id: str, event_type: str, data: str, event_id: str | None = None
@@ -79,22 +77,6 @@ class SSEEventPublisher:
                 f"event:{chat_id}:{event_id}",
                 settings.CELERY_RESULT_EXPIRES_SECONDS,
                 json.dumps(event),
-            )
-        try:
-            fields: dict[str, str | int | float] = {"kind": event_type}
-            if data:
-                fields["payload"] = data
-            # XADD appends to Redis stream. maxlen caps size; approximate=True allows
-            # slight overage for better performance (avoids trimming on every write).
-            await self.redis.xadd(
-                REDIS_KEY_CHAT_STREAM.format(chat_id=chat_id),
-                fields,
-                maxlen=self._stream_max_len,
-                approximate=True,
-            )
-        except Exception as exc:
-            logger.warning(
-                f"Failed to append SSE event to stream for chat {chat_id}: {exc}"
             )
 
     async def publish_content(

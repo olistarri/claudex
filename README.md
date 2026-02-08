@@ -203,8 +203,6 @@ For production deployment on a VPS, see the [Coolify Installation Guide](docs/co
 - **API Docs:** http://localhost:8080/api/v1/docs
 - **Admin Panel:** http://localhost:8080/admin
 
-Default admin: `admin@example.com` / `admin123`
-
 ## Contributing
 
 1. Fork the repository

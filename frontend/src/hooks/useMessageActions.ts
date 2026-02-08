@@ -1,11 +1,10 @@
 import { useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { logger } from '@/utils/logger';
-import { parseEventLog } from '@/utils/stream';
 import { createAttachmentsFromFiles } from '@/utils/message';
 import { extractPromptMention } from '@/utils/mentionParser';
 import { MAX_MESSAGE_SIZE_BYTES } from '@/config/constants';
-import type { ChatRequest, Message, AssistantStreamEvent, StreamState } from '@/types';
+import type { ChatRequest, Message, StreamState } from '@/types';
 
 interface UseMessageActionsParams {
   chatId: string | undefined;
@@ -26,7 +25,9 @@ interface UseMessageActionsParams {
 }
 
 const isEmptyBotPlaceholder = (msg?: Message) =>
-  !!msg?.is_bot && parseEventLog(msg?.content).length === 0;
+  !!msg?.is_bot &&
+  (!msg?.content_render?.events || msg.content_render.events.length === 0) &&
+  !msg.content_text;
 
 export function useMessageActions({
   chatId,
@@ -89,7 +90,12 @@ export function useMessageActions({
 
         const initialMessage: Message = {
           id: messageId,
-          content: JSON.stringify([]),
+          chat_id: chatIdOverride ?? chatId ?? '',
+          content_text: '',
+          content_render: { events: [], segments: [] },
+          last_seq: 0,
+          active_stream_id: null,
+          stream_status: 'in_progress',
           role: 'assistant',
           is_bot: true,
           attachments: [],
@@ -142,15 +148,10 @@ export function useMessageActions({
         return;
       }
 
-      const messageEvents: AssistantStreamEvent[] = [];
-      if (inputMessage.trim()) {
-        messageEvents.push({ type: 'user_text', text: inputMessage });
-      }
-
-      const serialized = JSON.stringify(messageEvents);
+      const prompt = inputMessage;
 
       const encoder = new TextEncoder();
-      const byteSize = encoder.encode(serialized).length;
+      const byteSize = encoder.encode(prompt).length;
 
       if (byteSize > MAX_MESSAGE_SIZE_BYTES) {
         toast.error(`Message too large (${Math.round(byteSize / 1024)}KB).`);
@@ -159,7 +160,15 @@ export function useMessageActions({
 
       const newMessage: Message = {
         id: crypto.randomUUID(),
-        content: serialized,
+        chat_id: chatId ?? '',
+        content_text: prompt,
+        content_render: {
+          events: [{ type: 'user_text', text: prompt }],
+          segments: [],
+        },
+        last_seq: 0,
+        active_stream_id: null,
+        stream_status: 'completed',
         role: 'user',
         is_bot: false,
         model_id: selectedModelId,
@@ -171,7 +180,7 @@ export function useMessageActions({
       setPendingUserMessageId(newMessage.id);
 
       try {
-        await sendMessage(newMessage.content, chatId, newMessage, inputFiles);
+        await sendMessage(newMessage.content_text, chatId, newMessage, inputFiles);
         return { success: true };
       } catch (error) {
         logger.error('Failed to send message', 'useMessageActions', error);

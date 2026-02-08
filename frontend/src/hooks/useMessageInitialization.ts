@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { detectFileType } from '@/utils/fileTypes';
 import { createInitialMessage } from '@/utils/message';
+import { chatStorage } from '@/utils/storage';
 import type { Message } from '@/types';
 
 interface UseMessageInitializationParams {
@@ -51,7 +52,11 @@ export function useMessageInitialization({
       return {
         id: msg.id || crypto.randomUUID(),
         chat_id: msg.chat_id,
-        content: msg.content,
+        content_text: msg.content_text ?? '',
+        content_render: msg.content_render ?? { events: [], segments: [] },
+        last_seq: msg.last_seq ?? 0,
+        active_stream_id: msg.active_stream_id ?? null,
+        stream_status: msg.stream_status ?? (msg.role === 'assistant' ? 'completed' : undefined),
         role: msg.role,
         is_bot: msg.role === 'assistant',
         attachments: processedAttachments,
@@ -59,6 +64,14 @@ export function useMessageInitialization({
         model_id: msg.model_id,
       };
     });
+
+    const latestKnownSeq = formattedMessages.reduce((maxSeq, message) => {
+      const seq = Number(message.last_seq ?? 0);
+      return Number.isFinite(seq) && seq > maxSeq ? seq : maxSeq;
+    }, 0);
+    if (latestKnownSeq > 0) {
+      chatStorage.setEventId(chatId, String(latestKnownSeq));
+    }
 
     if (
       initialPromptFromRoute &&

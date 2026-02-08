@@ -35,9 +35,14 @@ export function useStreamRestoration({
           const status = await chatService.checkChatStatus(chat.id);
 
           if (status?.has_active_task) {
+            const messageId = status.message_id;
+            if (!messageId) {
+              return;
+            }
+
             const metadata: StreamMetadata = {
               chatId: chat.id,
-              messageId: status.last_event_id || 'unknown',
+              messageId,
               startTime: Date.now(),
             };
 

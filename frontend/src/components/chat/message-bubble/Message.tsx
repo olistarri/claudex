@@ -8,7 +8,7 @@ import {
   useRestoreCheckpointMutation,
   useSettingsQuery,
 } from '@/hooks/queries';
-import type { MessageAttachment } from '@/types';
+import type { AssistantStreamEvent, MessageAttachment } from '@/types';
 import { ConfirmDialog, LoadingOverlay, Button, Spinner, Tooltip } from '@/components/ui';
 import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import toast from 'react-hot-toast';
@@ -16,7 +16,11 @@ import { useChatContext } from '@/hooks/useChatContext';
 
 export interface MessageProps {
   id: string;
-  content: string;
+  contentText: string;
+  contentRender?: {
+    events?: AssistantStreamEvent[];
+    segments?: unknown[];
+  };
   isBot: boolean;
   attachments?: MessageAttachment[];
   uploadingAttachmentIds?: string[];
@@ -35,7 +39,8 @@ export interface MessageProps {
 
 export const Message = memo(function Message({
   id,
-  content,
+  contentText,
+  contentRender,
   isBot,
   attachments,
   copiedMessageId,
@@ -121,7 +126,8 @@ export const Message = memo(function Message({
           {isBot ? (
             <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
               <MessageContent
-                content={content}
+                contentText={contentText}
+                contentRender={contentRender}
                 isBot={isBot}
                 attachments={attachments}
                 isStreaming={isThisMessageStreaming}
@@ -134,7 +140,8 @@ export const Message = memo(function Message({
             <div className="inline-block max-w-full rounded-xl bg-surface-hover/60 px-3 py-1.5 dark:bg-surface-dark-tertiary/80">
               <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
                 <MessageContent
-                  content={content}
+                  contentText={contentText}
+                  contentRender={contentRender}
                   isBot={isBot}
                   attachments={attachments}
                   uploadingAttachmentIds={uploadingAttachmentIds}
@@ -145,12 +152,12 @@ export const Message = memo(function Message({
             </div>
           )}
 
-          {isBot && content.trim() && !isThisMessageStreaming && (
+          {isBot && contentText.trim() && !isThisMessageStreaming && (
             <div className="mt-2 flex items-center justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <div className="flex items-center gap-0.5">
                 <Tooltip content={copiedMessageId === id ? 'Copied!' : 'Copy'} position="bottom">
                   <Button
-                    onClick={() => onCopy(content, id)}
+                    onClick={() => onCopy(contentText, id)}
                     variant="unstyled"
                     className={`relative overflow-hidden rounded-md p-1 transition-all duration-200 ${
                       copiedMessageId === id

@@ -1,13 +1,14 @@
 import React, { memo } from 'react';
-import { parseEventLog } from '@/utils/stream';
 import { MarkDown } from '@/components/ui';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import { buildSegments } from './segmentBuilder';
+import type { AssistantStreamEvent } from '@/types';
 
 interface MessageRendererProps {
-  content: string;
+  contentText: string;
+  events?: AssistantStreamEvent[];
   className?: string;
   isStreaming?: boolean;
   chatId?: string;
@@ -16,7 +17,8 @@ interface MessageRendererProps {
 }
 
 const MessageRendererInner: React.FC<MessageRendererProps> = ({
-  content,
+  contentText,
+  events,
   className = '',
   isStreaming = false,
   chatId,
@@ -24,15 +26,15 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   onSuggestionSelect,
 }) => {
   const { segments, activeThinkingIndex } = React.useMemo(() => {
-    const parsedEvents = parseEventLog(content);
-    const builtSegments = buildSegments(parsedEvents);
+    const resolvedEvents = events ?? [];
+    const builtSegments = buildSegments(resolvedEvents);
 
     let thinkingIndex = -1;
-    if (isStreaming && parsedEvents.length > 0) {
-      const lastEvent = parsedEvents[parsedEvents.length - 1];
+    if (isStreaming && resolvedEvents.length > 0) {
+      const lastEvent = resolvedEvents[resolvedEvents.length - 1];
       if (lastEvent.type === 'assistant_thinking') {
-        for (let i = parsedEvents.length - 1; i >= 0; i--) {
-          if (parsedEvents[i].type === 'assistant_thinking') {
+        for (let i = resolvedEvents.length - 1; i >= 0; i--) {
+          if (resolvedEvents[i].type === 'assistant_thinking') {
             thinkingIndex = i;
             break;
           }
@@ -44,7 +46,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
       segments: builtSegments,
       activeThinkingIndex: thinkingIndex,
     };
-  }, [content, isStreaming]);
+  }, [events, contentText, isStreaming]);
 
   return (
     <div className={className}>

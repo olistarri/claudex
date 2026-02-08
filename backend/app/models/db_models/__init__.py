@@ -10,7 +10,7 @@ from .enums import (
     TaskStatus,
     ToolStatus,
 )
-from .chat import Chat, Message, MessageAttachment
+from .chat import Chat, Message, MessageAttachment, MessageEvent
 from .refresh_token import RefreshToken
 from .scheduled_tasks import ScheduledTask, TaskExecution
 from .user import User, UserSettings
@@ -29,6 +29,7 @@ __all__ = [
     "Chat",
     "Message",
     "MessageAttachment",
+    "MessageEvent",
     "RefreshToken",
     "ScheduledTask",
     "TaskExecution",

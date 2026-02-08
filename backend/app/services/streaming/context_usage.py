@@ -16,8 +16,9 @@ from app.constants import (
 )
 from app.core.config import get_settings
 from app.db.session import get_celery_session
-from app.models.db_models import Chat
-from app.services.streaming.events import StreamEvent
+from app.models.db_models import Chat, MessageStreamStatus
+from app.services.message import MessageService
+from app.services.streaming.protocol import build_envelope, redact_for_audit
 from app.services.streaming.publisher import StreamPublisher
 from app.services.user import UserService
 
@@ -49,6 +50,8 @@ class ContextUsageTracker:
         ai_service: ClaudeAgentService,
         redis_client: Redis[str],
         session_factory: Any,
+        message_id: UUID | None = None,
+        stream_id: UUID | None = None,
     ) -> dict[str, Any] | None:
         try:
             user_service = UserService(session_factory=session_factory)
@@ -94,14 +97,47 @@ class ContextUsageTracker:
                 json.dumps(context_data),
             )
 
-            system_event: StreamEvent = {
-                "type": "system",
-                "data": {"context_usage": context_data, "chat_id": self.chat_id},
+            payload: dict[str, Any] = {
+                "context_usage": context_data,
+                "chat_id": self.chat_id,
             }
 
-            publisher = StreamPublisher(self.chat_id)
-            publisher._redis = redis_client
-            await publisher.publish_event(system_event)
+            target_message_id = message_id
+            target_stream_id = stream_id
+            message_service = MessageService(session_factory=session_factory)
+            if not target_message_id or not target_stream_id:
+                latest_assistant = await message_service.get_latest_assistant_message(
+                    UUID(self.chat_id)
+                )
+                if (
+                    latest_assistant
+                    and latest_assistant.active_stream_id
+                    and latest_assistant.stream_status
+                    == MessageStreamStatus.IN_PROGRESS
+                ):
+                    target_message_id = latest_assistant.id
+                    target_stream_id = latest_assistant.active_stream_id
+
+            if target_message_id and target_stream_id:
+                seq = await message_service.append_event_with_next_seq(
+                    chat_id=UUID(self.chat_id),
+                    message_id=target_message_id,
+                    stream_id=target_stream_id,
+                    event_type="system",
+                    render_payload=payload,
+                    audit_payload={"payload": redact_for_audit(payload)},
+                )
+                envelope = build_envelope(
+                    chat_id=UUID(self.chat_id),
+                    message_id=target_message_id,
+                    stream_id=target_stream_id,
+                    seq=seq,
+                    kind="system",
+                    payload=payload,
+                )
+                publisher = StreamPublisher(self.chat_id)
+                publisher._redis = redis_client
+                await publisher.publish_envelope(envelope)
 
             return context_data
 

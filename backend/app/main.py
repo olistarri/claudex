@@ -2,9 +2,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.api.docs import custom_openapi
 from app.api.endpoints import (
@@ -29,6 +31,7 @@ from app.core.middleware import (
     setup_middleware,
 )
 from app.db.session import engine, celery_engine, SessionLocal
+from app.utils.redis import redis_connection
 from app.admin.config import create_admin
 from app.admin.views import (
     UserAdmin,
@@ -50,6 +53,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     await engine.dispose()
     await celery_engine.dispose()
+
+
+async def _check_database_ready() -> tuple[bool, str | None]:
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True, None
+    except Exception as exc:
+        logger.warning("Readiness database check failed: %s", exc)
+        return False, str(exc)
+
+
+async def _check_redis_ready() -> tuple[bool, str | None]:
+    try:
+        async with redis_connection() as redis:
+            pong = await redis.ping()
+        if pong:
+            return True, None
+        return False, "Redis ping returned false"
+    except Exception as exc:
+        logger.warning("Readiness Redis check failed: %s", exc)
+        return False, str(exc)
 
 
 def create_application() -> FastAPI:
@@ -160,6 +185,30 @@ def create_application() -> FastAPI:
     @application.get("/health")
     async def health_check() -> dict[str, str]:
         return {"status": "healthy"}
+
+    @application.get(f"{settings.API_V1_STR}/healthz")
+    async def healthz() -> dict[str, str]:
+        return {"status": "healthy"}
+
+    @application.get(f"{settings.API_V1_STR}/readyz")
+    async def readyz(response: Response) -> dict[str, Any]:
+        db_ok, db_error = await _check_database_ready()
+        redis_ok, redis_error = await _check_redis_ready()
+
+        checks: dict[str, dict[str, str | bool]] = {
+            "database": {"ok": db_ok},
+            "redis": {"ok": redis_ok},
+        }
+        if db_error:
+            checks["database"]["error"] = db_error
+        if redis_error:
+            checks["redis"]["error"] = redis_error
+
+        if db_ok and redis_ok:
+            return {"status": "ready", "checks": checks}
+
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "not_ready", "checks": checks}
 
     return application
 

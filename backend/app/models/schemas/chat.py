@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
-from app.models.db_models import AttachmentType, MessageRole
+from app.models.db_models import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.schemas.pagination import CursorPaginatedResponse, PaginatedResponse
 
 
@@ -38,7 +38,10 @@ class ChatRequest(BaseModel):
 
 
 class MessageBase(BaseModel):
-    content: str
+    content_text: str = ""
+    content_render: dict[str, Any] = Field(default_factory=lambda: {"segments": []})
+    last_seq: int = 0
+    active_stream_id: UUID | None = None
     role: MessageRole
 
 
@@ -47,6 +50,7 @@ class Message(MessageBase):
     chat_id: UUID
     created_at: datetime
     model_id: str | None = None
+    stream_status: MessageStreamStatus | None = None
     attachments: list[MessageAttachment] = Field(default_factory=list)
 
     class Config:
@@ -124,6 +128,7 @@ class CursorPaginatedMessages(CursorPaginatedResponse[Message]):
 class ChatCompletionResponse(BaseModel):
     chat_id: UUID
     message_id: UUID
+    last_seq: int = 0
 
 
 class EnhancePromptResponse(BaseModel):
@@ -133,7 +138,23 @@ class EnhancePromptResponse(BaseModel):
 class ChatStatusResponse(BaseModel):
     has_active_task: bool
     message_id: UUID | None = None
-    last_event_id: str | None = None
+    stream_id: UUID | None = None
+    last_seq: int = 0
+
+
+class MessageEvent(BaseModel):
+    id: UUID
+    message_id: UUID
+    chat_id: UUID
+    stream_id: UUID
+    seq: int
+    event_type: str
+    render_payload: dict[str, Any]
+    audit_payload: dict[str, Any] | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class PermissionRespondResponse(BaseModel):

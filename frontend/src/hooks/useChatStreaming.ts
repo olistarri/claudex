@@ -104,7 +104,7 @@ export function useChatStreaming({
   const { copiedMessageId, handleCopy } = useClipboard({ chatId });
 
   const {
-    onChunk,
+    onEnvelope,
     onComplete,
     onError,
     onQueueProcess,
@@ -115,6 +115,7 @@ export function useChatStreaming({
     addMessageToCache,
     setPendingUserMessageId,
   } = useStreamCallbacks({
+    messages,
     chatId,
     currentChat,
     queryClient,
@@ -141,7 +142,7 @@ export function useChatStreaming({
       if (existingStream && lastConnectedStreamRef.current !== existingStream.id) {
         lastConnectedStreamRef.current = existingStream.id;
         updateStreamCallbacks(chatId, existingStream.messageId, {
-          onChunk,
+          onEnvelope,
           onComplete,
           onError,
           onQueueProcess,
@@ -155,7 +156,7 @@ export function useChatStreaming({
 
     const unsubscribe = useStreamStore.subscribe(checkAndUpdateCallbacks);
     return () => unsubscribe();
-  }, [chatId, updateStreamCallbacks, onChunk, onComplete, onError, onQueueProcess]);
+  }, [chatId, updateStreamCallbacks, onEnvelope, onComplete, onError, onQueueProcess]);
 
   useEffect(() => {
     if (prevChatIdRef.current !== chatId) {

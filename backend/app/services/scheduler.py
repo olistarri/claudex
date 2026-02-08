@@ -567,11 +567,27 @@ class SchedulerService(BaseDbService[ScheduledTask]):
                     user_message = Message(
                         chat_id=chat.id,
                         content=scheduled_task.prompt_message,
+                        content_text=scheduled_task.prompt_message,
+                        content_render={
+                            "events": [
+                                {
+                                    "type": "user_text",
+                                    "text": scheduled_task.prompt_message,
+                                }
+                            ],
+                            "segments": [],
+                        },
+                        last_seq=0,
+                        active_stream_id=None,
                         role=MessageRole.USER,
                     )
                     assistant_message = Message(
                         chat_id=chat.id,
                         content="",
+                        content_text="",
+                        content_render={"events": [], "segments": []},
+                        last_seq=0,
+                        active_stream_id=None,
                         role=MessageRole.ASSISTANT,
                         model_id=scheduled_task.model_id,
                         stream_status=MessageStreamStatus.IN_PROGRESS,
