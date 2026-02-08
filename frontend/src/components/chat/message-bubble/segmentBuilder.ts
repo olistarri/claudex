@@ -1,5 +1,4 @@
 import type { AssistantStreamEvent, ToolAggregate, ToolEventStatus } from '@/types';
-import type { LineReview } from '@/types/review.types';
 
 export interface TextSegment {
   kind: 'text';
@@ -20,25 +19,13 @@ export interface ToolSegment {
   tool: ToolAggregate;
 }
 
-export interface ReviewSegment {
-  kind: 'review';
-  id: string;
-  reviews: LineReview[];
-  eventIndex: number;
-}
-
 export interface SuggestionsSegment {
   kind: 'suggestions';
   id: string;
   suggestions: string[];
 }
 
-export type MessageSegment =
-  | TextSegment
-  | ThinkingSegment
-  | ToolSegment
-  | ReviewSegment
-  | SuggestionsSegment;
+export type MessageSegment = TextSegment | ThinkingSegment | ToolSegment | SuggestionsSegment;
 
 const statusMap: Record<'tool_started' | 'tool_completed' | 'tool_failed', ToolEventStatus> = {
   tool_started: 'started',
@@ -326,7 +313,6 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
   let pendingText = '';
   let textSegmentCount = 0;
   let thinkingSegmentCount = 0;
-  let reviewSegmentCount = 0;
   let suggestionsSegmentCount = 0;
 
   const flushText = () => {
@@ -361,16 +347,6 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
           eventIndex: index,
         });
         thinkingSegmentCount++;
-        break;
-      case 'code_review':
-        flushText();
-        segments.push({
-          kind: 'review',
-          id: `review-${reviewSegmentCount}`,
-          reviews: event.reviews,
-          eventIndex: index,
-        });
-        reviewSegmentCount++;
         break;
       case 'prompt_suggestions':
         flushText();

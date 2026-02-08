@@ -59,6 +59,10 @@ const shutdownStream = (stream: ActiveStream) => {
   } catch (error) {
     logger.error('Stream close failed', 'store', error);
   }
+
+  stream.isActive = false;
+  stream.callbacks = undefined;
+  stream.source.onerror = null;
 };
 
 export const useStreamStore = create<StreamState>((set, get) => ({

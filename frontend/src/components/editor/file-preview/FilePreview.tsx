@@ -58,25 +58,22 @@ export const FilePreview = memo(function FilePreview({ file, showPreview }: File
     setIsFullscreen((prev) => !prev);
   }, []);
 
-  const handleEscapeKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
-      }
-    },
-    [isFullscreen],
-  );
-
   useEffect(() => {
-    if (typeof document === 'undefined') {
+    if (typeof document === 'undefined' || !isFullscreen) {
       return;
     }
 
-    document.addEventListener('keydown', handleEscapeKey);
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+      }
     };
-  }, [handleEscapeKey]);
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (!showPreview) {

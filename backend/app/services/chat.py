@@ -48,7 +48,7 @@ from app.tasks.chat import process_chat
 
 if TYPE_CHECKING:
     from celery.result import AsyncResult
-from app.utils.message_events import extract_user_prompt_and_reviews
+from app.utils.message_events import extract_user_prompt
 from app.utils.redis import redis_connection
 from app.utils.attachment_urls import build_attachment_preview_url
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys
@@ -411,10 +411,10 @@ class ChatService(BaseDbService[Chat]):
             )
 
         try:
-            user_prompt, reviews_text = extract_user_prompt_and_reviews(request.prompt)
-            ai_prompt = user_prompt + reviews_text
+            user_prompt = extract_user_prompt(request.prompt)
+            ai_prompt = user_prompt
         except (ValueError, KeyError, TypeError, AttributeError) as e:
-            logger.error("Failed to parse review comments: %s", e)
+            logger.error("Failed to parse message events: %s", e)
             user_prompt = request.prompt or ""
             ai_prompt = user_prompt
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { QueryClient } from '@tanstack/react-query';
-import { useReviewStore } from '@/store';
 import { appendEventToLog } from '@/utils/stream';
 import { playNotificationSound } from '@/utils/audio';
 import { queryKeys, useSettingsQuery } from '@/hooks/queries';
@@ -44,8 +43,6 @@ interface UseStreamCallbacksResult {
   updateMessageInCache: ReturnType<typeof useMessageCache>['updateMessageInCache'];
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
   removeMessagesFromCache: ReturnType<typeof useMessageCache>['removeMessagesFromCache'];
-  getReviewsForChat: ReturnType<typeof useReviewStore.getState>['getReviewsForChat'];
-  clearReviewsForChat: ReturnType<typeof useReviewStore.getState>['clearReviewsForChat'];
   setPendingUserMessageId: (id: string | null) => void;
 }
 
@@ -77,6 +74,7 @@ export function useStreamCallbacks({
   useEffect(() => {
     return () => {
       timerIdsRef.current.forEach(clearTimeout);
+      timerIdsRef.current = [];
     };
   }, []);
 
@@ -84,8 +82,6 @@ export function useStreamCallbacks({
     chatId,
     queryClient,
   });
-  const getReviewsForChat = useReviewStore((state) => state.getReviewsForChat);
-  const clearReviewsForChat = useReviewStore((state) => state.clearReviewsForChat);
   const { data: settings } = useSettingsQuery();
 
   const setPendingUserMessageId = useCallback(
@@ -310,8 +306,6 @@ export function useStreamCallbacks({
     updateMessageInCache,
     addMessageToCache,
     removeMessagesFromCache,
-    getReviewsForChat,
-    clearReviewsForChat,
     setPendingUserMessageId,
   };
 }

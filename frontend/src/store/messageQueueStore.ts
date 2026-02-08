@@ -23,6 +23,7 @@ interface MessageQueueState {
   fetchQueue: (chatId: string) => Promise<void>;
   syncPendingMessages: (chatId: string, modelId: string) => Promise<void>;
   removeLocalOnly: (chatId: string, messageId: string) => void;
+  cleanupChat: (chatId: string) => void;
 }
 
 export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
@@ -210,6 +211,16 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       const nextQueues = new Map(state.queues);
       nextQueues.delete(chatId);
       return { queues: nextQueues };
+    });
+  },
+
+  cleanupChat: (chatId: string) => {
+    set((state) => {
+      const nextQueues = new Map(state.queues);
+      const nextSyncing = new Map(state.isSyncing);
+      nextQueues.delete(chatId);
+      nextSyncing.delete(chatId);
+      return { queues: nextQueues, isSyncing: nextSyncing };
     });
   },
 

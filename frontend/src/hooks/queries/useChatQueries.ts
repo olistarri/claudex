@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseMutationOptions, UseQueryOptions, InfiniteData } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { useMessageQueueStore } from '@/store';
 import type {
   Chat,
   ContextUsage,
@@ -25,6 +26,7 @@ export const useInfiniteChatsQuery = (options?: { perPage?: number; enabled?: bo
     },
     initialPageParam: 1,
     enabled: options?.enabled ?? true,
+    gcTime: 1000 * 60 * 1,
   });
 };
 
@@ -40,6 +42,7 @@ export const useInfiniteMessagesQuery = (chatId: string, limit: number = 20) => 
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     initialPageParam: undefined as string | undefined,
     enabled: !!chatId,
+    gcTime: 1000 * 60 * 1,
   });
 };
 
@@ -209,6 +212,7 @@ export const useDeleteChatMutation = (options?: UseMutationOptions<void, Error, 
       queryClient.removeQueries({ queryKey: queryKeys.chat(chatId) });
       queryClient.removeQueries({ queryKey: queryKeys.messages(chatId) });
       queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
+      useMessageQueueStore.getState().cleanupChat(chatId);
 
       if (onSuccess) {
         await onSuccess(data, chatId, context, mutation);

@@ -5,7 +5,7 @@ import { parseEventLog } from '@/utils/stream';
 import { createAttachmentsFromFiles } from '@/utils/message';
 import { extractPromptMention } from '@/utils/mentionParser';
 import { MAX_MESSAGE_SIZE_BYTES } from '@/config/constants';
-import type { ChatRequest, Message, AssistantStreamEvent, LineReview, StreamState } from '@/types';
+import type { ChatRequest, Message, AssistantStreamEvent, StreamState } from '@/types';
 
 interface UseMessageActionsParams {
   chatId: string | undefined;
@@ -20,8 +20,6 @@ interface UseMessageActionsParams {
   addMessageToCache: (message: Message, userMessage?: Message) => void;
   startStream: (request: ChatRequest) => Promise<string>;
   storeBlobUrl: (file: File, url: string) => void;
-  getReviewsForChat: (chatId: string) => LineReview[];
-  clearReviewsForChat: (chatId: string) => void;
   setPendingUserMessageId: (id: string | null) => void;
   isLoading: boolean;
   isStreaming: boolean;
@@ -43,8 +41,6 @@ export function useMessageActions({
   addMessageToCache,
   startStream,
   storeBlobUrl,
-  getReviewsForChat,
-  clearReviewsForChat,
   setPendingUserMessageId,
   isLoading,
   isStreaming,
@@ -137,8 +133,7 @@ export function useMessageActions({
 
   const handleMessageSend = useCallback(
     async (inputMessage: string, inputFiles: File[]) => {
-      const reviews = chatId ? getReviewsForChat(chatId) : [];
-      const hasContent = inputMessage.trim() || reviews.length > 0;
+      const hasContent = inputMessage.trim();
 
       if (!hasContent || isLoading || isStreaming) return;
 
@@ -148,9 +143,6 @@ export function useMessageActions({
       }
 
       const messageEvents: AssistantStreamEvent[] = [];
-      if (reviews.length > 0) {
-        messageEvents.push({ type: 'code_review', reviews });
-      }
       if (inputMessage.trim()) {
         messageEvents.push({ type: 'user_text', text: inputMessage });
       }
@@ -161,9 +153,7 @@ export function useMessageActions({
       const byteSize = encoder.encode(serialized).length;
 
       if (byteSize > MAX_MESSAGE_SIZE_BYTES) {
-        toast.error(
-          `Message too large (${Math.round(byteSize / 1024)}KB). Please reduce the number of review comments.`,
-        );
+        toast.error(`Message too large (${Math.round(byteSize / 1024)}KB).`);
         return;
       }
 
@@ -182,11 +172,6 @@ export function useMessageActions({
 
       try {
         await sendMessage(newMessage.content, chatId, newMessage, inputFiles);
-
-        if (chatId && reviews.length > 0) {
-          clearReviewsForChat(chatId);
-        }
-
         return { success: true };
       } catch (error) {
         logger.error('Failed to send message', 'useMessageActions', error);
@@ -202,8 +187,6 @@ export function useMessageActions({
       selectedModelId,
       sendMessage,
       storeBlobUrl,
-      getReviewsForChat,
-      clearReviewsForChat,
       setPendingUserMessageId,
       setError,
       setMessages,
