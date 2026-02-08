@@ -55,10 +55,13 @@ class StreamService {
     const currentStream = this.store.getStream(streamId);
     if (!currentStream) return;
 
+    const errorCallback = currentStream.callbacks?.onError;
+    const streamMessageId = currentStream.messageId ?? messageId;
+
     this.store.removeStream(streamId);
 
-    if (error && currentStream.callbacks?.onError) {
-      currentStream.callbacks.onError(error, messageId);
+    if (error && errorCallback) {
+      errorCallback(error, streamMessageId);
     }
   }
 
@@ -129,8 +132,9 @@ class StreamService {
     const currentStream = this.store.getStream(streamId);
     if (!currentStream) return;
 
+    const { callbacks, messageId: streamMessageId } = currentStream;
     this.store.removeStream(streamId);
-    currentStream.callbacks?.onComplete?.(currentStream.messageId);
+    callbacks?.onComplete?.(streamMessageId);
   }
 
   private handleQueueProcessingEvent(event: MessageEvent, chatId: string): void {

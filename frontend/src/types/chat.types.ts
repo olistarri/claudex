@@ -1,5 +1,4 @@
 import type { ToolEventPayload } from './tools.types';
-import type { LineReview } from './review.types';
 import type { ProviderType } from './user.types';
 
 export interface MessageAttachment {
@@ -29,7 +28,6 @@ export type AssistantStreamEvent =
   | { type: 'tool_completed'; tool: ToolEventPayload }
   | { type: 'tool_failed'; tool: ToolEventPayload }
   | { type: 'user_text'; text: string }
-  | { type: 'code_review'; reviews: LineReview[] }
   | {
       type: 'system';
       data?: { context_usage?: { tokens_used: number; context_window: number } } & Record<

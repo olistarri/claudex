@@ -113,8 +113,6 @@ export function useChatStreaming({
     stopStream,
     updateMessageInCache,
     addMessageToCache,
-    getReviewsForChat,
-    clearReviewsForChat,
     setPendingUserMessageId,
   } = useStreamCallbacks({
     chatId,
@@ -216,8 +214,6 @@ export function useChatStreaming({
     addMessageToCache,
     startStream,
     storeBlobUrl: storePdfBlobUrl,
-    getReviewsForChat,
-    clearReviewsForChat,
     setPendingUserMessageId,
     isLoading,
     isStreaming,
@@ -296,6 +292,8 @@ export function useChatStreaming({
 
   useEffect(() => {
     cleanupExpiredPdfBlobs();
+    const interval = setInterval(cleanupExpiredPdfBlobs, 1000 * 60 * 30);
+    return () => clearInterval(interval);
   }, []);
 
   const handleMessageSend = useCallback(

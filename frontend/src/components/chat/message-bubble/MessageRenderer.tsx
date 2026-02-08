@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { parseEventLog } from '@/utils/stream';
 import { MarkDown } from '@/components/ui';
 import { ThinkingBlock } from './ThinkingBlock';
-import { ReviewBlock } from './ReviewBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import { buildSegments } from './segmentBuilder';
@@ -67,13 +66,6 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
                   content={segment.text}
                   isActiveThinking={segment.eventIndex === activeThinkingIndex}
                 />
-              </div>
-            );
-          }
-          case 'review': {
-            return (
-              <div key={segment.id} className="mb-2 mt-1">
-                <ReviewBlock reviews={segment.reviews} />
               </div>
             );
           }

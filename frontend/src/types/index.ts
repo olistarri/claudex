@@ -9,5 +9,4 @@ export * from './settings.types';
 export * from './stream.types';
 export * from './sandbox.types';
 export * from './errors.types';
-export * from './review.types';
 export * from './queue.types';

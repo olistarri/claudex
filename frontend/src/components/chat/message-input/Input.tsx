@@ -1,4 +1,4 @@
-import { useRef, memo, useState, useCallback, useEffect, useMemo } from 'react';
+import { useRef, memo, useState, useCallback, useEffect } from 'react';
 import { FileUploadDialog } from '@/components/ui/FileUploadDialog';
 import { DrawingModal } from '@/components/ui/DrawingModal';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
@@ -10,9 +10,8 @@ import { AttachButton } from './AttachButton';
 import { Textarea } from './Textarea';
 import { InputControls } from './InputControls';
 import { InputAttachments } from './InputAttachments';
-import { ReviewChipsBar } from './ReviewChipsBar';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
-import { useChatStore, useReviewStore, useMessageQueueStore, useUIStore } from '@/store';
+import { useMessageQueueStore, useUIStore } from '@/store';
 import { ContextUsageIndicator, ContextUsageInfo } from './ContextUsageIndicator';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { useEnhancePromptMutation } from '@/hooks/queries';
@@ -67,18 +66,10 @@ export const Input = memo(function Input({
   const [showPreview, setShowPreview] = useState(true);
   const [cursorPosition, setCursorPosition] = useState(0);
 
-  const currentChat = useChatStore((state) => state.currentChat);
-  const reviews = useReviewStore((state) => state.reviews);
-  const removeReview = useReviewStore((state) => state.removeReview);
   const queueMessage = useMessageQueueStore((state) => state.queueMessage);
   const permissionMode = useUIStore((state) => state.permissionMode);
   const thinkingMode = useUIStore((state) => state.thinkingMode);
   const clearAttachedFiles = onAttach;
-
-  const chatReviews = useMemo(
-    () => (currentChat ? reviews.filter((r) => r.chatId === currentChat.id) : []),
-    [currentChat, reviews],
-  );
 
   const { previewUrls } = useFileHandling({
     initialFiles: attachedFiles,
@@ -296,8 +287,6 @@ export const Input = memo(function Input({
         }`}
       >
         <DropIndicator visible={isDragging} fileType="any" message="Drop your files here" />
-
-        <ReviewChipsBar reviews={chatReviews} onRemove={removeReview} />
 
         {shouldShowAttachedPreview && attachedFiles && (
           <InputAttachments
