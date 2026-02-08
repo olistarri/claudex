@@ -167,7 +167,7 @@ export default function App() {
     let interval: number | undefined;
     let cancelled = false;
     const apiUrl = new URL(API_BASE_URL, window.location.origin);
-    const healthUrl = `${apiUrl.origin}/health`;
+    const healthUrl = `${apiUrl.origin}/api/v1/readyz`;
 
     const check = async () => {
       try {

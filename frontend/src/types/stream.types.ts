@@ -1,6 +1,31 @@
-import type { AssistantStreamEvent, MessageAttachment } from './chat.types';
+import type { MessageAttachment } from './chat.types';
 
 export type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
+export type StreamKind =
+  | 'stream_started'
+  | 'assistant_text'
+  | 'assistant_thinking'
+  | 'tool_started'
+  | 'tool_completed'
+  | 'tool_failed'
+  | 'system'
+  | 'permission_request'
+  | 'prompt_suggestions'
+  | 'snapshot'
+  | 'complete'
+  | 'error'
+  | 'cancelled'
+  | 'queue_processing';
+
+export interface StreamEnvelope {
+  chatId: string;
+  messageId: string;
+  streamId: string;
+  seq: number;
+  kind: StreamKind;
+  payload: Record<string, unknown>;
+  ts?: string | null;
+}
 
 export interface QueueProcessingData {
   queuedMessageId: string;
@@ -25,9 +50,13 @@ export interface ActiveStream {
   isActive: boolean;
   listeners: Array<{ type: string; handler: EventListener }>;
   callbacks?: {
-    onChunk?: (event: AssistantStreamEvent, messageId: string) => void;
-    onComplete?: (messageId?: string) => void;
-    onError?: (error: Error, messageId?: string) => void;
+    onEnvelope?: (envelope: StreamEnvelope) => void;
+    onComplete?: (
+      messageId?: string,
+      streamId?: string,
+      terminalKind?: 'complete' | 'cancelled',
+    ) => void;
+    onError?: (error: Error, messageId?: string, streamId?: string) => void;
     onQueueProcess?: (data: QueueProcessingData) => void;
   };
 }

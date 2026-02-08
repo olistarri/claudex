@@ -47,6 +47,7 @@ class ToolStatus(str, enum.Enum):
 
 
 class StreamEventKind(str, enum.Enum):
+    STREAM = "stream"
     CONTENT = "content"
     COMPLETE = "complete"
     ERROR = "error"

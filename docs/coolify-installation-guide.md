@@ -406,15 +406,25 @@ Deploy services in this order to ensure dependencies are ready:
 
 All services should show green health indicators:
 
-### Step 4: Check API Health
+### Step 4: Check API Health and Readiness
 
-Visit `https://api.yourdomain.com/api/v1/health` to verify the API is running:
+Visit `https://api.yourdomain.com/api/v1/healthz` to verify liveness:
 
 ```json
 {
-  "status": "healthy",
-  "database": "connected",
-  "redis": "connected"
+  "status": "healthy"
+}
+```
+
+Visit `https://api.yourdomain.com/api/v1/readyz` to verify dependency readiness:
+
+```json
+{
+  "status": "ready",
+  "checks": {
+    "database": { "ok": true },
+    "redis": { "ok": true }
+  }
 }
 ```
 

@@ -7,6 +7,7 @@ import React, {
   memo,
   useMemo,
 } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useInView } from 'react-intersection-observer';
 import { findLastBotMessageIndex } from '@/utils/message';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
@@ -31,6 +32,10 @@ import { ToolPermissionInline } from '@/components/chat/tools/ToolPermissionInli
 import { ChatProvider } from '@/contexts/ChatContext';
 
 const SCROLL_THRESHOLD_PERCENT = 20;
+const EMPTY_FILES: FileStructure[] = [];
+const EMPTY_AGENTS: CustomAgent[] = [];
+const EMPTY_COMMANDS: CustomCommand[] = [];
+const EMPTY_PROMPTS: CustomPrompt[] = [];
 
 export interface ChatProps {
   messages: MessageType[];
@@ -96,26 +101,27 @@ export const Chat = memo(function Chat({
   hasNextPage,
   isFetchingNextPage,
   onRestoreSuccess,
-  fileStructure = [],
-  customAgents = [],
-  customSlashCommands = [],
-  customPrompts = [],
+  fileStructure = EMPTY_FILES,
+  customAgents = EMPTY_AGENTS,
+  customSlashCommands = EMPTY_COMMANDS,
+  customPrompts = EMPTY_PROMPTS,
   pendingPermissionRequest,
   onPermissionApprove,
   onPermissionReject,
   isPermissionLoading = false,
   permissionError,
 }: ChatProps) {
-  const activeStreams = useStreamStore((state) => state.activeStreams);
-  const streamingMessageIds = useMemo(() => {
-    const ids: string[] = [];
-    activeStreams.forEach((stream) => {
-      if (stream.chatId === chatId && stream.isActive) {
-        ids.push(stream.messageId);
-      }
-    });
-    return ids;
-  }, [activeStreams, chatId]);
+  const streamingMessageIds = useStreamStore(
+    useShallow((state) => {
+      const ids: string[] = [];
+      state.activeStreams.forEach((stream) => {
+        if (stream.chatId === chatId && stream.isActive) {
+          ids.push(stream.messageId);
+        }
+      });
+      return ids;
+    }),
+  );
 
   const pendingMessages = useMessageQueueStore((state) =>
     chatId ? (state.queues.get(chatId) ?? EMPTY_QUEUE) : EMPTY_QUEUE,
@@ -260,7 +266,7 @@ export const Chat = memo(function Chat({
   useEffect(() => {
     const container = chatWindowRef.current;
     if (container) {
-      container.addEventListener('scroll', handleScroll);
+      container.addEventListener('scroll', handleScroll, { passive: true });
       handleScroll();
 
       const currentTimeoutRef = timeoutRef.current;
@@ -327,8 +333,8 @@ export const Chat = memo(function Chat({
     onPermissionReject &&
     pendingPermissionRequest.tool_name !== 'AskUserQuestion' &&
     pendingPermissionRequest.tool_name !== 'ExitPlanMode';
-  const lastBotIsStreaming =
-    lastBotMessageIndex >= 0 && streamingMessageIds.includes(messages[lastBotMessageIndex]?.id);
+  const lastBotMessage = lastBotMessageIndex >= 0 ? messages[lastBotMessageIndex] : undefined;
+  const lastBotIsStreaming = !!lastBotMessage && streamingMessageIds.includes(lastBotMessage.id);
   const showPermissionAtEnd =
     canShowPermissionInline && (lastBotMessageIndex < 0 || lastBotIsStreaming);
 
@@ -369,14 +375,15 @@ export const Chat = memo(function Chat({
               )}
               {messages.map((msg, index) => {
                 const messageIsStreaming = streamingMessageIds.includes(msg.id);
-                const isLastBotMessage = msg.is_bot && index === lastBotMessageIndex;
+                const isBotMessage = msg.is_bot ?? msg.role === 'assistant';
+                const isLastBotMessage = isBotMessage && index === lastBotMessageIndex;
                 const showPermissionAfterThis =
                   isLastBotMessage && !messageIsStreaming && canShowPermissionInline;
                 const localAttachmentIds =
                   msg.attachments
                     ?.filter((attachment) => isBrowserObjectUrl(attachment.file_url))
                     .map((attachment) => attachment.id) ?? [];
-                const isLatestUserMessage = !msg.is_bot && msg.id === latestUserMessageId;
+                const isLatestUserMessage = !isBotMessage && msg.id === latestUserMessageId;
                 const shouldShowUploadingOverlay =
                   localAttachmentIds.length > 0 &&
                   (pendingUserMessageId === msg.id ||
@@ -387,23 +394,26 @@ export const Chat = memo(function Chat({
 
                 return (
                   <React.Fragment key={msg.id}>
-                    <Message
-                      id={msg.id}
-                      content={msg.content}
-                      isBot={msg.is_bot}
-                      attachments={msg.attachments}
-                      copiedMessageId={copiedMessageId}
-                      onCopy={onCopy}
-                      isThisMessageStreaming={messageIsStreaming}
-                      isGloballyStreaming={isStreaming}
-                      createdAt={msg.created_at}
-                      modelId={msg.model_id}
-                      isLastBotMessageWithCommit={isLastBotMessage}
-                      onRestoreSuccess={onRestoreSuccess}
-                      isLastBotMessage={isLastBotMessage && !messageIsStreaming}
-                      onSuggestionSelect={isLastBotMessage ? handleSuggestionSelect : undefined}
-                      uploadingAttachmentIds={uploadingAttachmentIds}
-                    />
+                    <div className="message-item">
+                      <Message
+                        id={msg.id}
+                        contentText={msg.content_text}
+                        contentRender={msg.content_render}
+                        isBot={isBotMessage}
+                        attachments={msg.attachments}
+                        copiedMessageId={copiedMessageId}
+                        onCopy={onCopy}
+                        isThisMessageStreaming={messageIsStreaming}
+                        isGloballyStreaming={isStreaming}
+                        createdAt={msg.created_at}
+                        modelId={msg.model_id}
+                        isLastBotMessageWithCommit={isLastBotMessage}
+                        onRestoreSuccess={onRestoreSuccess}
+                        isLastBotMessage={isLastBotMessage && !messageIsStreaming}
+                        onSuggestionSelect={isLastBotMessage ? handleSuggestionSelect : undefined}
+                        uploadingAttachmentIds={uploadingAttachmentIds}
+                      />
+                    </div>
                     {showPermissionAfterThis && (
                       <div className="px-4 sm:px-6">
                         <div className="flex items-start gap-3 sm:gap-4">

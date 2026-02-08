@@ -10,7 +10,14 @@ export function createInitialMessage(
   return {
     id: crypto.randomUUID(),
     chat_id: chatId,
-    content: prompt,
+    content_text: prompt,
+    content_render: {
+      events: [{ type: 'user_text', text: prompt }],
+      segments: [],
+    },
+    last_seq: 0,
+    active_stream_id: null,
+    stream_status: 'completed',
     role: 'user',
     is_bot: false,
     attachments:

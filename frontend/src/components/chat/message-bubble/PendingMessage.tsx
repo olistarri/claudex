@@ -5,7 +5,10 @@ import { apiClient } from '@/lib/api';
 import { detectFileType } from '@/utils/fileTypes';
 import { fetchAttachmentBlob } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
-import type { LocalQueuedMessage, MessageAttachment as QueueAttachment } from '@/types/queue.types';
+import type {
+  LocalQueuedMessage,
+  QueueMessageAttachment as QueueAttachment,
+} from '@/types/queue.types';
 
 interface PendingMessageProps {
   message: LocalQueuedMessage;

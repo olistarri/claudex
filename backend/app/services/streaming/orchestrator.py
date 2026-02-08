@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import time
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, AsyncIterator, Callable
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from celery.exceptions import Ignore
 from sqlalchemy import select
@@ -24,8 +24,12 @@ from app.services.streaming.cancellation import CancellationHandler, StreamCance
 from app.services.streaming.context_usage import ContextUsageTracker
 from app.services.streaming.events import StreamEvent
 from app.services.streaming.publisher import StreamPublisher
-from app.services.streaming.queue_injector import QueueInjector
 from app.services.streaming.session import SessionUpdateCallback
+from app.services.streaming.protocol import (
+    StreamSnapshotAccumulator,
+    build_envelope,
+    redact_for_audit,
+)
 from app.services.user import UserService
 from app.utils.redis import redis_connection
 
@@ -39,21 +43,29 @@ SessionFactoryType = Callable[[], Any]
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class StreamContext:
     chat_id: str
+    chat_uuid: UUID
     stream: AsyncIterator[StreamEvent]
     task: Task[Any, Any]
     ai_service: ClaudeAgentService
     assistant_message_id: str | None
+    stream_id: UUID
     sandbox_service: SandboxService | None
     chat: Chat
     session_factory: Any
+    last_seq: int = 0
     session_container: dict[str, Any] | None = None
     user_id: str | None = None
     model_id: str | None = None
     sandbox_id: str | None = None
     events: list[StreamEvent] = field(default_factory=list)
+    snapshot: StreamSnapshotAccumulator = field(
+        default_factory=StreamSnapshotAccumulator
+    )
+    pending_since_flush: int = 0
+    last_flush_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass
@@ -84,16 +96,26 @@ class StreamOrchestrator:
 
     async def process_stream(self, ctx: StreamContext) -> StreamOutcome:
         try:
+            start_seq = await self._emit_envelope(
+                ctx,
+                "stream_started",
+                {"status": "started"},
+                apply_snapshot=False,
+            )
+            if ctx.assistant_message_id:
+                message_service = MessageService(session_factory=ctx.session_factory)
+                await message_service.update_message_snapshot(
+                    UUID(ctx.assistant_message_id),
+                    content_text="",
+                    content_render=ctx.snapshot.snapshot(),
+                    last_seq=start_seq,
+                    active_stream_id=ctx.stream_id,
+                )
             await self._process_stream_events(ctx)
 
             if self.cancellation.was_cancelled:
                 if not self.cancellation.cancel_requested:
                     await ctx.ai_service.cancel_active_stream()
-                await self._update_message_status(
-                    ctx.assistant_message_id,
-                    MessageStreamStatus.INTERRUPTED,
-                    ctx.session_factory,
-                )
                 outcome = await self._finalize_stream(
                     ctx, MessageStreamStatus.INTERRUPTED
                 )
@@ -108,22 +130,14 @@ class StreamOrchestrator:
             raise
         except Exception as exc:
             logger.error("Error in stream processing: %s", exc)
-
-            await self.publisher.publish_error(str(exc))
-            await self._update_message_status(
-                ctx.assistant_message_id,
-                MessageStreamStatus.FAILED,
-                ctx.session_factory,
+            await self._emit_envelope(
+                ctx,
+                "error",
+                {"error": str(exc)},
+                apply_snapshot=False,
             )
-
-            if ctx.assistant_message_id and ctx.events:
-                await self._save_message_content(
-                    ctx.assistant_message_id,
-                    ctx.events,
-                    ctx.ai_service.get_total_cost_usd(),
-                    MessageStreamStatus.FAILED,
-                    ctx.session_factory,
-                )
+            await self._flush_snapshot(ctx, force=True)
+            await self._persist_final_state(ctx, MessageStreamStatus.FAILED)
 
             raise
 
@@ -133,8 +147,6 @@ class StreamOrchestrator:
         revocation_task = self.cancellation.create_monitor_task(
             current_task, ctx.ai_service
         )
-
-        queue_injector: QueueInjector | None = None
 
         try:
             while True:
@@ -149,29 +161,10 @@ class StreamOrchestrator:
                     raise
 
                 ctx.events.append(deepcopy(event))
-                await self.publisher.publish_event(event)
-
-                if QueueInjector.should_try_injection(event):
-                    if queue_injector is None:
-                        queue_injector = self._create_queue_injector(ctx)
-
-                    if queue_injector:
-                        try:
-                            new_assistant_id = await queue_injector.check_and_inject()
-                            if new_assistant_id:
-                                if ctx.assistant_message_id and ctx.events:
-                                    await self._save_message_content(
-                                        ctx.assistant_message_id,
-                                        ctx.events,
-                                        ctx.ai_service.get_total_cost_usd(),
-                                        MessageStreamStatus.COMPLETED,
-                                        ctx.session_factory,
-                                    )
-                                await self.publisher.clear_stream()
-                                ctx.assistant_message_id = new_assistant_id
-                                ctx.events.clear()
-                        except Exception as e:
-                            logger.warning("Queue injection failed: %s", e)
+                kind = str(event.get("type") or "system")
+                payload = {k: v for k, v in event.items() if k != "type"}
+                await self._emit_envelope(ctx, kind, payload)
+                await self._flush_snapshot(ctx, force=False)
 
                 ctx.task.update_state(
                     state="PROGRESS",
@@ -183,33 +176,13 @@ class StreamOrchestrator:
                 with suppress(asyncio.CancelledError):
                     await revocation_task
 
-    def _create_queue_injector(self, ctx: StreamContext) -> QueueInjector | None:
-        transport = ctx.ai_service.get_active_transport()
-        if not transport:
-            return None
-
-        return QueueInjector(
-            chat_id=ctx.chat_id,
-            transport=transport,
-            publisher=self.publisher,
-            session_factory=ctx.session_factory,
-            session_id=ctx.chat.session_id,
-        )
-
     async def _finalize_stream(
         self, ctx: StreamContext, status: MessageStreamStatus
     ) -> StreamOutcome:
         total_cost = ctx.ai_service.get_total_cost_usd()
-        final_content = json.dumps(ctx.events, ensure_ascii=False)
-
-        if ctx.assistant_message_id and ctx.events:
-            await self._save_message_content(
-                ctx.assistant_message_id,
-                ctx.events,
-                total_cost,
-                status,
-                ctx.session_factory,
-            )
+        await self._flush_snapshot(ctx, force=True)
+        await self._persist_final_state(ctx, status)
+        final_content = ctx.snapshot.content_text
 
         if status == MessageStreamStatus.COMPLETED:
             await self._create_checkpoint_if_needed(
@@ -221,10 +194,23 @@ class StreamOrchestrator:
             queue_processed = await self._process_queue_if_available(ctx)
             if not queue_processed:
                 await self._publish_final_context_usage(ctx)
-                await self.publisher.publish_complete()
+                await self._emit_envelope(
+                    ctx,
+                    "complete",
+                    {"status": "completed"},
+                    apply_snapshot=False,
+                )
         else:
             await self._publish_final_context_usage(ctx)
-            await self.publisher.publish_complete()
+            terminal_kind = (
+                "cancelled" if status == MessageStreamStatus.INTERRUPTED else "complete"
+            )
+            await self._emit_envelope(
+                ctx,
+                terminal_kind,
+                {"status": status.value},
+                apply_snapshot=False,
+            )
 
         return StreamOutcome(
             events=ctx.events,
@@ -255,63 +241,114 @@ class StreamOrchestrator:
                 user_id=ctx.user_id,
                 model_id=ctx.model_id,
             )
+            message_id = (
+                UUID(ctx.assistant_message_id) if ctx.assistant_message_id else None
+            )
             await tracker.fetch_and_broadcast(
-                ctx.ai_service, self.publisher.redis, ctx.session_factory
+                ctx.ai_service,
+                self.publisher.redis,
+                ctx.session_factory,
+                message_id=message_id,
+                stream_id=ctx.stream_id,
             )
         except Exception as exc:
             logger.debug(
                 "Final context usage fetch failed for chat %s: %s", ctx.chat_id, exc
             )
 
-    async def _update_message_status(
+    async def _emit_envelope(
         self,
-        assistant_message_id: str | None,
-        stream_status: MessageStreamStatus,
-        session_factory: Any,
-    ) -> None:
-        if not assistant_message_id:
+        ctx: StreamContext,
+        kind: str,
+        payload: dict[str, Any],
+        *,
+        apply_snapshot: bool = True,
+    ) -> int:
+        if not ctx.assistant_message_id:
+            return 0
+
+        message_id = UUID(ctx.assistant_message_id)
+        message_service = MessageService(session_factory=ctx.session_factory)
+        seq = await message_service.append_event_with_next_seq(
+            chat_id=ctx.chat_uuid,
+            message_id=message_id,
+            stream_id=ctx.stream_id,
+            event_type=kind,
+            render_payload=payload,
+            audit_payload={"payload": redact_for_audit(payload)},
+        )
+        ctx.last_seq = seq
+
+        envelope = build_envelope(
+            chat_id=ctx.chat_uuid,
+            message_id=message_id,
+            stream_id=ctx.stream_id,
+            seq=seq,
+            kind=kind,
+            payload=payload,
+        )
+        await self.publisher.publish_envelope(envelope)
+
+        if apply_snapshot and kind in {
+            "assistant_text",
+            "assistant_thinking",
+            "tool_started",
+            "tool_completed",
+            "tool_failed",
+            "prompt_suggestions",
+            "system",
+            "permission_request",
+        }:
+            ctx.snapshot.apply(kind, payload)
+            ctx.pending_since_flush += 1
+
+        return seq
+
+    async def _flush_snapshot(self, ctx: StreamContext, *, force: bool) -> None:
+        if not ctx.assistant_message_id:
             return
+        if not force:
+            elapsed_ms = (time.monotonic() - ctx.last_flush_at) * 1000
+            if ctx.pending_since_flush == 0:
+                return
+            if elapsed_ms < 200 and ctx.pending_since_flush < 24:
+                return
 
-        try:
-            async with session_factory() as db:
-                message_uuid = UUID(assistant_message_id)
-                query = select(Message).filter(Message.id == message_uuid)
-                result = await db.execute(query)
-                message = result.scalar_one_or_none()
+        snapshot_seq = await self._emit_envelope(
+            ctx,
+            "snapshot",
+            {"last_seq": ctx.last_seq},
+            apply_snapshot=False,
+        )
 
-                if message:
-                    message.stream_status = stream_status
-                    db.add(message)
-                    await db.commit()
-        except Exception as exc:
-            logger.error("Failed to update message status: %s", exc)
+        message_service = MessageService(session_factory=ctx.session_factory)
+        await message_service.update_message_snapshot(
+            UUID(ctx.assistant_message_id),
+            content_text=ctx.snapshot.content_text,
+            content_render=ctx.snapshot.snapshot(),
+            last_seq=snapshot_seq,
+            active_stream_id=ctx.stream_id,
+        )
+        ctx.pending_since_flush = 0
+        ctx.last_flush_at = time.monotonic()
 
-    async def _save_message_content(
+    async def _persist_final_state(
         self,
-        assistant_message_id: str,
-        events: list[StreamEvent],
-        total_cost_usd: float,
+        ctx: StreamContext,
         stream_status: MessageStreamStatus,
-        session_factory: Any,
     ) -> None:
-        if not assistant_message_id or not events:
+        if not ctx.assistant_message_id:
             return
-
-        try:
-            async with session_factory() as db:
-                message_uuid = UUID(assistant_message_id)
-                query = select(Message).filter(Message.id == message_uuid)
-                result = await db.execute(query)
-                message = result.scalar_one_or_none()
-
-                if message:
-                    message.content = json.dumps(events, ensure_ascii=False)
-                    message.total_cost_usd = total_cost_usd
-                    message.stream_status = stream_status
-                    db.add(message)
-                    await db.commit()
-        except Exception as exc:
-            logger.error("Failed to save message content: %s", exc)
+        message_service = MessageService(session_factory=ctx.session_factory)
+        await message_service.update_message_snapshot(
+            UUID(ctx.assistant_message_id),
+            content_text=ctx.snapshot.content_text,
+            content_render=ctx.snapshot.snapshot(),
+            last_seq=ctx.last_seq,
+            active_stream_id=None,
+            stream_status=stream_status,
+            total_cost_usd=ctx.ai_service.get_total_cost_usd(),
+        )
 
     async def _create_checkpoint_if_needed(
         self,
@@ -355,7 +392,7 @@ class StreamOrchestrator:
             user_message, assistant_message = messages
 
             await self._publish_queue_processing_event(
-                next_msg, user_message, assistant_message
+                ctx, next_msg, user_message, assistant_message
             )
 
             await self._spawn_queue_continuation_task(ctx, next_msg, assistant_message)
@@ -404,17 +441,25 @@ class StreamOrchestrator:
 
     async def _publish_queue_processing_event(
         self,
+        ctx: StreamContext,
         next_msg: dict[str, Any],
         user_message: Message,
         assistant_message: Message,
     ) -> None:
-        await self.publisher.publish_queue_event(
-            queued_message_id=next_msg["id"],
-            user_message_id=str(user_message.id),
-            assistant_message_id=str(assistant_message.id),
-            content=next_msg["content"],
-            model_id=next_msg["model_id"],
-            attachments=MessageService.serialize_attachments(next_msg, user_message),
+        await self._emit_envelope(
+            ctx=ctx,
+            kind="queue_processing",
+            payload={
+                "queued_message_id": next_msg["id"],
+                "user_message_id": str(user_message.id),
+                "assistant_message_id": str(assistant_message.id),
+                "content": next_msg["content"],
+                "model_id": next_msg["model_id"],
+                "attachments": MessageService.serialize_attachments(
+                    next_msg, user_message
+                ),
+            },
+            apply_snapshot=False,
         )
 
     async def _spawn_queue_continuation_task(
@@ -480,8 +525,10 @@ class StreamOrchestrator:
         chat = StreamOrchestrator.hydrate_chat(chat_data)
 
         chat_id = str(chat.id)
+        chat_uuid = UUID(chat_id)
         session_container: dict[str, Any] = {"session_id": session_id}
         events: list[StreamEvent] = []
+        stream_id = uuid4()
 
         publisher = StreamPublisher(chat_id)
         result: str = ""
@@ -539,10 +586,12 @@ class StreamOrchestrator:
 
                 ctx = StreamContext(
                     chat_id=chat_id,
+                    chat_uuid=chat_uuid,
                     stream=stream,
                     task=task,
                     ai_service=ai_service,
                     assistant_message_id=assistant_message_id,
+                    stream_id=stream_id,
                     sandbox_service=sandbox_service,
                     chat=chat,
                     session_factory=session_factory,

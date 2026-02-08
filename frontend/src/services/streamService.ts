@@ -1,5 +1,5 @@
 import { useStreamStore, useMessageQueueStore } from '@/store';
-import type { ChatRequest, AssistantStreamEvent, ActiveStream, QueueProcessingData } from '@/types';
+import type { ChatRequest, ActiveStream, QueueProcessingData, StreamEnvelope } from '@/types';
 import { StreamProcessingError } from '@/types';
 import { chatService } from '@/services/chatService';
 import { logger } from '@/utils/logger';
@@ -8,29 +8,36 @@ import { chatStorage } from '@/utils/storage';
 export interface StreamOptions {
   chatId: string;
   request: ChatRequest;
-  onChunk?: (event: AssistantStreamEvent, messageId: string) => void;
-  onComplete?: (messageId?: string) => void;
-  onError?: (error: Error, messageId?: string) => void;
+  onEnvelope?: (envelope: StreamEnvelope) => void;
+  onComplete?: (
+    messageId?: string,
+    streamId?: string,
+    terminalKind?: 'complete' | 'cancelled',
+  ) => void;
+  onError?: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess?: (data: QueueProcessingData) => void;
 }
 
 interface StreamReconnectOptions {
   chatId: string;
   messageId: string;
-  onChunk?: (event: AssistantStreamEvent, messageId: string) => void;
-  onComplete?: (messageId?: string) => void;
-  onError?: (error: Error, messageId?: string) => void;
+  afterSeq?: number;
+  onEnvelope?: (envelope: StreamEnvelope) => void;
+  onComplete?: (
+    messageId?: string,
+    streamId?: string,
+    terminalKind?: 'complete' | 'cancelled',
+  ) => void;
+  onError?: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess?: (data: QueueProcessingData) => void;
 }
 
-// Singleton service managing EventSource streams for chat completions.
-// Subscribes to Zustand store to always have latest state without hook limitations.
 class StreamService {
   private store = useStreamStore.getState();
   private queueStore = useMessageQueueStore.getState();
+  private readonly maxRecentSeqPerChat = 4096;
+  private readonly recentSeqByChat = new Map<string, Set<number>>();
 
-  // Subscribe to store updates so this.store always reflects current state.
-  // This pattern allows using Zustand outside of React components.
   constructor() {
     useStreamStore.subscribe((state) => {
       this.store = state;
@@ -49,9 +56,12 @@ class StreamService {
     }
   }
 
-  // Removes stream from store and propagates error to callback if provided.
-  // Called on stream errors or completion to ensure proper cleanup.
-  private cleanupStream(streamId: string, error?: Error, messageId?: string): void {
+  private cleanupStream(
+    streamId: string,
+    error?: Error,
+    messageId?: string,
+    streamPublicId?: string,
+  ): void {
     const currentStream = this.store.getStream(streamId);
     if (!currentStream) return;
 
@@ -61,86 +71,42 @@ class StreamService {
     this.store.removeStream(streamId);
 
     if (error && errorCallback) {
-      errorCallback(error, streamMessageId);
+      errorCallback(error, streamMessageId, streamPublicId);
     }
   }
 
-  private handleContentEvent(
-    event: MessageEvent,
-    streamId: string,
-    _messageId: string,
-    chatId: string,
-  ): void {
-    if (event.lastEventId) {
-      chatStorage.setEventId(chatId, event.lastEventId);
+  private markSeqSeen(chatId: string, seq: number): boolean {
+    let seen = this.recentSeqByChat.get(chatId);
+    if (!seen) {
+      seen = new Set<number>();
+      this.recentSeqByChat.set(chatId, seen);
     }
 
-    if (!event.data) return;
-
-    const currentStream = this.store.getStream(streamId);
-    if (!currentStream) return;
-
-    const parsed = this.parseStreamEvent<{ event?: AssistantStreamEvent }>(event.data);
-
-    if (parsed?.event && currentStream.callbacks?.onChunk) {
-      currentStream.callbacks.onChunk(parsed.event, currentStream.messageId);
-    }
-  }
-
-  private handleErrorEvent(
-    event: MessageEvent,
-    streamId: string,
-    messageId: string,
-    chatId: string,
-  ): void {
-    const currentStream = this.store.getStream(streamId);
-    if (currentStream) {
-      currentStream.source.close();
+    if (seen.has(seq)) {
+      return false;
     }
 
-    if (event.lastEventId) {
-      chatStorage.setEventId(chatId, event.lastEventId);
-    }
+    seen.add(seq);
 
-    let message = 'An error occurred';
-    if (event.data) {
-      const parsed = this.parseStreamEvent<string | { error?: string }>(event.data);
-      if (typeof parsed === 'string') {
-        message = parsed;
-      } else if (parsed && typeof parsed === 'object' && 'error' in parsed) {
-        message = parsed.error ?? message;
+    if (seen.size > this.maxRecentSeqPerChat) {
+      const overflow = seen.size - this.maxRecentSeqPerChat;
+      let removed = 0;
+      for (const value of seen) {
+        seen.delete(value);
+        removed += 1;
+        if (removed >= overflow) {
+          break;
+        }
       }
     }
 
-    const wrappedError = new StreamProcessingError(
-      'Error processing completion stream',
-      new Error(message),
-    );
-    this.cleanupStream(streamId, wrappedError, messageId);
+    return true;
   }
 
-  private handleCompleteEvent(
-    event: MessageEvent,
-    streamId: string,
-    _messageId: string,
-    chatId: string,
-  ): void {
-    if (event.lastEventId) {
-      chatStorage.setEventId(chatId, event.lastEventId);
-    }
+  private maybeHandleQueueEvent(envelope: StreamEnvelope, chatId: string): void {
+    if (envelope.kind !== 'queue_processing') return;
 
-    const currentStream = this.store.getStream(streamId);
-    if (!currentStream) return;
-
-    const { callbacks, messageId: streamMessageId } = currentStream;
-    this.store.removeStream(streamId);
-    callbacks?.onComplete?.(streamMessageId);
-  }
-
-  private handleQueueProcessingEvent(event: MessageEvent, chatId: string): void {
-    if (!event.data) return;
-
-    const parsed = this.parseStreamEvent<{
+    const payload = envelope.payload as {
       queued_message_id?: string;
       user_message_id?: string;
       assistant_message_id?: string;
@@ -154,34 +120,90 @@ class StreamService {
         filename?: string;
         created_at: string;
       }>;
-    }>(event.data);
+    };
 
-    if (!parsed?.queued_message_id || !parsed?.assistant_message_id) return;
+    if (!payload?.queued_message_id || !payload?.assistant_message_id) return;
 
-    this.queueStore.removeLocalOnly(chatId, parsed.queued_message_id);
+    this.queueStore.removeLocalOnly(chatId, payload.queued_message_id);
 
     const stream = this.store.getStreamByChat(chatId);
     if (!stream) return;
 
-    this.store.updateStreamMessageId(chatId, stream.messageId, parsed.assistant_message_id);
+    if (payload.assistant_message_id !== stream.messageId) {
+      this.store.updateStreamMessageId(chatId, stream.messageId, payload.assistant_message_id);
+    }
 
-    if (stream.callbacks?.onQueueProcess && parsed.user_message_id && parsed.content) {
+    if (stream.callbacks?.onQueueProcess && payload.user_message_id && payload.content) {
       stream.callbacks.onQueueProcess({
-        queuedMessageId: parsed.queued_message_id,
-        userMessageId: parsed.user_message_id,
-        assistantMessageId: parsed.assistant_message_id,
-        content: parsed.content,
-        modelId: parsed.model_id ?? '',
-        attachments: parsed.attachments,
+        queuedMessageId: payload.queued_message_id,
+        userMessageId: payload.user_message_id,
+        assistantMessageId: payload.assistant_message_id,
+        content: payload.content,
+        modelId: payload.model_id ?? '',
+        attachments: payload.attachments,
       });
+    }
+  }
+
+  private handleStreamEnvelope(event: MessageEvent, streamId: string, chatId: string): void {
+    if (!event.data) return;
+
+    const currentStream = this.store.getStream(streamId);
+    if (!currentStream) return;
+
+    const parsed = this.parseStreamEvent<StreamEnvelope>(event.data);
+    if (!parsed) return;
+
+    const seq = Number(parsed.seq || 0);
+    if (!Number.isFinite(seq) || seq <= 0) {
+      return;
+    }
+
+    if (!this.markSeqSeen(chatId, seq)) {
+      return;
+    }
+
+    const lastSeq = Number(chatStorage.getEventId(chatId) || 0);
+    if (seq > lastSeq) {
+      chatStorage.setEventId(chatId, String(seq));
+    }
+
+    const isForActiveMessage = parsed.messageId === currentStream.messageId;
+    if (!isForActiveMessage) {
+      return;
+    }
+
+    currentStream.callbacks?.onEnvelope?.(parsed);
+    this.maybeHandleQueueEvent(parsed, chatId);
+
+    if (parsed.kind === 'complete' || parsed.kind === 'cancelled') {
+      const { callbacks } = currentStream;
+      this.store.removeStream(streamId);
+      callbacks?.onComplete?.(parsed.messageId, parsed.streamId, parsed.kind);
+      return;
+    }
+
+    if (parsed.kind === 'error') {
+      const message =
+        typeof parsed.payload?.error === 'string' ? parsed.payload.error : 'An error occurred';
+      const wrappedError = new StreamProcessingError(
+        'Error processing completion stream',
+        new Error(message),
+      );
+      this.cleanupStream(streamId, wrappedError, parsed.messageId, parsed.streamId);
     }
   }
 
   private handleGenericError(event: Event | ErrorEvent, streamId: string, messageId: string): void {
     const currentStream = this.store.getStream(streamId);
-    if (currentStream) {
-      currentStream.source.close();
+    if (!currentStream) return;
+
+    // EventSource emits transport "error" while reconnecting; do not fail fast.
+    if (currentStream.source.readyState === EventSource.CONNECTING) {
+      return;
     }
+
+    currentStream.source.close();
 
     const error =
       event instanceof ErrorEvent && event.error instanceof Error
@@ -192,38 +214,19 @@ class StreamService {
     this.cleanupStream(streamId, wrappedError, messageId);
   }
 
-  // Registers event listeners on the EventSource and stores them for cleanup.
-  // Listeners array is kept in sync so shutdownStream can remove them all.
   private attachStreamHandlers(streamId: string, messageId: string): void {
     const activeStream = this.store.getStream(streamId);
     if (!activeStream) return;
 
     const { source, chatId } = activeStream;
 
-    // Helper to both register a listener and track it for later removal
     const register = (type: string, handler: EventListener) => {
       source.addEventListener(type, handler);
       activeStream.listeners.push({ type, handler });
     };
 
-    register('content', (event: Event) =>
-      this.handleContentEvent(event as MessageEvent, streamId, messageId, chatId),
-    );
-
-    register('error', (event: Event) =>
-      this.handleErrorEvent(event as MessageEvent, streamId, messageId, chatId),
-    );
-
-    register('complete', (event: Event) =>
-      this.handleCompleteEvent(event as MessageEvent, streamId, messageId, chatId),
-    );
-
-    register('queue_processing', (event: Event) =>
-      this.handleQueueProcessingEvent(event as MessageEvent, chatId),
-    );
-
-    register('queue_injected', (event: Event) =>
-      this.handleQueueProcessingEvent(event as MessageEvent, chatId),
+    register('stream', (event: Event) =>
+      this.handleStreamEnvelope(event as MessageEvent, streamId, chatId),
     );
 
     source.onerror = (event) => {
@@ -246,7 +249,7 @@ class StreamService {
         isActive: true,
         listeners: [],
         callbacks: {
-          onChunk: options.onChunk,
+          onEnvelope: options.onEnvelope,
           onComplete: options.onComplete,
           onError: options.onError,
           onQueueProcess: options.onQueueProcess,
@@ -308,7 +311,12 @@ class StreamService {
     const streamId = crypto.randomUUID();
 
     try {
-      const { source } = await chatService.reconnectToStream(options.chatId, options.messageId);
+      const { source } = await chatService.reconnectToStream(
+        options.chatId,
+        options.messageId,
+        undefined,
+        options.afterSeq,
+      );
 
       const activeStream: ActiveStream = {
         id: streamId,
@@ -319,7 +327,7 @@ class StreamService {
         isActive: true,
         listeners: [],
         callbacks: {
-          onChunk: options.onChunk,
+          onEnvelope: options.onEnvelope,
           onComplete: options.onComplete,
           onError: options.onError,
           onQueueProcess: options.onQueueProcess,
@@ -337,11 +345,10 @@ class StreamService {
     }
   }
 
-  // Replays a stream from the beginning by clearing the lastEventId.
-  // Unlike reconnectToStream which resumes from where it left off,
-  // this forces a full replay of all events for the message.
   async replayStream(options: StreamReconnectOptions): Promise<string> {
-    chatStorage.removeEventId(options.chatId);
+    if (!options.afterSeq || options.afterSeq <= 0) {
+      this.recentSeqByChat.delete(options.chatId);
+    }
     return this.reconnectToStream(options);
   }
 }

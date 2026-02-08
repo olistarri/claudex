@@ -14,16 +14,13 @@ ensure_docker_network() {
 
 if [ "$MODE" = "migrate" ]; then
     echo "Running database migrations..."
-    cd /app && python migrate.py
+    cd /app && python migrate.py || exit 1
     exit 0
 fi
 
 if [ "$MODE" = "api" ]; then
     echo "Running database migrations..."
-    cd /app && python migrate.py
-
-    echo "Seeding data..."
-    cd /app && python seed_data.py
+    cd /app && python migrate.py || exit 1
 
     ensure_docker_network
 

@@ -1,10 +1,14 @@
 import { memo } from 'react';
 import { MessageRenderer } from './MessageRenderer';
-import type { MessageAttachment } from '@/types';
+import type { AssistantStreamEvent, MessageAttachment } from '@/types';
 import { MessageAttachments } from './MessageAttachments';
 
 interface MessageContentProps {
-  content: string;
+  contentText: string;
+  contentRender?: {
+    events?: AssistantStreamEvent[];
+    segments?: unknown[];
+  };
   isBot: boolean;
   attachments?: MessageAttachment[];
   uploadingAttachmentIds?: string[];
@@ -16,7 +20,8 @@ interface MessageContentProps {
 
 export const MessageContent = memo(
   ({
-    content,
+    contentText,
+    contentRender,
     isBot,
     attachments,
     uploadingAttachmentIds,
@@ -32,7 +37,12 @@ export const MessageContent = memo(
             attachments={attachments}
             uploadingAttachmentIds={uploadingAttachmentIds}
           />
-          <MessageRenderer content={content} isStreaming={isStreaming} chatId={chatId} />
+          <MessageRenderer
+            contentText={contentText}
+            events={contentRender?.events}
+            isStreaming={isStreaming}
+            chatId={chatId}
+          />
         </div>
       );
     }
@@ -40,7 +50,8 @@ export const MessageContent = memo(
     return (
       <div className="space-y-4">
         <MessageRenderer
-          content={content}
+          contentText={contentText}
+          events={contentRender?.events}
           isStreaming={isStreaming}
           chatId={chatId}
           isLastBotMessage={isLastBotMessage}

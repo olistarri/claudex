@@ -7,7 +7,7 @@ MAX_RESOURCES_PER_USER: Final[int] = 10
 MAX_RESOURCE_SIZE_BYTES: Final[int] = 100 * 1024
 
 REDIS_KEY_CHAT_TASK: Final[str] = "chat:{chat_id}:task"
-REDIS_KEY_CHAT_STREAM: Final[str] = "chat:{chat_id}:stream"
+REDIS_KEY_CHAT_STREAM_LIVE: Final[str] = "chat:{chat_id}:stream:live"
 REDIS_KEY_CHAT_REVOKED: Final[str] = "chat:{chat_id}:revoked"
 REDIS_KEY_CHAT_CANCEL: Final[str] = "chat:{chat_id}:cancel"
 REDIS_KEY_PERMISSION_REQUEST: Final[str] = "permission_request:{request_id}"

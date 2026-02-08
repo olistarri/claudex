@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { QueryClient } from '@tanstack/react-query';
-import { appendEventToLog } from '@/utils/stream';
+import { StreamingContentAccumulator, type ContentRenderSnapshot } from '@/utils/stream';
 import { playNotificationSound } from '@/utils/audio';
 import { queryKeys, useSettingsQuery } from '@/hooks/queries';
 import type {
@@ -10,14 +10,23 @@ import type {
   ContextUsage,
   Message,
   PermissionRequest,
-  StreamState,
   QueueProcessingData,
+  StreamEnvelope,
+  StreamState,
+  ToolEventPayload,
 } from '@/types';
 import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
 
+const STREAM_FLUSH_INTERVAL_MS = 200;
+
+function createEmptyRenderSnapshot(): ContentRenderSnapshot {
+  return { events: [], segments: [] };
+}
+
 interface UseStreamCallbacksParams {
+  messages: Message[];
   chatId: string | undefined;
   currentChat: Chat | undefined;
   queryClient: QueryClient;
@@ -33,12 +42,16 @@ interface UseStreamCallbacksParams {
 }
 
 interface UseStreamCallbacksResult {
-  onChunk: (event: AssistantStreamEvent, messageId: string) => void;
-  onComplete: () => void;
-  onError: (error: Error, messageId?: string) => void;
+  onEnvelope: (envelope: StreamEnvelope) => void;
+  onComplete: (
+    messageId?: string,
+    streamId?: string,
+    terminalKind?: 'complete' | 'cancelled',
+  ) => void;
+  onError: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess: (data: QueueProcessingData) => void;
   startStream: (request: StreamOptions['request']) => Promise<string>;
-  replayStream: (messageId: string) => Promise<string>;
+  replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
   stopStream: (messageId: string) => Promise<void>;
   updateMessageInCache: ReturnType<typeof useMessageCache>['updateMessageInCache'];
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
@@ -46,7 +59,62 @@ interface UseStreamCallbacksResult {
   setPendingUserMessageId: (id: string | null) => void;
 }
 
+interface StreamSessionState {
+  messageId: string;
+  lastSeq: number;
+}
+
+function envelopeToRenderEvent(envelope: StreamEnvelope): AssistantStreamEvent | null {
+  const payload = envelope.payload as Record<string, unknown>;
+
+  switch (envelope.kind) {
+    case 'assistant_text': {
+      const text = typeof payload.text === 'string' ? payload.text : '';
+      if (!text) return null;
+      return { type: 'assistant_text', text };
+    }
+    case 'assistant_thinking': {
+      const thinking = typeof payload.thinking === 'string' ? payload.thinking : '';
+      if (!thinking) return null;
+      return { type: 'assistant_thinking', thinking };
+    }
+    case 'tool_started':
+    case 'tool_completed':
+    case 'tool_failed': {
+      if (!payload.tool || typeof payload.tool !== 'object') {
+        return null;
+      }
+      return {
+        type: envelope.kind,
+        tool: payload.tool as ToolEventPayload,
+      } as AssistantStreamEvent;
+    }
+    case 'prompt_suggestions': {
+      const raw = payload.suggestions;
+      if (!Array.isArray(raw)) return null;
+      const suggestions = raw.filter((item): item is string => typeof item === 'string');
+      if (suggestions.length === 0) return null;
+      return { type: 'prompt_suggestions', suggestions };
+    }
+    case 'system':
+      return { type: 'system', data: payload };
+    case 'permission_request': {
+      const request_id = typeof payload.request_id === 'string' ? payload.request_id : '';
+      const tool_name = typeof payload.tool_name === 'string' ? payload.tool_name : '';
+      const tool_input =
+        payload.tool_input && typeof payload.tool_input === 'object'
+          ? (payload.tool_input as Record<string, unknown>)
+          : {};
+      if (!request_id || !tool_name) return null;
+      return { type: 'permission_request', request_id, tool_name, tool_input };
+    }
+    default:
+      return null;
+  }
+}
+
 export function useStreamCallbacks({
+  messages,
   chatId,
   currentChat,
   queryClient,
@@ -62,27 +130,149 @@ export function useStreamCallbacks({
 }: UseStreamCallbacksParams): UseStreamCallbacksResult {
   const optionsRef = useRef<{
     chatId: string;
-    onChunk?: (event: AssistantStreamEvent, messageId: string) => void;
-    onComplete?: (messageId?: string) => void;
-    onError?: (error: Error, messageId?: string) => void;
+    onEnvelope?: (envelope: StreamEnvelope) => void;
+    onComplete?: (
+      messageId?: string,
+      streamId?: string,
+      terminalKind?: 'complete' | 'cancelled',
+    ) => void;
+    onError?: (error: Error, messageId?: string, streamId?: string) => void;
     onQueueProcess?: (data: QueueProcessingData) => void;
   } | null>(null);
 
   const pendingUserMessageIdRef = useRef<string | null>(null);
-  const timerIdsRef = useRef<NodeJS.Timeout[]>([]);
-
-  useEffect(() => {
-    return () => {
-      timerIdsRef.current.forEach(clearTimeout);
-      timerIdsRef.current = [];
-    };
-  }, []);
+  const messagesRef = useRef<Message[]>(messages);
+  const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const accumulatorsRef = useRef<Map<string, StreamingContentAccumulator>>(new Map());
+  const flushTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const streamSessionsRef = useRef<Map<string, StreamSessionState>>(new Map());
 
   const { updateMessageInCache, addMessageToCache, removeMessagesFromCache } = useMessageCache({
     chatId,
     queryClient,
   });
   const { data: settings } = useSettingsQuery();
+
+  const clearStreamSession = useCallback((streamId: string | undefined) => {
+    if (!streamId) return;
+
+    const flushTimer = flushTimersRef.current.get(streamId);
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimersRef.current.delete(streamId);
+    }
+
+    accumulatorsRef.current.delete(streamId);
+    streamSessionsRef.current.delete(streamId);
+  }, []);
+
+  const resolveStreamIdForMessage = useCallback((messageId?: string): string | undefined => {
+    if (!messageId) return undefined;
+
+    for (const [streamId, session] of streamSessionsRef.current.entries()) {
+      if (session.messageId === messageId) {
+        return streamId;
+      }
+    }
+
+    return undefined;
+  }, []);
+
+  const applyProjection = useCallback(
+    (streamId: string, { writeToCache }: { writeToCache: boolean }) => {
+      const accumulator = accumulatorsRef.current.get(streamId);
+      const session = streamSessionsRef.current.get(streamId);
+      if (!accumulator || !session) return;
+
+      const nextRender = accumulator.snapshot();
+      const nextText = accumulator.getContentText();
+      const nextSeq = session.lastSeq;
+      const update = (message: Message): Message => ({
+        ...message,
+        content_text: nextText,
+        content_render: nextRender,
+        last_seq: nextSeq,
+        active_stream_id: streamId,
+      });
+
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) => (msg.id === session.messageId ? update(msg) : msg)),
+      );
+
+      if (writeToCache) {
+        updateMessageInCache(session.messageId, update);
+      }
+    },
+    [setMessages, updateMessageInCache],
+  );
+
+  const scheduleProjection = useCallback(
+    (streamId: string) => {
+      if (flushTimersRef.current.has(streamId)) {
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        flushTimersRef.current.delete(streamId);
+        // Persist throttled snapshots to cache while streaming so switching chats/views
+        // does not drop the currently accumulated in-memory stream content.
+        applyProjection(streamId, { writeToCache: true });
+      }, STREAM_FLUSH_INTERVAL_MS);
+
+      flushTimersRef.current.set(streamId, timer);
+    },
+    [applyProjection],
+  );
+
+  const ensureAccumulator = useCallback(
+    (streamId: string, messageId: string, seq: number): StreamingContentAccumulator => {
+      const existing = accumulatorsRef.current.get(streamId);
+      if (existing) {
+        const existingSession = streamSessionsRef.current.get(streamId);
+        if (existingSession) {
+          existingSession.lastSeq = Math.max(existingSession.lastSeq, seq);
+          existingSession.messageId = messageId;
+        }
+        return existing;
+      }
+
+      let seedEvents: AssistantStreamEvent[] = [];
+      let seedText = '';
+      const existingMessage = messagesRef.current.find((msg) => msg.id === messageId);
+      if (existingMessage) {
+        const maybeEvents = existingMessage.content_render?.events;
+        seedEvents = Array.isArray(maybeEvents) ? maybeEvents : [];
+        seedText = existingMessage.content_text ?? '';
+      }
+
+      const accumulator = new StreamingContentAccumulator(seedEvents, seedText);
+      accumulatorsRef.current.set(streamId, accumulator);
+      streamSessionsRef.current.set(streamId, {
+        messageId,
+        lastSeq: seq,
+      });
+
+      return accumulator;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      timerIdsRef.current.forEach(clearTimeout);
+      timerIdsRef.current = [];
+
+      flushTimersRef.current.forEach((timer) => clearTimeout(timer));
+      flushTimersRef.current.clear();
+
+      accumulatorsRef.current.clear();
+      streamSessionsRef.current.clear();
+    };
+  }, []);
 
   const setPendingUserMessageId = useCallback(
     (id: string | null) => {
@@ -92,9 +282,9 @@ export function useStreamCallbacks({
     [onPendingUserMessageIdChange],
   );
 
-  const onChunk = useCallback(
-    (event: AssistantStreamEvent, messageId: string) => {
-      if (pendingStopRef.current.has(messageId)) {
+  const onEnvelope = useCallback(
+    (envelope: StreamEnvelope) => {
+      if (pendingStopRef.current.has(envelope.messageId)) {
         return;
       }
 
@@ -102,88 +292,151 @@ export function useStreamCallbacks({
         setPendingUserMessageId(null);
       }
 
-      if (event.type === 'permission_request' && onPermissionRequest) {
-        onPermissionRequest({
-          request_id: event.request_id,
-          tool_name: event.tool_name,
-          tool_input: event.tool_input,
-        });
+      if (envelope.kind === 'permission_request' && onPermissionRequest) {
+        const payload = envelope.payload as Record<string, unknown>;
+        const request_id = typeof payload.request_id === 'string' ? payload.request_id : undefined;
+        const tool_name = typeof payload.tool_name === 'string' ? payload.tool_name : undefined;
+        const tool_input =
+          payload.tool_input && typeof payload.tool_input === 'object'
+            ? (payload.tool_input as Record<string, unknown>)
+            : undefined;
+
+        if (request_id && tool_name && tool_input) {
+          onPermissionRequest({
+            request_id,
+            tool_name,
+            tool_input,
+          });
+        }
         return;
       }
 
-      if (event.type === 'system' && event.data?.context_usage && onContextUsageUpdate) {
-        const eventChatId =
-          typeof event.data.chat_id === 'string' ? (event.data.chat_id as string) : undefined;
-        onContextUsageUpdate(event.data.context_usage as ContextUsage, eventChatId);
+      if (envelope.kind === 'system' && onContextUsageUpdate) {
+        const payload = envelope.payload as Record<string, unknown>;
+        const nestedData =
+          payload.data && typeof payload.data === 'object'
+            ? (payload.data as Record<string, unknown>)
+            : undefined;
+        const contextUsage =
+          (payload.context_usage as ContextUsage | undefined) ??
+          (nestedData?.context_usage as ContextUsage | undefined);
+        if (contextUsage) {
+          const eventChatId =
+            typeof payload.chat_id === 'string'
+              ? payload.chat_id
+              : typeof nestedData?.chat_id === 'string'
+                ? nestedData.chat_id
+                : undefined;
+          onContextUsageUpdate(contextUsage, eventChatId);
+        }
         return;
       }
 
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === messageId ? { ...msg, content: appendEventToLog(msg.content, event) } : msg,
-        ),
-      );
+      const renderEvent = envelopeToRenderEvent(envelope);
+      if (!renderEvent) {
+        return;
+      }
 
-      updateMessageInCache(messageId, (cachedMsg) => ({
-        ...cachedMsg,
-        content: appendEventToLog(cachedMsg.content, event),
-      }));
+      const accumulator = ensureAccumulator(envelope.streamId, envelope.messageId, envelope.seq);
+      accumulator.push(renderEvent);
+
+      const session = streamSessionsRef.current.get(envelope.streamId);
+      if (session) {
+        session.lastSeq = Math.max(session.lastSeq, envelope.seq);
+        session.messageId = envelope.messageId;
+      }
+
+      scheduleProjection(envelope.streamId);
     },
     [
-      updateMessageInCache,
-      onPermissionRequest,
+      ensureAccumulator,
       onContextUsageUpdate,
-      setMessages,
+      onPermissionRequest,
       pendingStopRef,
+      scheduleProjection,
       setPendingUserMessageId,
     ],
   );
 
-  const onComplete = useCallback(() => {
-    setPendingUserMessageId(null);
-    setStreamState('idle');
-    setCurrentMessageId(null);
+  const onComplete = useCallback(
+    (
+      messageId?: string,
+      streamId?: string,
+      terminalKind: 'complete' | 'cancelled' = 'complete',
+    ) => {
+      const resolvedStreamId = streamId ?? resolveStreamIdForMessage(messageId);
+      const isCancelled = terminalKind === 'cancelled';
 
-    if (settings?.notification_sound_enabled ?? true) {
-      playNotificationSound();
-    }
+      if (resolvedStreamId) {
+        applyProjection(resolvedStreamId, { writeToCache: true });
+      }
 
-    if (chatId && currentChat?.sandbox_id) {
-      refetchFilesMetadata().catch(() => {});
-      queryClient.removeQueries({
-        queryKey: ['sandbox', currentChat.sandbox_id, 'file-content'],
-      });
-    }
+      if (messageId) {
+        const finalizeMessage = (message: Message): Message => ({
+          ...message,
+          active_stream_id: null,
+          stream_status: isCancelled ? 'interrupted' : 'completed',
+        });
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === messageId ? finalizeMessage(msg) : msg)),
+        );
+        updateMessageInCache(messageId, finalizeMessage);
+      }
 
-    timerIdsRef.current.forEach(clearTimeout);
-    timerIdsRef.current = [];
+      clearStreamSession(resolvedStreamId);
+      setPendingUserMessageId(null);
+      setStreamState('idle');
+      setCurrentMessageId(null);
 
-    timerIdsRef.current.push(
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: [queryKeys.auth.usage] });
-      }, 2000),
-    );
+      if (!isCancelled && (settings?.notification_sound_enabled ?? true)) {
+        playNotificationSound();
+      }
 
-    if (chatId) {
+      if (!isCancelled && chatId && currentChat?.sandbox_id) {
+        refetchFilesMetadata().catch(() => {});
+        queryClient.removeQueries({
+          queryKey: ['sandbox', currentChat.sandbox_id, 'file-content'],
+        });
+      }
+
+      timerIdsRef.current.forEach(clearTimeout);
+      timerIdsRef.current = [];
+
       timerIdsRef.current.push(
         setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.contextUsage(chatId) });
-        }, 6000),
+          queryClient.invalidateQueries({ queryKey: [queryKeys.auth.usage] });
+        }, 2000),
       );
-    }
-  }, [
-    chatId,
-    currentChat?.sandbox_id,
-    queryClient,
-    refetchFilesMetadata,
-    setStreamState,
-    setCurrentMessageId,
-    settings?.notification_sound_enabled,
-    setPendingUserMessageId,
-  ]);
+
+      if (chatId) {
+        timerIdsRef.current.push(
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.contextUsage(chatId) });
+          }, 6000),
+        );
+      }
+    },
+    [
+      applyProjection,
+      chatId,
+      clearStreamSession,
+      currentChat?.sandbox_id,
+      queryClient,
+      refetchFilesMetadata,
+      resolveStreamIdForMessage,
+      setCurrentMessageId,
+      setMessages,
+      setPendingUserMessageId,
+      setStreamState,
+      settings?.notification_sound_enabled,
+      updateMessageInCache,
+    ],
+  );
 
   const onError = useCallback(
-    (streamError: Error, assistantMessageId?: string) => {
+    (streamError: Error, assistantMessageId?: string, streamId?: string) => {
+      clearStreamSession(streamId ?? resolveStreamIdForMessage(assistantMessageId));
+
       setError(streamError);
       setStreamState('error');
       setCurrentMessageId(null);
@@ -207,12 +460,14 @@ export function useStreamCallbacks({
       setPendingUserMessageId(null);
     },
     [
-      setError,
-      setStreamState,
-      setCurrentMessageId,
-      setMessages,
+      clearStreamSession,
       removeMessagesFromCache,
+      resolveStreamIdForMessage,
+      setCurrentMessageId,
+      setError,
+      setMessages,
       setPendingUserMessageId,
+      setStreamState,
     ],
   );
 
@@ -220,11 +475,28 @@ export function useStreamCallbacks({
     (data: QueueProcessingData) => {
       if (!chatId) return;
 
+      // Queue continuation starts a new stream/message pair without terminal events
+      // on the prior stream, so flush and drop stale per-stream session state.
+      for (const [streamId, session] of Array.from(streamSessionsRef.current.entries())) {
+        if (session.messageId === data.assistantMessageId) {
+          continue;
+        }
+        applyProjection(streamId, { writeToCache: true });
+        clearStreamSession(streamId);
+      }
+
       const userMessage: Message = {
         id: data.userMessageId,
         chat_id: chatId,
         role: 'user',
-        content: data.content,
+        content_text: data.content,
+        content_render: {
+          events: [{ type: 'user_text', text: data.content }],
+          segments: [],
+        },
+        last_seq: 0,
+        active_stream_id: null,
+        stream_status: 'completed',
         created_at: new Date().toISOString(),
         attachments: data.attachments || [],
         is_bot: false,
@@ -234,7 +506,11 @@ export function useStreamCallbacks({
         id: data.assistantMessageId,
         chat_id: chatId,
         role: 'assistant',
-        content: '',
+        content_text: '',
+        content_render: createEmptyRenderSnapshot(),
+        last_seq: 0,
+        active_stream_id: null,
+        stream_status: 'in_progress',
         created_at: new Date().toISOString(),
         model_id: data.modelId,
         attachments: [],
@@ -246,12 +522,21 @@ export function useStreamCallbacks({
       addMessageToCache(assistantMessage);
       setCurrentMessageId(data.assistantMessageId);
     },
-    [chatId, setMessages, addMessageToCache, setCurrentMessageId],
+    [
+      applyProjection,
+      chatId,
+      clearStreamSession,
+      setMessages,
+      addMessageToCache,
+      setCurrentMessageId,
+    ],
   );
 
   useEffect(() => {
-    optionsRef.current = chatId ? { chatId, onChunk, onComplete, onError, onQueueProcess } : null;
-  }, [chatId, onChunk, onComplete, onError, onQueueProcess]);
+    optionsRef.current = chatId
+      ? { chatId, onEnvelope, onComplete, onError, onQueueProcess }
+      : null;
+  }, [chatId, onEnvelope, onComplete, onError, onQueueProcess]);
 
   const startStream = useCallback(async (request: StreamOptions['request']): Promise<string> => {
     const currentOptions = optionsRef.current;
@@ -262,7 +547,7 @@ export function useStreamCallbacks({
     const streamOptions: StreamOptions = {
       chatId: currentOptions.chatId,
       request,
-      onChunk: currentOptions.onChunk,
+      onEnvelope: currentOptions.onEnvelope,
       onComplete: currentOptions.onComplete,
       onError: currentOptions.onError,
       onQueueProcess: currentOptions.onQueueProcess,
@@ -271,21 +556,25 @@ export function useStreamCallbacks({
     return streamService.startStream(streamOptions);
   }, []);
 
-  const replayStream = useCallback(async (messageId: string): Promise<string> => {
-    const currentOptions = optionsRef.current;
-    if (!currentOptions) {
-      throw new Error('Stream options not available');
-    }
+  const replayStream = useCallback(
+    async (messageId: string, afterSeq?: number): Promise<string> => {
+      const currentOptions = optionsRef.current;
+      if (!currentOptions) {
+        throw new Error('Stream options not available');
+      }
 
-    return streamService.replayStream({
-      chatId: currentOptions.chatId,
-      messageId,
-      onChunk: currentOptions.onChunk,
-      onComplete: currentOptions.onComplete,
-      onError: currentOptions.onError,
-      onQueueProcess: currentOptions.onQueueProcess,
-    });
-  }, []);
+      return streamService.replayStream({
+        chatId: currentOptions.chatId,
+        messageId,
+        afterSeq,
+        onEnvelope: currentOptions.onEnvelope,
+        onComplete: currentOptions.onComplete,
+        onError: currentOptions.onError,
+        onQueueProcess: currentOptions.onQueueProcess,
+      });
+    },
+    [],
+  );
 
   const stopStream = useCallback(
     async (messageId: string) => {
@@ -296,7 +585,7 @@ export function useStreamCallbacks({
   );
 
   return {
-    onChunk,
+    onEnvelope,
     onComplete,
     onError,
     onQueueProcess,

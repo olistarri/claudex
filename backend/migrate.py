@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 def check_and_run_migrations():
     settings = get_settings()
     db_url = settings.DATABASE_URL
+    is_production = settings.ENVIRONMENT.lower() == "production"
 
     if db_url.startswith("postgresql+asyncpg://"):
         try:
@@ -58,7 +59,10 @@ def check_and_run_migrations():
 
     except Exception as e:
         logger.error("Migration failed: %s", e)
-        logger.error("Continuing anyway to prevent deployment failure...")
+        if is_production:
+            logger.error("Migration failed in production. Aborting startup.")
+            raise
+        logger.error("Continuing in non-production environment...")
     finally:
         engine.dispose()
 

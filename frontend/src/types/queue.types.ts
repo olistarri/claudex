@@ -1,4 +1,4 @@
-export interface MessageAttachment {
+export interface QueueMessageAttachment {
   file_url: string;
   file_path?: string;
   file_type: string;
@@ -10,14 +10,14 @@ export interface QueuedMessage {
   content: string;
   model_id: string;
   queued_at: string;
-  attachments?: MessageAttachment[];
+  attachments?: QueueMessageAttachment[];
 }
 
 export interface QueueUpsertResponse {
   id: string;
   created: boolean;
   content: string;
-  attachments?: MessageAttachment[];
+  attachments?: QueueMessageAttachment[];
 }
 
 export interface LocalQueuedMessage {
@@ -25,7 +25,7 @@ export interface LocalQueuedMessage {
   content: string;
   model_id: string;
   files?: File[];
-  attachments?: MessageAttachment[];
+  attachments?: QueueMessageAttachment[];
   queuedAt: number;
   synced: boolean;
 }

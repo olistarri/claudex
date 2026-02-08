@@ -237,3 +237,8 @@ body {
   height: 100% !important;
   object-fit: fill;
 }
+
+.message-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}

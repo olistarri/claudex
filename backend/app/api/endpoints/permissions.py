@@ -1,10 +1,15 @@
 import asyncio
 import json
 import uuid
+from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, status
 
-from app.constants import REDIS_KEY_PERMISSION_REQUEST, REDIS_KEY_PERMISSION_RESPONSE
+from app.constants import (
+    REDIS_KEY_CHAT_STREAM_LIVE,
+    REDIS_KEY_PERMISSION_REQUEST,
+    REDIS_KEY_PERMISSION_RESPONSE,
+)
 from app.core.config import get_settings
 from app.core.security import validate_chat_scoped_token
 from app.utils.redis import redis_connection, redis_pubsub
@@ -13,7 +18,8 @@ from app.models.schemas import (
     PermissionRequestResponse,
     PermissionResult,
 )
-from app.core.celery import SSEEventPublisher
+from app.services.message import MessageService
+from app.services.streaming.protocol import build_envelope, redact_for_audit
 
 router = APIRouter()
 settings = get_settings()
@@ -76,23 +82,36 @@ async def create_permission_request(
                 payload,
             )
 
-            permission_event_payload = json.dumps(
-                {
-                    "event": {
-                        "type": "permission_request",
-                        "request_id": request_id,
-                        "tool_name": request.tool_name,
-                        "tool_input": request.tool_input,
-                    }
+            message_service = MessageService()
+            latest_assistant = await message_service.get_latest_assistant_message(
+                UUID(chat_id)
+            )
+            if latest_assistant and latest_assistant.active_stream_id:
+                render_payload = {
+                    "request_id": request_id,
+                    "tool_name": request.tool_name,
+                    "tool_input": request.tool_input,
                 }
-            )
-
-            publisher = SSEEventPublisher(redis)
-            await publisher.publish_content(
-                chat_id,
-                permission_event_payload,
-                event_id=f"{chat_id}_permission_{request_id[:8]}",
-            )
+                seq = await message_service.append_event_with_next_seq(
+                    chat_id=UUID(chat_id),
+                    message_id=latest_assistant.id,
+                    stream_id=latest_assistant.active_stream_id,
+                    event_type="permission_request",
+                    render_payload=render_payload,
+                    audit_payload={"payload": redact_for_audit(render_payload)},
+                )
+                envelope = build_envelope(
+                    chat_id=UUID(chat_id),
+                    message_id=latest_assistant.id,
+                    stream_id=latest_assistant.active_stream_id,
+                    seq=seq,
+                    kind="permission_request",
+                    payload=render_payload,
+                )
+                await redis.publish(
+                    REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id),
+                    json.dumps(envelope, ensure_ascii=False),
+                )
 
         except Exception as exc:
             await redis.delete(request_key)

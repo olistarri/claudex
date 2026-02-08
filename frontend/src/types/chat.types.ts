@@ -13,7 +13,14 @@ export interface MessageAttachment {
 export interface Message {
   id: string;
   chat_id: string;
-  content: string;
+  content_text: string;
+  content_render: {
+    events?: AssistantStreamEvent[];
+    segments?: unknown[];
+  };
+  last_seq: number;
+  active_stream_id?: string | null;
+  stream_status?: 'in_progress' | 'completed' | 'failed' | 'interrupted';
   is_bot?: boolean;
   role: 'user' | 'assistant';
   model_id?: string;

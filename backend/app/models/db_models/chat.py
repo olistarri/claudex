@@ -2,8 +2,18 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
@@ -27,6 +37,9 @@ class Chat(Base):
     session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     context_token_usage: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
+    )
+    last_event_seq: Mapped[int] = mapped_column(
+        BigInteger, default=0, server_default="0", nullable=False
     )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -55,6 +68,19 @@ class Message(Base):
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_text: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    content_render: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: {"segments": []},
+        server_default='{"segments": []}',
+    )
+    last_seq: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    active_stream_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
     role: Mapped[MessageRole] = mapped_column(
         SQLAlchemyEnum(
             MessageRole,
@@ -86,6 +112,9 @@ class Message(Base):
     chat = relationship("Chat", back_populates="messages")
     attachments = relationship(
         "MessageAttachment", back_populates="message", cascade="all, delete-orphan"
+    )
+    events = relationship(
+        "MessageEvent", back_populates="message", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -121,3 +150,36 @@ class MessageAttachment(Base):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
 
     message = relationship("Message", back_populates="attachments")
+
+
+class MessageEvent(Base):
+    __tablename__ = "message_events"
+
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[UUID] = mapped_column(
+        GUID(),
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chat_id: Mapped[UUID] = mapped_column(
+        GUID(),
+        ForeignKey("chats.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    stream_id: Mapped[UUID] = mapped_column(GUID(), nullable=False)
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    render_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    audit_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    message = relationship("Message", back_populates="events")
+    chat = relationship("Chat")
+
+    __table_args__ = (
+        Index("idx_message_events_message_id_seq", "message_id", "seq"),
+        Index("idx_message_events_chat_id_created_at", "chat_id", "created_at"),
+        Index(
+            "idx_message_events_chat_id_stream_id_seq", "chat_id", "stream_id", "seq"
+        ),
+        Index("uq_message_events_stream_seq", "stream_id", "seq", unique=True),
+    )
