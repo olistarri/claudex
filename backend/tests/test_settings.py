@@ -43,6 +43,10 @@ class TestUpdateSettings:
                 "custom_instructions",
             ),
             (
+                {"sandbox_provider": "host"},
+                "sandbox_provider",
+            ),
+            (
                 {"custom_env_vars": [{"key": "MY_VAR", "value": "my_value"}]},
                 "custom_env_vars",
             ),

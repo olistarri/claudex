@@ -25,6 +25,7 @@ from app.services.sandbox_providers import SandboxProviderType, create_docker_co
 from app.services.transports import (
     DockerSandboxTransport,
     E2BSandboxTransport,
+    HostSandboxTransport,
     ModalSandboxTransport,
 )
 from app.services.streaming.events import StreamEvent
@@ -96,7 +97,11 @@ class ClaudeAgentService:
         self.session_factory = session_factory or SessionLocal
         self._total_cost_usd = 0.0
         self._active_transport: (
-            E2BSandboxTransport | DockerSandboxTransport | ModalSandboxTransport | None
+            E2BSandboxTransport
+            | DockerSandboxTransport
+            | HostSandboxTransport
+            | ModalSandboxTransport
+            | None
         ) = None
         self._provider_service = ProviderService()
 
@@ -127,12 +132,28 @@ class ClaudeAgentService:
         prompt_iterable: AsyncIterator[dict[str, Any]],
         options: ClaudeAgentOptions,
         user_settings: UserSettings,
-    ) -> E2BSandboxTransport | DockerSandboxTransport | ModalSandboxTransport:
-        if sandbox_provider == SandboxProviderType.DOCKER or not sandbox_provider:
+    ) -> (
+        E2BSandboxTransport
+        | DockerSandboxTransport
+        | HostSandboxTransport
+        | ModalSandboxTransport
+    ):
+        if (
+            sandbox_provider == SandboxProviderType.DOCKER
+            or sandbox_provider == SandboxProviderType.DOCKER.value
+            or not sandbox_provider
+        ):
             docker_config = create_docker_config()
             return DockerSandboxTransport(
                 sandbox_id=sandbox_id,
                 docker_config=docker_config,
+                prompt=prompt_iterable,
+                options=options,
+            )
+
+        if sandbox_provider == SandboxProviderType.HOST.value:
+            return HostSandboxTransport(
+                sandbox_id=sandbox_id,
                 prompt=prompt_iterable,
                 options=options,
             )
@@ -269,7 +290,13 @@ class ClaudeAgentService:
 
     def get_active_transport(
         self,
-    ) -> E2BSandboxTransport | DockerSandboxTransport | ModalSandboxTransport | None:
+    ) -> (
+        E2BSandboxTransport
+        | DockerSandboxTransport
+        | HostSandboxTransport
+        | ModalSandboxTransport
+        | None
+    ):
         return self._active_transport
 
     def _build_auth_env(
@@ -349,7 +376,13 @@ class ClaudeAgentService:
     ) -> dict[str, Any]:
         chat_token = create_chat_scoped_token(chat_id)
 
-        if settings.DOCKER_PERMISSION_API_URL:
+        if sandbox_provider == SandboxProviderType.HOST.value:
+            api_base_url = (
+                settings.HOST_PERMISSION_API_URL.rstrip("/")
+                if settings.HOST_PERMISSION_API_URL
+                else settings.BASE_URL.rstrip("/")
+            )
+        elif settings.DOCKER_PERMISSION_API_URL:
             api_base_url = settings.DOCKER_PERMISSION_API_URL
         elif sandbox_provider in (
             SandboxProviderType.E2B.value,
@@ -408,19 +441,18 @@ class ClaudeAgentService:
         ).get_user_settings(user.id)
 
         sandbox_provider = user_settings.sandbox_provider
-        servers: dict[str, Any] = {
-            "permission": self._build_permission_server(
-                permission_mode, chat_id, sandbox_provider
-            )
-        }
+        servers: dict[str, Any] = {}
+        servers["permission"] = self._build_permission_server(
+            permission_mode, chat_id, sandbox_provider
+        )
 
         if user_settings.custom_mcps:
             servers.update(self.build_custom_mcps(user_settings.custom_mcps))
 
         if user_settings.gmail_oauth_tokens:
             servers["gmail"] = {
-                "command": "npx",
-                "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"],
+                "command": "gmail-mcp",
+                "args": [],
             }
 
         return servers

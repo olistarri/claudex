@@ -3,18 +3,19 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SANDBOX_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$SANDBOX_DIR")"
 
 IMAGE_NAME="claudex-sandbox:latest"
 GHCR_IMAGE="ghcr.io/mng-dev-ai/claudex-sandbox:latest"
 
 if [ "$1" = "--push" ]; then
     echo "Building and pushing to GHCR..."
-    docker build -t "$IMAGE_NAME" -t "$GHCR_IMAGE" -f "$SCRIPT_DIR/Dockerfile" "$SANDBOX_DIR"
+    docker build -t "$IMAGE_NAME" -t "$GHCR_IMAGE" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
     docker push "$GHCR_IMAGE"
     echo "Done! Image pushed: $GHCR_IMAGE"
 else
     echo "Building claudex-sandbox image..."
-    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$SANDBOX_DIR"
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
     echo "Done! Image built: $IMAGE_NAME"
     echo ""
     echo "To push to GHCR, run:"

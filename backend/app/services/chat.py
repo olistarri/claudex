@@ -905,6 +905,12 @@ class ChatService(BaseDbService[Chat]):
                             last_seq = int(item["id"])
                         except Exception:
                             pass
+                        try:
+                            envelope = json.loads(item.get("data", "{}"))
+                        except Exception:
+                            envelope = {}
+                        if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
+                            return
 
                     cancel_event = asyncio.Event()
                     monitor_task = asyncio.create_task(
@@ -1173,7 +1179,6 @@ class ChatService(BaseDbService[Chat]):
                     for msg in messages:
                         new_message = Message(
                             chat_id=new_chat.id,
-                            content=msg.content,
                             content_text=msg.content_text,
                             content_render=msg.content_render,
                             last_seq=0,

@@ -64,7 +64,7 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
     usermod -aG docker user && \
     chown -R user:user /home/user
 
-COPY e2b/permission_server.py /usr/local/bin/permission_server.py
+COPY backend/permission_server.py /usr/local/bin/permission_server.py
 RUN chmod +x /usr/local/bin/permission_server.py
 
 USER user
@@ -112,10 +112,10 @@ RUN mkdir -p /home/user/.claude && \
 
 EXPOSE 3000 3001 5000 5900 6080 8000 8080 8765 5173 4200 8888 4321 3030 5500 1234 4000
 
-COPY e2b/start-vnc.sh /usr/local/bin/start-vnc.sh
+COPY sandbox/e2b/start-vnc.sh /usr/local/bin/start-vnc.sh
 RUN sudo chmod +x /usr/local/bin/start-vnc.sh
 
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sudo chmod +x /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

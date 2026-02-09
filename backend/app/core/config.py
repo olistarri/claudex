@@ -147,6 +147,28 @@ class Settings(BaseSettings):
     # Example: DOCKER_PERMISSION_API_URL=http://api:8080
     DOCKER_PERMISSION_API_URL: str = ""
 
+    # Host Sandbox configuration
+    HOST_SANDBOX_BASE_DIR: str | None = None
+    HOST_PREVIEW_BASE_URL: str = "http://localhost"
+    # Override URL for host provider permission-server callbacks.
+    # Example (docker-compose web): HOST_PERMISSION_API_URL=http://api:8080
+    HOST_PERMISSION_API_URL: str = ""
+
+    @field_validator("HOST_SANDBOX_BASE_DIR", mode="before")
+    @classmethod
+    def set_host_sandbox_base_dir(
+        cls, v: str | None, info: ValidationInfo
+    ) -> str | None:
+        if v:
+            return v
+        storage_path = info.data.get("STORAGE_PATH", "/app/storage")
+        return f"{storage_path.rstrip('/')}/host-sandboxes"
+
+    def get_host_sandbox_base_dir(self) -> str:
+        if self.HOST_SANDBOX_BASE_DIR:
+            return self.HOST_SANDBOX_BASE_DIR
+        return f"{self.STORAGE_PATH.rstrip('/')}/host-sandboxes"
+
     # Security Headers Configuration
     ENABLE_SECURITY_HEADERS: bool = True
     HSTS_MAX_AGE: int = 31536000

@@ -60,11 +60,14 @@ def _get_runtime_context_section(
     sandbox_provider: str = "docker",
 ) -> str:
     ports_str = ", ".join(str(p) for p in DOCKER_AVAILABLE_PORTS)
-    provider_label = (
-        "E2B (cloud)"
-        if sandbox_provider == SandboxProviderType.E2B.value
-        else "Docker (local)"
-    )
+    if sandbox_provider == SandboxProviderType.E2B.value:
+        provider_label = "E2B (cloud)"
+    elif sandbox_provider == SandboxProviderType.MODAL.value:
+        provider_label = "Modal (cloud)"
+    elif sandbox_provider == SandboxProviderType.HOST.value:
+        provider_label = "Host (local machine)"
+    else:
+        provider_label = "Docker (local)"
     return f"""<runtime_context>
 - Workspace: /home/user
 - Sandbox: {sandbox_id}

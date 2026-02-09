@@ -16,7 +16,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.32
+RUN npm install -g @anthropic-ai/claude-code@2.1.32 @gongrzhe/server-gmail-autoauth-mcp
 
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | bash
@@ -26,6 +26,9 @@ COPY requirements.txt .
 RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.txt
 
 COPY . /app/
+
+RUN cp /app/permission_server.py /usr/local/bin/permission_server.py && \
+    chmod +x /usr/local/bin/permission_server.py
 
 RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app && \

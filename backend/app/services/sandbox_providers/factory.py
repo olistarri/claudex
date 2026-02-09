@@ -46,4 +46,13 @@ def create_sandbox_provider(
             raise SandboxException("Modal API key is required")
         return ModalSandboxProvider(api_key=api_key)
 
+    if provider_type == SandboxProviderType.HOST:
+        from app.services.sandbox_providers.host_provider import LocalHostProvider
+
+        host_base_dir = settings.get_host_sandbox_base_dir()
+        return LocalHostProvider(
+            base_dir=host_base_dir,
+            preview_base_url=settings.HOST_PREVIEW_BASE_URL,
+        )
+
     raise ValueError(f"Unknown provider type: {provider_type}")

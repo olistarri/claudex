@@ -7,6 +7,7 @@ class SandboxProviderType(str, Enum):
     E2B = "e2b"
     DOCKER = "docker"
     MODAL = "modal"
+    HOST = "host"
 
 
 @dataclass

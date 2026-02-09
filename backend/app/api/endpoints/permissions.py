@@ -3,7 +3,7 @@ import json
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.constants import (
     REDIS_KEY_CHAT_STREAM_LIVE,
@@ -11,14 +11,15 @@ from app.constants import (
     REDIS_KEY_PERMISSION_RESPONSE,
 )
 from app.core.config import get_settings
+from app.core.deps import get_chat_service
 from app.core.security import validate_chat_scoped_token
+from app.services.chat import ChatService
 from app.utils.redis import redis_connection, redis_pubsub
 from app.models.schemas import (
     PermissionRequest,
     PermissionRequestResponse,
     PermissionResult,
 )
-from app.services.message import MessageService
 from app.services.streaming.protocol import build_envelope, redact_for_audit
 
 router = APIRouter()
@@ -60,6 +61,7 @@ async def create_permission_request(
     chat_id: str,
     request: PermissionRequest,
     authorization: str = Header(...),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> PermissionRequestResponse:
     await _validate_token_for_chat(authorization, chat_id)
 
@@ -82,7 +84,7 @@ async def create_permission_request(
                 payload,
             )
 
-            message_service = MessageService()
+            message_service = chat_service.message_service
             latest_assistant = await message_service.get_latest_assistant_message(
                 UUID(chat_id)
             )

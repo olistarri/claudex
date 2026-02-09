@@ -255,7 +255,7 @@ async def sample_message(db_session: AsyncSession, sample_chat: Chat) -> Message
     message = Message(
         id=uuid.uuid4(),
         chat_id=sample_chat.id,
-        content="Test message content",
+        content_text="Test message content",
         role=MessageRole.USER,
         stream_status=MessageStreamStatus.COMPLETED,
     )

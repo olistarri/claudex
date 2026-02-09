@@ -106,7 +106,6 @@ class MessageService(BaseDbService[Message]):
 
             message_kwargs: dict[str, Any] = {
                 "chat_id": chat_id,
-                "content": content if not is_assistant else "",
                 "content_text": content_text,
                 "content_render": content_render,
                 "last_seq": 0,
@@ -170,7 +169,6 @@ class MessageService(BaseDbService[Message]):
                     status_code=404,
                 )
 
-            message.content = content
             message.content_text = content
             if message.role == MessageRole.USER:
                 message.content_render = {
@@ -199,7 +197,6 @@ class MessageService(BaseDbService[Message]):
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
             values: dict[str, Any] = {
-                "content": "",
                 "content_text": content_text,
                 "content_render": content_render,
                 "last_seq": func.greatest(Message.last_seq, last_seq),

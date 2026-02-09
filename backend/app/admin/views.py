@@ -186,16 +186,16 @@ class ChatAdmin(ModelView, model=Chat):
             {
                 "fields": [
                     "role",
-                    "content",
+                    "content_text",
                     "model_id",
                     "total_cost_usd",
                     "stream_status",
                     "created_at",
                 ],
-                "form_columns": ["role", "content", "model_id"],
+                "form_columns": ["role", "content_text", "model_id"],
                 "column_labels": {
                     "role": "Role",
-                    "content": "Message",
+                    "content_text": "Message",
                     "model_id": "Model",
                     "total_cost_usd": "Cost (USD)",
                     "stream_status": "Status",
@@ -215,7 +215,7 @@ class MessageAdmin(ModelView, model=Message):
         "id",
         "chat_id",
         "role",
-        "content",
+        "content_text",
         "total_cost_usd",
         "stream_status",
         "created_at",
@@ -224,8 +224,10 @@ class MessageAdmin(ModelView, model=Message):
     ]
 
     column_formatters = {
-        "content": lambda m, _: (
-            m.content[:100] + "..." if len(m.content) > 100 else m.content
+        "content_text": lambda m, _: (
+            m.content_text[:100] + "..."
+            if len(m.content_text) > 100
+            else m.content_text
         ),
         "total_cost_usd": lambda m, _: (
             f"${m.total_cost_usd:.4f}" if m.total_cost_usd is not None else "$0.0000"
@@ -239,7 +241,7 @@ class MessageAdmin(ModelView, model=Message):
         ),
     }
 
-    column_searchable_list = ["content"]
+    column_searchable_list = ["content_text"]
     column_sortable_list = [
         "created_at",
         "updated_at",
@@ -274,7 +276,7 @@ class MessageAdmin(ModelView, model=Message):
         "id",
         "chat_id",
         "role",
-        "content",
+        "content_text",
         "total_cost_usd",
         "stream_status",
         "created_at",
