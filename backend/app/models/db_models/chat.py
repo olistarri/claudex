@@ -67,7 +67,6 @@ class Message(Base):
     chat_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
     )
-    content: Mapped[str] = mapped_column(Text, nullable=False)
     content_text: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )

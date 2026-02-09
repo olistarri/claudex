@@ -440,7 +440,7 @@ class TestChatCompletion:
 
         assert len(user_messages) >= 1
         assert len(assistant_messages) >= 1
-        assert test_prompt in user_messages[-1]["content"]
+        assert test_prompt in user_messages[-1]["content_text"]
 
         usage_response = await streaming_client.get(
             f"/api/v1/chat/chats/{chat.id}/context-usage",
@@ -726,7 +726,7 @@ class TestForkChat:
         msg_with_attachment = Message(
             id=uuid.uuid4(),
             chat_id=chat.id,
-            content="First user message",
+            content_text="First user message",
             role=MessageRole.USER,
             stream_status=MessageStreamStatus.COMPLETED,
             model_id="anthropic:claude-haiku-4-5",
@@ -736,7 +736,7 @@ class TestForkChat:
             Message(
                 id=uuid.uuid4(),
                 chat_id=chat.id,
-                content="Assistant response",
+                content_text="Assistant response",
                 role=MessageRole.ASSISTANT,
                 stream_status=MessageStreamStatus.COMPLETED,
                 model_id="anthropic:claude-haiku-4-5",
@@ -745,14 +745,14 @@ class TestForkChat:
             Message(
                 id=uuid.uuid4(),
                 chat_id=chat.id,
-                content="Second user message - fork point",
+                content_text="Second user message - fork point",
                 role=MessageRole.USER,
                 stream_status=MessageStreamStatus.COMPLETED,
             ),
             Message(
                 id=uuid.uuid4(),
                 chat_id=chat.id,
-                content="Message after fork point - should be excluded",
+                content_text="Message after fork point - should be excluded",
                 role=MessageRole.ASSISTANT,
                 stream_status=MessageStreamStatus.COMPLETED,
             ),
@@ -800,7 +800,7 @@ class TestForkChat:
         copied_messages = messages_response.json()["items"]
 
         assert len(copied_messages) == 3
-        contents = [m["content"] for m in copied_messages]
+        contents = [m["content_text"] for m in copied_messages]
         assert "First user message" in contents
         assert "Assistant response" in contents
         assert "Second user message - fork point" in contents
@@ -810,7 +810,7 @@ class TestForkChat:
         assert assistant_msg["model_id"] == "anthropic:claude-haiku-4-5"
 
         first_msg = next(
-            m for m in copied_messages if m["content"] == "First user message"
+            m for m in copied_messages if m["content_text"] == "First user message"
         )
         assert len(first_msg["attachments"]) == 1
         assert first_msg["attachments"][0]["filename"] == "test.png"
@@ -852,7 +852,7 @@ class TestForkChat:
         other_message = Message(
             id=uuid.uuid4(),
             chat_id=other_chat.id,
-            content="Message from other chat",
+            content_text="Message from other chat",
             role=MessageRole.USER,
             stream_status=MessageStreamStatus.COMPLETED,
         )
@@ -889,7 +889,7 @@ class TestForkChat:
         another_users_message = Message(
             id=uuid.uuid4(),
             chat_id=another_users_chat.id,
-            content="Another user's message",
+            content_text="Another user's message",
             role=MessageRole.USER,
             stream_status=MessageStreamStatus.COMPLETED,
         )

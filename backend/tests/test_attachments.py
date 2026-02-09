@@ -27,7 +27,7 @@ async def attachment_with_file(
     message = Message(
         id=uuid.uuid4(),
         chat_id=chat.id,
-        content="Test message with attachment",
+        content_text="Test message with attachment",
         role=MessageRole.USER,
         stream_status=MessageStreamStatus.COMPLETED,
     )

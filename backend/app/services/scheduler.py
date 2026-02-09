@@ -566,7 +566,6 @@ class SchedulerService(BaseDbService[ScheduledTask]):
 
                     user_message = Message(
                         chat_id=chat.id,
-                        content=scheduled_task.prompt_message,
                         content_text=scheduled_task.prompt_message,
                         content_render={
                             "events": [
@@ -583,7 +582,6 @@ class SchedulerService(BaseDbService[ScheduledTask]):
                     )
                     assistant_message = Message(
                         chat_id=chat.id,
-                        content="",
                         content_text="",
                         content_render={"events": [], "segments": []},
                         last_seq=0,

@@ -82,6 +82,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=8081
       - DOCKER_PERMISSION_API_URL=http://host.docker.internal:8081
+      - HOST_PERMISSION_API_URL=http://api:8081
       - DISABLE_PROXY_HEADERS=true
     networks:
       - claudex-sandbox-net
@@ -120,6 +121,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PORT=8081
       - DOCKER_PERMISSION_API_URL=http://host.docker.internal:8081
+      - HOST_PERMISSION_API_URL=http://api:8081
       - DISABLE_PROXY_HEADERS=true
     networks:
       - claudex-sandbox-net

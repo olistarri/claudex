@@ -11,7 +11,6 @@ from mcp.server.models import InitializationOptions
 
 server = Server("permission")
 
-# Get configuration from environment
 PERMISSION_MODE = os.environ.get("PERMISSION_MODE", "plan")
 API_BASE_URL = os.environ.get("API_BASE_URL")
 CHAT_TOKEN = os.environ.get("CHAT_TOKEN")
@@ -69,12 +68,10 @@ async def handle_call_tool(
         tool_name in PLAN_MODE_TOOLS or tool_name in USER_INTERACTION_TOOLS
     )
 
-    # Plan/Auto mode: Auto-approve all tools except those requiring user interaction
     if PERMISSION_MODE in AUTO_APPROVE_MODES and not requires_user_interaction:
         response = {"behavior": "allow", "updatedInput": tool_input}
         return [types.TextContent(type="text", text=json.dumps(response))]
 
-    # Ask mode or tools requiring user interaction: Request user approval via API
     should_request_approval = PERMISSION_MODE == "ask" or requires_user_interaction
     if should_request_approval:
         if not API_BASE_URL or not CHAT_TOKEN or not CHAT_ID:
@@ -86,7 +83,6 @@ async def handle_call_tool(
 
         try:
             async with httpx.AsyncClient(timeout=310.0) as client:
-                # Create permission request
                 headers = {
                     "Authorization": f"Bearer {CHAT_TOKEN}",
                     "Content-Type": "application/json",
@@ -108,7 +104,6 @@ async def handle_call_tool(
                 request_data = create_response.json()
                 request_id = request_data["request_id"]
 
-                # Poll for permission response
                 get_response = await client.get(
                     f"{API_BASE_URL}/api/v1/chats/{CHAT_ID}/permissions/response/{request_id}",
                     headers=headers,
@@ -133,16 +128,13 @@ async def handle_call_tool(
                 alternative_instruction = result_data.get("alternative_instruction")
                 user_answers = result_data.get("user_answers")
 
-                # Return MCP response
                 if approved:
                     if user_answers is not None and tool_name == "AskUserQuestion":
-                        # Convert array answers to comma-separated strings (AskUserQuestion expects Record<string, string>)
                         string_answers = {}
                         for key, value in user_answers.items():
                             string_answers[key] = (
                                 ", ".join(value) if isinstance(value, list) else value
                             )
-                        # Pass answers in updatedInput for AskUserQuestion
                         response = {
                             "behavior": "allow",
                             "updatedInput": {**tool_input, "answers": string_answers},
@@ -178,7 +170,6 @@ async def handle_call_tool(
             }
             return [types.TextContent(type="text", text=json.dumps(response))]
 
-    # Default: Deny
     response = {
         "behavior": "deny",
         "message": f"Unknown permission mode: {PERMISSION_MODE}",
@@ -186,7 +177,7 @@ async def handle_call_tool(
     return [types.TextContent(type="text", text=json.dumps(response))]
 
 
-async def main():
+async def main() -> None:
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,

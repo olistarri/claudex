@@ -73,6 +73,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-claudex_default_secret_key_for_development_only}
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HOST_PERMISSION_API_URL=http://api:8080
 
   celery-worker:
     build:
@@ -103,6 +104,7 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
+      - HOST_PERMISSION_API_URL=http://api:8080
     deploy:
       replicas: ${CELERY_WORKER_REPLICAS:-8}
 

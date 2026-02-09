@@ -74,7 +74,7 @@ export interface CustomPrompt {
   content: string;
 }
 
-export type SandboxProviderType = 'docker' | 'e2b' | 'modal';
+export type SandboxProviderType = 'docker' | 'e2b' | 'modal' | 'host';
 
 export type ProviderType = 'anthropic' | 'openrouter' | 'openai' | 'copilot' | 'custom';
 

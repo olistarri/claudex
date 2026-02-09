@@ -94,6 +94,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
           value={settings.sandbox_provider ?? 'docker'}
           onChange={(val) => onSandboxProviderChange(val as SandboxProviderType)}
           options={[
+            { value: 'host', label: 'Host (Local)', disabled: false },
             { value: 'docker', label: 'Docker (Local)', disabled: false },
             { value: 'e2b', label: 'E2B (Cloud)', disabled: !savedSettings?.e2b_api_key },
             { value: 'modal', label: 'Modal (Cloud)', disabled: !savedSettings?.modal_api_key },
