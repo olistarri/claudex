@@ -18,12 +18,7 @@ def check_and_run_migrations():
     is_production = settings.ENVIRONMENT.lower() == "production"
 
     if db_url.startswith("postgresql+asyncpg://"):
-        try:
-            import psycopg2  # noqa: F401
-
-            db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-        except ImportError:
-            db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
 
     engine = create_engine(db_url)
 

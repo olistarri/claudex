@@ -31,13 +31,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-lint-${{ hashFiles('backend/requirements.txt') }}
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('backend/requirements.lock', 'backend/requirements-test.lock') }}
           restore-keys: |
             ${{ runner.os }}-pip-lint-
             ${{ runner.os }}-pip-
       
       - name: Install linting tools
-        run: pip install ruff==0.15.0 mypy types-redis types-PyYAML
+        run: pip install -r backend/requirements-test.lock
 
       - name: Run ruff linting
         run: |
@@ -54,6 +54,15 @@ jobs:
           cd backend
           mypy app/
 
+      - name: Run deptry dependency checks
+        run: |
+          cd backend
+          deptry . --requirements-files requirements.txt
+
+      - name: Run pip-audit vulnerability scan
+        continue-on-error: true
+        run: pip-audit -r backend/requirements.lock
+
   test:
     name: Run Backend Tests
     runs-on: ubuntu-latest
@@ -68,7 +77,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('backend/Dockerfile.test', 'backend/requirements*.txt') }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('backend/Dockerfile.test', 'backend/requirements*.txt', 'backend/requirements*.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
 

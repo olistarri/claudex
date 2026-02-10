@@ -21,9 +21,9 @@ RUN npm install -g @anthropic-ai/claude-code@2.1.32 @gongrzhe/server-gmail-autoa
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | bash
 
-COPY requirements.txt .
+COPY requirements.lock .
 
-RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.txt
+RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.lock
 
 COPY . /app/
 

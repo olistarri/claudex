@@ -111,3 +111,29 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "app.admin.views"
 disable_error_code = ["call-arg"]
+
+[tool.deptry]
+known_first_party = ["app"]
+ignore_notebooks = true
+exclude = [
+    "migrations/",
+    "tests/",
+    "venv/",
+    ".venv/",
+]
+
+[tool.deptry.package_module_name_map]
+"python-jose" = "jose"
+"PyYAML" = "yaml"
+"python-json-logger" = "pythonjsonlogger"
+"email-validator" = "email_validator"
+"fastapi-users" = "fastapi_users"
+"python-multipart" = "multipart"
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "asyncpg",
+    "psycopg",
+    "python-multipart",
+    "bcrypt",
+]

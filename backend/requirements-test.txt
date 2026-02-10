@@ -12,4 +12,11 @@ filelock
 faker
 factory-boy
 beautifulsoup4
-ruff
+
+# Lint/type/dependency checks
+ruff==0.15.0
+mypy
+types-redis
+types-PyYAML
+deptry
+pip-audit
