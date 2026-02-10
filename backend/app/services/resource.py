@@ -2,6 +2,7 @@ import logging
 import os
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Generic, NoReturn, TypeVar
 
@@ -89,6 +90,18 @@ class BaseMarkdownResourceService(ABC, Generic[T]):
 
     def _raise(self, message: str) -> NoReturn:
         raise self.exception_class(message)
+
+    @staticmethod
+    def find_item_index_by_name(
+        items: Sequence[Mapping[str, object]], name: str
+    ) -> int | None:
+        return next(
+            (i for i, item in enumerate(items) if item.get("name") == name), None
+        )
+
+    def validate_exact_sanitized_name(self, name: str) -> None:
+        if self.sanitize_name(name) != name:
+            self._raise(f"Invalid {self.resource_type.lower()} name format")
 
     def sanitize_name(self, name: str) -> str:
         name = name.lower().replace(" ", "-")

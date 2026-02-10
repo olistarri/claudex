@@ -3,7 +3,10 @@ import json
 import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from pydantic import ValidationError
+from redis.exceptions import RedisError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.constants import (
     REDIS_KEY_CHAT_STREAM_LIVE,
@@ -26,27 +29,32 @@ router = APIRouter()
 settings = get_settings()
 
 
-async def _validate_token_for_chat(authorization: str, chat_id: str) -> None:
+async def _validate_token_for_chat(authorization: str, chat_id: UUID) -> None:
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization header",
         )
 
-    token = authorization.replace("Bearer ", "")
-    if not validate_chat_scoped_token(token, chat_id):
+    token = authorization.removeprefix("Bearer ").strip()
+    if not validate_chat_scoped_token(token, str(chat_id)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or expired token for this chat",
         )
 
 
-def _parse_response_payload(raw_payload: str) -> PermissionResult:
+def _parse_response_payload(raw_payload: str | bytes) -> PermissionResult:
     try:
-        data: dict[str, object] = json.loads(raw_payload)
+        payload_text = (
+            raw_payload.decode("utf-8")
+            if isinstance(raw_payload, bytes)
+            else raw_payload
+        )
+        data: dict[str, object] = json.loads(payload_text)
         result: PermissionResult = PermissionResult.model_validate(data)
         return result
-    except Exception as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid response payload",
@@ -58,19 +66,20 @@ def _parse_response_payload(raw_payload: str) -> PermissionResult:
     response_model=PermissionRequestResponse,
 )
 async def create_permission_request(
-    chat_id: str,
+    chat_id: UUID,
     request: PermissionRequest,
     authorization: str = Header(...),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> PermissionRequestResponse:
     await _validate_token_for_chat(authorization, chat_id)
+    chat_id_str = str(chat_id)
 
     async with redis_connection() as redis:
         request_id = str(uuid.uuid4())
         request_key = REDIS_KEY_PERMISSION_REQUEST.format(request_id=request_id)
         payload = json.dumps(
             {
-                "chat_id": chat_id,
+                "chat_id": chat_id_str,
                 "tool_name": request.tool_name,
                 "tool_input": request.tool_input,
                 "timestamp": asyncio.get_running_loop().time(),
@@ -86,7 +95,7 @@ async def create_permission_request(
 
             message_service = chat_service.message_service
             latest_assistant = await message_service.get_latest_assistant_message(
-                UUID(chat_id)
+                chat_id
             )
             if latest_assistant and latest_assistant.active_stream_id:
                 render_payload = {
@@ -95,7 +104,7 @@ async def create_permission_request(
                     "tool_input": request.tool_input,
                 }
                 seq = await message_service.append_event_with_next_seq(
-                    chat_id=UUID(chat_id),
+                    chat_id=chat_id,
                     message_id=latest_assistant.id,
                     stream_id=latest_assistant.active_stream_id,
                     event_type="permission_request",
@@ -103,7 +112,7 @@ async def create_permission_request(
                     audit_payload={"payload": redact_for_audit(render_payload)},
                 )
                 envelope = build_envelope(
-                    chat_id=UUID(chat_id),
+                    chat_id=chat_id,
                     message_id=latest_assistant.id,
                     stream_id=latest_assistant.active_stream_id,
                     seq=seq,
@@ -111,11 +120,11 @@ async def create_permission_request(
                     payload=render_payload,
                 )
                 await redis.publish(
-                    REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id),
+                    REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id_str),
                     json.dumps(envelope, ensure_ascii=False),
                 )
 
-        except Exception as exc:
+        except (RedisError, SQLAlchemyError) as exc:
             await redis.delete(request_key)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -130,12 +139,13 @@ async def create_permission_request(
     response_model=PermissionResult,
 )
 async def get_permission_response(
-    chat_id: str,
+    chat_id: UUID,
     request_id: str,
     authorization: str = Header(...),
-    timeout: int = 300,
+    timeout: int = Query(default=300, ge=1, le=600),
 ) -> PermissionResult:
     await _validate_token_for_chat(authorization, chat_id)
+    chat_id_str = str(chat_id)
 
     async with redis_connection() as redis:
         request_key = REDIS_KEY_PERMISSION_REQUEST.format(request_id=request_id)
@@ -155,7 +165,7 @@ async def get_permission_response(
                 detail="Invalid stored permission data",
             ) from exc
 
-        if request_json.get("chat_id") != chat_id:
+        if request_json.get("chat_id") != chat_id_str:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permission request does not belong to this chat",
@@ -195,7 +205,7 @@ async def get_permission_response(
                     ) from exc
         except HTTPException:
             raise
-        except Exception as exc:
+        except RedisError as exc:
             await redis.delete(request_key)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

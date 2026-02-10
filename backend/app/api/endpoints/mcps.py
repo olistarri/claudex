@@ -1,6 +1,6 @@
 import re
 
-from typing import cast
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,8 +120,22 @@ async def update_mcp(
 
     mcp = current_mcps[mcp_index]
     update_data = request.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        mcp[key] = value  # type: ignore[literal-required]
+    if "description" in update_data:
+        mcp["description"] = cast(str, update_data["description"])
+    if "command_type" in update_data:
+        mcp["command_type"] = cast(
+            Literal["npx", "bunx", "uvx", "http"], update_data["command_type"]
+        )
+    if "package" in update_data:
+        mcp["package"] = cast(str | None, update_data["package"])
+    if "url" in update_data:
+        mcp["url"] = cast(str | None, update_data["url"])
+    if "env_vars" in update_data:
+        mcp["env_vars"] = cast(dict[str, str] | None, update_data["env_vars"])
+    if "args" in update_data:
+        mcp["args"] = cast(list[str] | None, update_data["args"])
+    if "enabled" in update_data:
+        mcp["enabled"] = cast(bool, update_data["enabled"])
 
     user_settings.custom_mcps = current_mcps
     flag_modified(user_settings, "custom_mcps")

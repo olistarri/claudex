@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import zipfile
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -54,6 +55,18 @@ class SkillService:
             )
 
         return name
+
+    @staticmethod
+    def find_item_index_by_name(
+        items: Sequence[Mapping[str, object]], name: str
+    ) -> int | None:
+        return next(
+            (i for i, item in enumerate(items) if item.get("name") == name), None
+        )
+
+    def validate_exact_sanitized_name(self, name: str) -> None:
+        if self.sanitize_name(name) != name:
+            raise SkillException("Invalid skill name format")
 
     def _parse_skill_yaml(self, content: str) -> YamlMetadata:
         try:

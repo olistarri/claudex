@@ -37,7 +37,31 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def authenticate_user(
+def _parse_dimension(
+    value: object,
+    *,
+    default: int,
+    min_value: int,
+    max_value: int,
+) -> int:
+    parsed: int
+    if isinstance(value, bool):
+        parsed = int(value)
+    elif isinstance(value, int):
+        parsed = value
+    elif isinstance(value, float):
+        parsed = int(value)
+    elif isinstance(value, str):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return default
+    else:
+        return default
+    return max(min_value, min(parsed, max_value))
+
+
+async def _authenticate_user(
     token: str,
 ) -> tuple[User | None, str | None, str | None, str]:
     try:
@@ -64,7 +88,7 @@ async def authenticate_user(
         return None, None, None, SandboxProviderType.DOCKER.value
 
 
-async def wait_for_auth(
+async def _wait_for_auth(
     websocket: WebSocket, timeout: float = 10.0
 ) -> tuple[User | None, str | None, str | None, str]:
     try:
@@ -75,19 +99,26 @@ async def wait_for_auth(
     if "text" not in message:
         return None, None, None, SandboxProviderType.DOCKER.value
 
+    text_payload = message["text"]
+    if not isinstance(text_payload, str):
+        return None, None, None, SandboxProviderType.DOCKER.value
+
     try:
-        data = json.loads(message["text"])
+        data = json.loads(text_payload)
     except json.JSONDecodeError:
+        return None, None, None, SandboxProviderType.DOCKER.value
+
+    if not isinstance(data, dict):
         return None, None, None, SandboxProviderType.DOCKER.value
 
     if data.get("type") != WS_MSG_AUTH:
         return None, None, None, SandboxProviderType.DOCKER.value
 
     token = data.get("token")
-    if not token:
+    if not isinstance(token, str) or not token:
         return None, None, None, SandboxProviderType.DOCKER.value
 
-    return await authenticate_user(token)
+    return await _authenticate_user(token)
 
 
 @router.websocket("/{sandbox_id}/terminal")
@@ -97,7 +128,7 @@ async def terminal_websocket(
 ) -> None:
     await websocket.accept()
 
-    user, e2b_api_key, modal_api_key, user_sandbox_provider = await wait_for_auth(
+    user, e2b_api_key, modal_api_key, user_sandbox_provider = await _wait_for_auth(
         websocket
     )
     if not user:
@@ -119,7 +150,13 @@ async def terminal_websocket(
             return
         sandbox_provider_type = row.sandbox_provider or user_sandbox_provider
 
-    provider_type = SandboxProviderType(sandbox_provider_type)
+    try:
+        provider_type = SandboxProviderType(sandbox_provider_type)
+    except ValueError:
+        await websocket.close(
+            code=WS_CLOSE_SANDBOX_NOT_FOUND, reason="Invalid sandbox provider"
+        )
+        return
     if provider_type == SandboxProviderType.E2B and not e2b_api_key:
         await websocket.close(
             code=WS_CLOSE_API_KEY_REQUIRED,
@@ -164,16 +201,35 @@ async def terminal_websocket(
             if "text" not in message:
                 continue
 
+            text_payload = message["text"]
+            if not isinstance(text_payload, str):
+                continue
+
             try:
-                data = json.loads(message["text"])
+                data = json.loads(text_payload)
             except json.JSONDecodeError:
                 continue
 
+            if not isinstance(data, dict):
+                continue
+
             data_type = data.get("type")
+            if not isinstance(data_type, str):
+                continue
 
             if data_type == WS_MSG_INIT:
-                rows = int(data.get("rows") or DEFAULT_PTY_ROWS)
-                cols = int(data.get("cols") or DEFAULT_PTY_COLS)
+                rows = _parse_dimension(
+                    data.get("rows"),
+                    default=DEFAULT_PTY_ROWS,
+                    min_value=1,
+                    max_value=500,
+                )
+                cols = _parse_dimension(
+                    data.get("cols"),
+                    default=DEFAULT_PTY_COLS,
+                    min_value=1,
+                    max_value=500,
+                )
 
                 size = await session.ensure_started(rows, cols)
                 await session.attach(websocket)
@@ -190,9 +246,20 @@ async def terminal_websocket(
                 )
 
             elif data_type == WS_MSG_RESIZE:
-                rows = int(data.get("rows") or 0)
-                cols = int(data.get("cols") or 0)
-                await session.resize(rows, cols)
+                rows = _parse_dimension(
+                    data.get("rows"),
+                    default=0,
+                    min_value=0,
+                    max_value=500,
+                )
+                cols = _parse_dimension(
+                    data.get("cols"),
+                    default=0,
+                    min_value=0,
+                    max_value=500,
+                )
+                if rows > 0 and cols > 0:
+                    await session.resize(rows, cols)
             elif data_type == WS_MSG_CLOSE:
                 await session.kill_tmux_session()
                 await session.close()
@@ -203,7 +270,7 @@ async def terminal_websocket(
     except WebSocketDisconnect:
         await session.detach()
     except Exception as e:
-        logger.error("Error in terminal websocket: %s", e)
+        logger.error("Error in terminal websocket: %s", e, exc_info=True)
     finally:
         if session.active_websocket is websocket and session.pty_id:
             await session.detach()

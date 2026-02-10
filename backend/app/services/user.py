@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
@@ -14,7 +15,7 @@ from app.models.db_models import Chat, Message, MessageRole, User, UserSettings
 from app.models.schemas import UserSettingsResponse
 from app.models.types import InstalledPluginDict, JSONValue
 from app.services.db import BaseDbService, SessionFactoryType
-from app.services.exceptions import UserException
+from app.services.exceptions import ErrorCode, UserException
 from app.utils.redis import redis_connection
 
 if TYPE_CHECKING:
@@ -157,6 +158,26 @@ class UserService(BaseDbService[UserSettings]):
         await db.refresh(user_settings)
         async with redis_connection() as redis:
             await self.invalidate_settings_cache(redis, user_id)
+
+    async def commit_settings_with_cleanup(
+        self,
+        user_settings: UserSettings,
+        db: AsyncSession,
+        user_id: UUID,
+        failure_message: str,
+        rollback_side_effect: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
+        try:
+            await self.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+        except Exception as exc:
+            if rollback_side_effect is not None:
+                await rollback_side_effect()
+            await db.rollback()
+            raise UserException(
+                failure_message,
+                error_code=ErrorCode.UNKNOWN_ERROR,
+                status_code=500,
+            ) from exc
 
     def remove_installed_component(
         self, user_settings: UserSettings, component_id: str

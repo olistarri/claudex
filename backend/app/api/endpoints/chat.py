@@ -5,7 +5,16 @@ from typing import Any, Literal, cast
 from uuid import UUID
 
 from celery.exceptions import NotRegistered
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 from sse_starlette.sse import EventSourceResponse
@@ -126,17 +135,18 @@ async def send_message(
     permission_mode: Literal["plan", "ask", "auto"] = Form("auto"),
     thinking_mode: str | None = Form(None),
     selected_prompt_name: str | None = Form(None),
-    attached_files: list[UploadFile] = [],
+    attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
+    files = attached_files or []
     try:
         result = await chat_service.initiate_chat_completion(
             ChatRequest(
                 prompt=prompt,
                 chat_id=UUID(chat_id),
                 model_id=model_id,
-                attached_files=attached_files,
+                attached_files=files,
                 permission_mode=permission_mode,
                 thinking_mode=thinking_mode,
                 selected_prompt_name=selected_prompt_name,
@@ -566,7 +576,7 @@ async def respond_to_permission(
                         request_id=request_id
                     )
                     await redis.publish(channel, expired_response)
-                except Exception as e:
+                except RedisError as e:
                     logger.warning("Failed to publish expired message: %s", e)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -596,7 +606,7 @@ async def queue_message(
     model_id: str = Form(...),
     permission_mode: Literal["plan", "ask", "auto"] = Form("auto"),
     thinking_mode: str | None = Form(None),
-    attached_files: list[UploadFile] = [],
+    attached_files: list[UploadFile] | None = File(None),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueUpsertResponse:
@@ -609,7 +619,8 @@ async def queue_message(
         )
 
     attachments: list[MessageAttachmentDict] | None = None
-    if attached_files:
+    files = attached_files or []
+    if files:
         attachments = list(
             await asyncio.gather(
                 *[
@@ -618,7 +629,7 @@ async def queue_message(
                         sandbox_id=chat.sandbox_id,
                         user_id=str(current_user.id),
                     )
-                    for file in attached_files
+                    for file in files
                 ]
             )
         )

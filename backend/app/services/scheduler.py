@@ -244,7 +244,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
     ) -> ScheduledTask:
         task = await self._get_user_task(task_id, user_id, db)
         if not task:
-            raise SchedulerException("Scheduled task not found")
+            raise SchedulerException("Scheduled task not found", status_code=404)
         return task
 
     async def update_task(
@@ -256,7 +256,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
     ) -> ScheduledTask:
         task = await self._get_user_task(task_id, user_id, db)
         if not task:
-            raise SchedulerException("Scheduled task not found")
+            raise SchedulerException("Scheduled task not found", status_code=404)
 
         update_data = task_update.model_dump(exclude_unset=True)
         old_status = task.status
@@ -301,7 +301,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
     async def delete_task(self, task_id: UUID, user_id: UUID, db: AsyncSession) -> None:
         task = await self._get_user_task(task_id, user_id, db)
         if not task:
-            raise SchedulerException("Scheduled task not found")
+            raise SchedulerException("Scheduled task not found", status_code=404)
         await db.delete(task)
         await db.commit()
 
@@ -310,7 +310,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
     ) -> TaskToggleResponse:
         task = await self._get_user_task(task_id, user_id, db)
         if not task:
-            raise SchedulerException("Scheduled task not found")
+            raise SchedulerException("Scheduled task not found", status_code=404)
 
         is_active = task.status == TaskStatus.ACTIVE
         if not is_active:
@@ -345,7 +345,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
     ) -> PaginatedTaskExecutions:
         task = await self._get_user_task(task_id, user_id, db)
         if not task:
-            raise SchedulerException("Scheduled task not found")
+            raise SchedulerException("Scheduled task not found", status_code=404)
 
         count_result = await db.execute(
             select(func.count(TaskExecution.id)).where(TaskExecution.task_id == task_id)

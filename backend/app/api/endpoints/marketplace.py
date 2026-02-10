@@ -35,7 +35,11 @@ from app.models.types import (
     CustomSlashCommandDict,
     InstalledPluginDict,
 )
-from app.services.exceptions import MarketplaceException, UserException
+from app.services.exceptions import (
+    MarketplaceException,
+    ServiceException,
+    UserException,
+)
 from app.services.marketplace import MarketplaceService
 from app.services.plugin_installer import PluginInstallerService
 from app.services.user import UserService
@@ -332,7 +336,7 @@ async def uninstall_plugin_components(
                     )
                 )
 
-        except Exception as e:
+        except (ServiceException, OSError) as e:
             failed.append(
                 InstallComponentResult(
                     component=component_id, success=False, error=str(e)

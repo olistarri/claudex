@@ -28,8 +28,10 @@ async def upload_skill(
         user_settings = await user_service.get_user_settings_for_update(
             current_user.id, db=db
         )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_skills: list[CustomSkillDict] = user_settings.custom_skills or []
 
@@ -45,16 +47,19 @@ async def upload_skill(
     flag_modified(user_settings, "custom_skills")
 
     try:
-        await user_service.commit_settings_and_invalidate_cache(
-            user_settings, db, current_user.id
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to save skill metadata",
+            rollback_side_effect=lambda: skill_service.delete(
+                str(current_user.id), skill_data["name"]
+            ),
         )
-    except Exception as e:
-        await skill_service.delete(str(current_user.id), skill_data["name"])
-        await db.rollback()
+    except UserException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save skill metadata",
-        ) from e
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return skill_data
 
@@ -68,12 +73,7 @@ async def delete_skill(
     user_service: UserService = Depends(get_user_service),
 ) -> SkillDeleteResponse:
     try:
-        sanitized_name = skill_service.sanitize_name(skill_name)
-        if sanitized_name != skill_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid skill name format",
-            )
+        skill_service.validate_exact_sanitized_name(skill_name)
     except SkillException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -81,13 +81,13 @@ async def delete_skill(
         user_settings = await user_service.get_user_settings_for_update(
             current_user.id, db=db
         )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_skills = user_settings.custom_skills or []
-    skill_index = next(
-        (i for i, s in enumerate(current_skills) if s.get("name") == skill_name), None
-    )
+    skill_index = skill_service.find_item_index_by_name(current_skills, skill_name)
 
     if skill_index is None:
         return SkillDeleteResponse(status=DeleteResponseStatus.NOT_FOUND.value)
@@ -101,8 +101,16 @@ async def delete_skill(
     if user_service.remove_installed_component(user_settings, f"skill:{skill_name}"):
         flag_modified(user_settings, "installed_plugins")
 
-    await user_service.commit_settings_and_invalidate_cache(
-        user_settings, db, current_user.id
-    )
+    try:
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to delete skill",
+        )
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return SkillDeleteResponse(status=DeleteResponseStatus.DELETED.value)
