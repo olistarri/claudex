@@ -1,12 +1,10 @@
-from typing import cast
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.deps import get_db, get_command_service, get_user_service
 from app.core.security import get_current_user
-from app.models.db_models import DeleteResponseStatus, User, UserSettings
+from app.models.db_models import DeleteResponseStatus, User
 from app.models.schemas import (
     CommandDeleteResponse,
     CommandResponse,
@@ -31,11 +29,8 @@ async def upload_command(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomSlashCommandDict:
     try:
-        user_settings = cast(
-            UserSettings,
-            await user_service.get_user_settings(
-                current_user.id, db=db, for_update=True
-            ),
+        user_settings = await user_service.get_user_settings_for_update(
+            current_user.id, db=db
         )
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -90,11 +85,8 @@ async def update_command(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = cast(
-            UserSettings,
-            await user_service.get_user_settings(
-                current_user.id, db=db, for_update=True
-            ),
+        user_settings = await user_service.get_user_settings_for_update(
+            current_user.id, db=db
         )
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -157,8 +149,8 @@ async def delete_command(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db, for_update=True
+        user_settings = await user_service.get_user_settings_for_update(
+            current_user.id, db=db
         )
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

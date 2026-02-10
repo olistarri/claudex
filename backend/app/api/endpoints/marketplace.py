@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.services.agent import AgentService
 from app.services.command import CommandService
 from app.services.skill import SkillService
 from app.core.security import get_current_user
-from app.models.db_models import User, UserSettings
+from app.models.db_models import User
 from app.models.schemas.marketplace import (
     InstallComponentRequest,
     InstallComponentResult,
@@ -88,7 +88,7 @@ async def install_plugin_components(
     # 1. read settings without lock, 2. network IO, 3. short write lock
     try:
         user_settings_readonly = await user_service.get_user_settings(
-            current_user.id, db=db, for_update=False
+            current_user.id, db=db
         )
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -124,11 +124,8 @@ async def install_plugin_components(
 
     if result.installed:
         try:
-            user_settings = cast(
-                UserSettings,
-                await user_service.get_user_settings(
-                    current_user.id, db=db, for_update=True
-                ),
+            user_settings = await user_service.get_user_settings_for_update(
+                current_user.id, db=db
             )
         except UserException as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -207,9 +204,7 @@ async def get_installed_plugins(
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-    installed: list[InstalledPluginDict] = cast(
-        list[InstalledPluginDict], user_settings.installed_plugins or []
-    )
+    installed: list[InstalledPluginDict] = list(user_settings.installed_plugins or [])
     return [InstalledPlugin(**p) for p in installed]
 
 
@@ -224,11 +219,8 @@ async def uninstall_plugin_components(
     skill_service: SkillService = Depends(get_skill_service),
 ) -> UninstallResponse:
     try:
-        user_settings = cast(
-            UserSettings,
-            await user_service.get_user_settings(
-                current_user.id, db=db, for_update=True
-            ),
+        user_settings = await user_service.get_user_settings_for_update(
+            current_user.id, db=db
         )
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

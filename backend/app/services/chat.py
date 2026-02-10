@@ -4,7 +4,7 @@ import logging
 import math
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import exists, func, select, update
@@ -133,9 +133,7 @@ class ChatService(BaseDbService[Chat]):
     async def create_chat(self, user: User, chat_data: ChatCreate) -> Chat:
         await self._check_message_limit(user.id)
 
-        user_settings = cast(
-            UserSettings, await self.user_service.get_user_settings(user.id)
-        )
+        user_settings = await self.user_service.get_user_settings(user.id)
         self._validate_api_keys(user_settings, chat_data.model_id)
 
         sandbox_id = await self.sandbox_service.create_sandbox()
@@ -1097,9 +1095,7 @@ class ChatService(BaseDbService[Chat]):
 
         target_message = messages[-1]
 
-        user_settings = cast(
-            UserSettings, await self.user_service.get_user_settings(user.id)
-        )
+        user_settings = await self.user_service.get_user_settings(user.id)
 
         sandbox_provider = user_settings.sandbox_provider
         if sandbox_provider != SandboxProviderType.DOCKER.value:

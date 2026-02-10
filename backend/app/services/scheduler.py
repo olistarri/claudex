@@ -153,8 +153,11 @@ class SchedulerService(BaseDbService[ScheduledTask]):
                 )
 
     async def _user_tz(self, user_id: UUID, db: AsyncSession) -> str:
-        user_settings = await UserService().get_user_settings(user_id, db=db)
-        return user_settings.timezone
+        user_settings: UserSettings = await UserService().get_user_settings(
+            user_id, db=db
+        )
+        timezone_name: str = user_settings.timezone
+        return timezone_name
 
     async def _get_user_task(
         self, task_id: UUID, user_id: UUID, db: AsyncSession
@@ -516,9 +519,8 @@ class SchedulerService(BaseDbService[ScheduledTask]):
                     if not user:
                         return {"error": "User not found"}
 
-                    user_settings = cast(
-                        UserSettings,
-                        await UserService().get_user_settings(user.id, db=db),
+                    user_settings = await UserService().get_user_settings(
+                        user.id, db=db
                     )
                     if not scheduled_task.model_id:
                         raise SchedulerException("Scheduled task missing model_id")
