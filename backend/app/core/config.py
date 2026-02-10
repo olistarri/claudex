@@ -63,16 +63,6 @@ class Settings(BaseSettings):
                 return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
-    @field_validator("REQUIRE_EMAIL_VERIFICATION", mode="before")
-    @classmethod
-    def set_email_verification_requirement(
-        cls, v: bool | None, info: ValidationInfo
-    ) -> bool:
-        if v is not None:
-            return bool(v)
-        environment = info.data.get("ENVIRONMENT", "development")
-        return bool(environment != "development")
-
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
