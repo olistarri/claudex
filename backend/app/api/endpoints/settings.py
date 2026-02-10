@@ -1,5 +1,4 @@
 import logging
-from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,13 +24,12 @@ async def get_user_settings(
     logger.info(f"[GET_SETTINGS] Fetching settings for user {current_user.id}")
     try:
         async with redis_connection() as redis:
-            settings_record = await user_service.get_user_settings(
+            response = await user_service.get_user_settings_response(
                 current_user.id, redis=redis
             )
-            response = UserSettingsResponse.model_validate(settings_record)
             agent_names = [a.name for a in (response.custom_agents or [])]
             logger.info(f"[GET_SETTINGS] Returning agents: {agent_names}")
-            return cast(UserSettingsResponse, response)
+            return response
     except UserException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -53,9 +51,10 @@ async def update_user_settings(
         )
         async with redis_connection() as redis:
             await user_service.invalidate_settings_cache(redis, current_user.id)
-        return cast(
-            UserSettingsResponse, UserSettingsResponse.model_validate(user_settings)
+        response: UserSettingsResponse = UserSettingsResponse.model_validate(
+            user_settings
         )
+        return response
     except DuplicateProviderNameError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -48,25 +48,17 @@ class UserService(BaseDbService[UserSettings]):
         cache_key = REDIS_KEY_USER_SETTINGS.format(user_id=user_id)
         await redis.delete(cache_key)
 
-    async def get_user_settings(
+    async def _fetch_user_settings(
         self,
         user_id: UUID,
         db: AsyncSession | None = None,
         for_update: bool = False,
-        redis: Redis[str] | None = None,
-    ) -> UserSettings | UserSettingsResponse:
-        cache_key = REDIS_KEY_USER_SETTINGS.format(user_id=user_id)
-
-        if redis and not for_update:
-            cached = await redis.get(cache_key)
-            if cached:
-                response = UserSettingsResponse.model_validate_json(cached)
-                return cast(UserSettingsResponse, response)
-
+    ) -> UserSettings:
         stmt = select(UserSettings).where(UserSettings.user_id == user_id)
         if for_update:
             stmt = stmt.with_for_update()
 
+        user_settings: UserSettings | None
         if db is None:
             async with self.session_factory() as session:
                 result = await session.execute(stmt)
@@ -78,20 +70,54 @@ class UserService(BaseDbService[UserSettings]):
         if not user_settings:
             raise UserException("User settings not found")
 
-        if redis and not for_update:
-            response = UserSettingsResponse.model_validate(user_settings)
+        return user_settings
+
+    async def get_user_settings(
+        self,
+        user_id: UUID,
+        db: AsyncSession | None = None,
+    ) -> UserSettings:
+        return await self._fetch_user_settings(user_id=user_id, db=db, for_update=False)
+
+    async def get_user_settings_for_update(
+        self,
+        user_id: UUID,
+        db: AsyncSession,
+    ) -> UserSettings:
+        return await self._fetch_user_settings(user_id=user_id, db=db, for_update=True)
+
+    async def get_user_settings_response(
+        self,
+        user_id: UUID,
+        db: AsyncSession | None = None,
+        redis: Redis[str] | None = None,
+    ) -> UserSettingsResponse:
+        cache_key = REDIS_KEY_USER_SETTINGS.format(user_id=user_id)
+        if redis:
+            cached = await redis.get(cache_key)
+            if cached:
+                cached_response: UserSettingsResponse = (
+                    UserSettingsResponse.model_validate_json(cached)
+                )
+                return cached_response
+
+        user_settings = await self.get_user_settings(user_id=user_id, db=db)
+        response: UserSettingsResponse = UserSettingsResponse.model_validate(
+            user_settings
+        )
+        if redis:
             await redis.setex(
                 cache_key,
                 settings.USER_SETTINGS_CACHE_TTL_SECONDS,
                 response.model_dump_json(),
             )
 
-        return cast(UserSettings, user_settings)
+        return response
 
     async def update_user_settings(
         self, user_id: UUID, settings_update: dict[str, JSONValue], db: AsyncSession
     ) -> UserSettings:
-        user_settings = await db.scalar(
+        user_settings: UserSettings | None = await db.scalar(
             select(UserSettings)
             .where(UserSettings.user_id == user_id)
             .with_for_update()
@@ -122,7 +148,7 @@ class UserService(BaseDbService[UserSettings]):
         await db.commit()
         await db.refresh(user_settings)
 
-        return cast(UserSettings, user_settings)
+        return user_settings
 
     async def commit_settings_and_invalidate_cache(
         self, user_settings: UserSettings, db: AsyncSession, user_id: UUID
@@ -180,7 +206,7 @@ class UserService(BaseDbService[UserSettings]):
             user_result = await db.execute(
                 select(User.daily_message_limit).where(User.id == user_id)
             )
-            daily_limit = user_result.scalar_one_or_none()
+            daily_limit: int | None = user_result.scalar_one_or_none()
             if daily_limit is None:
                 return -1
 
@@ -188,8 +214,7 @@ class UserService(BaseDbService[UserSettings]):
                 return 0
 
             used_messages = await self.get_user_daily_message_count(user_id)
-            remaining = max(0, daily_limit - used_messages)
-            return cast(int, remaining)
+            return max(0, daily_limit - used_messages)
 
     async def check_message_limit(self, user_id: UUID) -> bool:
         remaining = await self.get_remaining_messages(user_id)
