@@ -10,10 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import selectinload
 
-from app.constants import (
-    REDIS_KEY_CHAT_STREAM_LIVE,
-    STREAM_STATUS_CANCELLED,
-)
+from app.constants import REDIS_KEY_CHAT_STREAM_LIVE
 from app.models.db_models import StreamEventKind
 from app.core.config import get_settings
 from app.models.db_models import (
@@ -53,9 +50,8 @@ from app.services.storage import StorageService
 from app.services.user import UserService
 
 if TYPE_CHECKING:
-    from redis.asyncio import Redis
     from redis.asyncio.client import PubSub
-from app.services.streaming.cancellation import CancellationHandler
+
 from app.utils.message_events import extract_user_prompt
 from app.utils.redis import redis_connection, redis_pubsub
 from app.utils.attachment_urls import build_attachment_preview_url
@@ -356,19 +352,6 @@ class ChatService(BaseDbService[Chat]):
 
         return await self.message_service.get_chat_messages(chat_id, cursor, limit)
 
-    async def _monitor_stream_cancellation(
-        self, chat_id: UUID, cancel_event: asyncio.Event
-    ) -> None:
-        try:
-            did_wait = await CancellationHandler.wait_for_cancel(str(chat_id))
-            if not did_wait:
-                return
-            logger.info("Stream cancellation received for chat %s", chat_id)
-            cancel_event.set()
-        except asyncio.CancelledError:
-            logger.debug("Cancellation monitor task cancelled for chat %s", chat_id)
-            raise
-
     async def _replay_stream_backlog(
         self,
         chat_id: UUID,
@@ -416,35 +399,6 @@ class ChatService(BaseDbService[Chat]):
             if len(backlog) < page_size:
                 return
 
-    async def _resolve_active_cancel_targets(
-        self,
-        *,
-        chat_id: UUID,
-        fallback_stream_id: UUID | None,
-        fallback_message_id: UUID | None,
-    ) -> tuple[UUID | None, UUID | None]:
-        try:
-            latest_assistant_message = (
-                await self.message_service.get_latest_assistant_message(chat_id)
-            )
-            if (
-                latest_assistant_message
-                and latest_assistant_message.stream_status
-                == MessageStreamStatus.IN_PROGRESS
-                and latest_assistant_message.active_stream_id
-            ):
-                return (
-                    latest_assistant_message.active_stream_id,
-                    latest_assistant_message.id,
-                )
-        except Exception as exc:
-            logger.debug(
-                "Failed to resolve active stream for cancellation in chat %s: %s",
-                chat_id,
-                exc,
-            )
-        return fallback_stream_id, fallback_message_id
-
     @staticmethod
     def _to_stream_sse_event(event: MessageEvent) -> dict[str, Any]:
         return ChatService._build_stream_sse_event(
@@ -482,106 +436,6 @@ class ChatService(BaseDbService[Chat]):
             "event": StreamEventKind.STREAM.value,
             "data": json.dumps(envelope, ensure_ascii=False),
         }
-
-    async def _wait_for_stream_terminal_event(
-        self,
-        *,
-        chat_id: UUID,
-        stream_id: UUID,
-        attempts: int = 20,
-        delay_seconds: float = 0.05,
-    ) -> MessageEvent | None:
-        for attempt in range(attempts):
-            latest_event = await self.message_service.get_latest_stream_event(
-                chat_id=chat_id,
-                stream_id=stream_id,
-            )
-            if latest_event and latest_event.event_type in {
-                "cancelled",
-                "complete",
-                "error",
-            }:
-                return latest_event
-            if attempt < attempts - 1:
-                await asyncio.sleep(delay_seconds)
-        return None
-
-    async def _drain_events_until_terminal(
-        self,
-        *,
-        chat_id: UUID,
-        after_seq: int,
-        attempts: int = 20,
-        delay_seconds: float = 0.05,
-    ) -> tuple[list[dict[str, Any]], int, bool]:
-        cursor = after_seq
-        drained_events: list[dict[str, Any]] = []
-
-        for attempt in range(attempts):
-            live_events = await self.message_service.get_chat_events_after_seq(
-                chat_id=chat_id,
-                after_seq=cursor,
-                limit=5000,
-            )
-            if live_events:
-                found_terminal = False
-                for event in live_events:
-                    drained_events.append(self._to_stream_sse_event(event))
-                    cursor = max(cursor, int(event.seq))
-                    if event.event_type in TERMINAL_STREAM_EVENT_TYPES:
-                        found_terminal = True
-                if found_terminal:
-                    return drained_events, cursor, True
-
-            if attempt < attempts - 1:
-                await asyncio.sleep(delay_seconds)
-
-        return drained_events, cursor, False
-
-    async def _build_forced_cancelled_stream_event(
-        self,
-        *,
-        chat_id: UUID,
-        stream_id: UUID | None,
-        message_id: UUID | None,
-        fallback_seq: int,
-    ) -> dict[str, Any] | None:
-        if message_id is None:
-            latest_assistant = await self.message_service.get_latest_assistant_message(
-                chat_id
-            )
-            if latest_assistant is None:
-                return None
-            message_id = latest_assistant.id
-
-        resolved_stream_id = stream_id or uuid4()
-        payload = {"status": STREAM_STATUS_CANCELLED}
-
-        try:
-            cancelled_seq = await self.message_service.append_event_with_next_seq(
-                chat_id=chat_id,
-                message_id=message_id,
-                stream_id=resolved_stream_id,
-                event_type="cancelled",
-                render_payload=payload,
-                audit_payload={"payload": payload},
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to persist forced cancelled event for chat %s: %s",
-                chat_id,
-                exc,
-            )
-            cancelled_seq = max(int(fallback_seq), 0) + 1
-
-        return self._build_stream_sse_event(
-            chat_id=chat_id,
-            message_id=message_id,
-            stream_id=resolved_stream_id,
-            seq=cancelled_seq,
-            kind="cancelled",
-            payload=payload,
-        )
 
     async def _build_stream_error_event(
         self,
@@ -647,159 +501,13 @@ class ChatService(BaseDbService[Chat]):
             payload=payload,
         )
 
-    async def _build_cancelled_stream_event(
-        self,
-        *,
-        chat_id: UUID,
-        stream_id: UUID | None,
-        message_id: UUID | None,
-    ) -> dict[str, Any] | None:
-        if not stream_id or not message_id:
-            return None
-
-        payload = {"status": STREAM_STATUS_CANCELLED}
-        claimed_cancellation = await self.message_service.claim_stream_cancellation(
-            message_id=message_id,
-            stream_id=stream_id,
-        )
-
-        if not claimed_cancellation:
-            latest_terminal = await self._wait_for_stream_terminal_event(
-                chat_id=chat_id,
-                stream_id=stream_id,
-            )
-            return (
-                self._to_stream_sse_event(latest_terminal)
-                if latest_terminal is not None
-                else None
-            )
-
-        try:
-            cancelled_seq = await self.message_service.append_event_with_next_seq(
-                chat_id=chat_id,
-                message_id=message_id,
-                stream_id=stream_id,
-                event_type="cancelled",
-                render_payload=payload,
-                audit_payload={"payload": payload},
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to persist cancelled stream event for chat %s: %s",
-                chat_id,
-                exc,
-            )
-            latest_terminal = await self._wait_for_stream_terminal_event(
-                chat_id=chat_id,
-                stream_id=stream_id,
-            )
-            return (
-                self._to_stream_sse_event(latest_terminal)
-                if latest_terminal is not None
-                else None
-            )
-
-        return self._build_stream_sse_event(
-            chat_id=chat_id,
-            message_id=message_id,
-            stream_id=stream_id,
-            seq=cancelled_seq,
-            kind="cancelled",
-            payload=payload,
-        )
-
     async def _stream_live_redis_events(
         self,
-        redis: "Redis[str]",
         chat_id: UUID,
         last_seq: int,
-        cancel_event: asyncio.Event,
-        active_stream_id: UUID | None,
-        active_message_id: UUID | None,
         live_pubsub: "PubSub",
     ) -> AsyncIterator[dict[str, Any]]:
-        current_stream_id = active_stream_id
-        current_message_id = active_message_id
-
-        if CancellationHandler.is_cancelled(str(chat_id)) or cancel_event.is_set():
-            logger.info("Stream already cancelled for chat %s", chat_id)
-            stream_id, message_id = await self._resolve_active_cancel_targets(
-                chat_id=chat_id,
-                fallback_stream_id=current_stream_id,
-                fallback_message_id=current_message_id,
-            )
-            cancelled_event = await self._build_cancelled_stream_event(
-                chat_id=chat_id,
-                stream_id=stream_id,
-                message_id=message_id,
-            )
-            if cancelled_event:
-                yield cancelled_event
-                return
-
-            (
-                drained_events,
-                last_seq,
-                found_terminal,
-            ) = await self._drain_events_until_terminal(
-                chat_id=chat_id,
-                after_seq=last_seq,
-            )
-            for drained_event in drained_events:
-                yield drained_event
-            if found_terminal:
-                return
-
-            forced_cancelled = await self._build_forced_cancelled_stream_event(
-                chat_id=chat_id,
-                stream_id=stream_id,
-                message_id=message_id,
-                fallback_seq=last_seq,
-            )
-            if forced_cancelled:
-                yield forced_cancelled
-            return
-
         while True:
-            if cancel_event.is_set():
-                logger.info("Stream cancelled for chat %s", chat_id)
-                stream_id, message_id = await self._resolve_active_cancel_targets(
-                    chat_id=chat_id,
-                    fallback_stream_id=current_stream_id,
-                    fallback_message_id=current_message_id,
-                )
-                cancelled_event = await self._build_cancelled_stream_event(
-                    chat_id=chat_id,
-                    stream_id=stream_id,
-                    message_id=message_id,
-                )
-                if cancelled_event:
-                    yield cancelled_event
-                    return
-
-                (
-                    drained_events,
-                    last_seq,
-                    found_terminal,
-                ) = await self._drain_events_until_terminal(
-                    chat_id=chat_id,
-                    after_seq=last_seq,
-                )
-                for drained_event in drained_events:
-                    yield drained_event
-                if found_terminal:
-                    return
-
-                forced_cancelled = await self._build_forced_cancelled_stream_event(
-                    chat_id=chat_id,
-                    stream_id=stream_id,
-                    message_id=message_id,
-                    fallback_seq=last_seq,
-                )
-                if forced_cancelled:
-                    yield forced_cancelled
-                return
-
             message = await live_pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=1.0
             )
@@ -816,8 +524,6 @@ class ChatService(BaseDbService[Chat]):
                 limit=5000,
             )
             for event in live_events:
-                current_stream_id = event.stream_id
-                current_message_id = event.message_id
                 yield self._to_stream_sse_event(event)
                 last_seq = int(event.seq)
 
@@ -866,37 +572,21 @@ class ChatService(BaseDbService[Chat]):
                         if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
                             return
 
-                    cancel_event = asyncio.Event()
-                    monitor_task = asyncio.create_task(
-                        self._monitor_stream_cancellation(chat_id, cancel_event)
-                    )
-
-                    try:
-                        async for event in self._stream_live_redis_events(
-                            redis,
-                            chat_id,
-                            last_seq,
-                            cancel_event,
-                            active_stream_id,
-                            active_message_id,
-                            live_pubsub,
-                        ):
-                            yield event
-                            try:
-                                event_seq = int(event.get("id", last_seq))
-                                if event_seq > last_seq:
-                                    last_seq = event_seq
-                            except Exception:
-                                pass
-                            envelope = json.loads(event.get("data", "{}"))
-                            if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
-                                return
-                    finally:
-                        monitor_task.cancel()
+                    async for event in self._stream_live_redis_events(
+                        chat_id,
+                        last_seq,
+                        live_pubsub,
+                    ):
+                        yield event
                         try:
-                            await monitor_task
-                        except asyncio.CancelledError:
+                            event_seq = int(event.get("id", last_seq))
+                            if event_seq > last_seq:
+                                last_seq = event_seq
+                        except Exception:
                             pass
+                        envelope = json.loads(event.get("data", "{}"))
+                        if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
+                            return
 
         except Exception as exc:
             logger.error(
