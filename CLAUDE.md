@@ -76,17 +76,6 @@
 - Section labels: `text-2xs font-medium uppercase tracking-wider text-text-quaternary`
 - Icon buttons in headers: `h-3 w-3` icons, no background, hover with `text-text-primary`
 
-### Auth Pages
-- Page titles: `text-xl font-semibold` — not `text-3xl font-bold`
-- Subtitles: `text-sm text-text-tertiary`
-- Card: `rounded-xl border border-border/50 bg-surface-tertiary p-6 shadow-medium` with dark variants
-- Form spacing: `space-y-3.5` between fields, `space-y-1.5` between label and input
-- Submit buttons: `variant="primary" size="lg"` — no gradient overlays, no scale transforms, no Zap icons
-- Error alerts: `rounded-lg border border-error-500/20 bg-error-500/10 p-3` with `text-xs`
-- Info/success boxes: `bg-surface-hover/50 border-border/50` — never blue backgrounds
-- Status icons: `h-5 w-5` or `h-6 w-6` — never `h-16 w-16`
-- Helper text below cards: `text-2xs text-text-quaternary`
-
 ### Animations & Transitions
 - Use `framer-motion` for state transitions (`AnimatePresence mode="wait"`, `motion.div` with `initial`/`animate`/`exit`) — common values: `opacity: 0→1`, `y: 5→0`, `scale: 0.98→1`
 - Use `transition-colors duration-200` for hover/focus, `transition-all duration-300` for complex state changes like drag-and-drop
