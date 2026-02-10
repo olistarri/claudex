@@ -33,6 +33,7 @@
 - Use Docker-based commands such as `docker compose exec api ruff check ...` 
 ## Code Style
 
+- Do not optimize for no regressions or long-term resilience unless explicitly requested — favor simple, direct changes over defensive scaffolding
 - Don't add comments or docstrings for self-explanatory code
 - Let the code speak for itself - use clear variable/function names instead of comments
 - Avoid no-op pass-through wrappers (e.g., a function that only calls another function with identical args/return)
