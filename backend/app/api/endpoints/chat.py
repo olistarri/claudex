@@ -4,20 +4,14 @@ import logging
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from celery.exceptions import NotRegistered
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status, Request
 from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 from sse_starlette.sse import EventSourceResponse
 
 from app.constants import (
-    REDIS_KEY_CHAT_CANCEL,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
-    REDIS_KEY_CHAT_REVOKED,
-    REDIS_KEY_CHAT_TASK,
-    REDIS_KEY_PERMISSION_RESPONSE,
 )
-from app.core.celery import celery_app
 from app.core.config import get_settings
 from app.core.deps import get_chat_service
 from app.core.security import get_current_user
@@ -46,6 +40,9 @@ from app.models.schemas import (
     RestoreRequest,
 )
 from app.services.chat import ChatService
+from app.services.streaming.cancellation import CancellationHandler
+from app.services.claude_agent import ClaudeAgentService
+from app.services.streaming.runner import ChatStreamRuntime
 from app.services.exceptions import (
     ChatException,
     ClaudeAgentException,
@@ -161,9 +158,12 @@ async def enhance_prompt(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     try:
-        enhanced_prompt = await chat_service.ai_service.enhance_prompt(
-            prompt, model_id, current_user
-        )
+        async with ClaudeAgentService(
+            session_factory=chat_service.session_factory
+        ) as ai_service:
+            enhanced_prompt = await ai_service.enhance_prompt(
+                prompt, model_id, current_user
+            )
         return {"enhanced_prompt": enhanced_prompt}
     except ClaudeAgentException as e:
         raise HTTPException(
@@ -389,63 +389,33 @@ async def get_stream_status(
             await chat_service.message_service.get_latest_assistant_message(chat_id)
         )
 
-        task_key = REDIS_KEY_CHAT_TASK.format(chat_id=chat_id)
-        revoked_key = REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id)
-
         if latest_assistant_message:
             if latest_assistant_message.stream_status in [
                 MessageStreamStatus.COMPLETED,
                 MessageStreamStatus.FAILED,
                 MessageStreamStatus.INTERRUPTED,
             ]:
-                async with redis_connection() as redis:
-                    await redis.delete(task_key)
                 return INACTIVE_TASK_RESPONSE.copy()
-
-        async with redis_connection() as redis:
-            task_id = await redis.get(task_key)
-
-            if not task_id:
+            if latest_assistant_message.stream_status != MessageStreamStatus.IN_PROGRESS:
                 return INACTIVE_TASK_RESPONSE.copy()
+        else:
+            return INACTIVE_TASK_RESPONSE.copy()
 
-            revoked = await redis.get(revoked_key)
-            if revoked:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
+        if not ChatStreamRuntime.has_active_chat(str(chat_id)):
+            return INACTIVE_TASK_RESPONSE.copy()
 
-            try:
-                task_result = celery_app.AsyncResult(task_id)
-                task_state = task_result.state
-            except NotRegistered:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            is_active = task_state in ["PENDING", "STARTED", "PROGRESS"]
-
-            if not is_active:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            return {
-                "has_active_task": True,
-                "message_id": latest_assistant_message.id
-                if latest_assistant_message
-                else None,
-                "stream_id": latest_assistant_message.active_stream_id
-                if latest_assistant_message
-                else None,
-                "last_seq": latest_assistant_message.last_seq
-                if latest_assistant_message
-                else 0,
-            }
-    except RedisError as e:
-        logger.error(
-            "Redis error checking chat status %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+        return {
+            "has_active_task": True,
+            "message_id": latest_assistant_message.id
+            if latest_assistant_message
+            else None,
+            "stream_id": latest_assistant_message.active_stream_id
+            if latest_assistant_message
+            else None,
+            "last_seq": latest_assistant_message.last_seq
+            if latest_assistant_message
+            else 0,
+        }
     except SQLAlchemyError as e:
         logger.error(
             "Database error checking chat status %s: %s", chat_id, e, exc_info=True
@@ -480,36 +450,10 @@ async def cancel_stream(
 ) -> None:
     await _ensure_chat_access(chat_id, chat_service, current_user)
 
-    try:
-        async with redis_connection() as redis:
-            task_key = REDIS_KEY_CHAT_TASK.format(chat_id=chat_id)
-            task_id = await redis.get(task_key)
+    if not ChatStreamRuntime.has_active_chat(str(chat_id)):
+        return
 
-            if not task_id:
-                return
-
-            try:
-                await redis.setex(
-                    REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id),
-                    settings.CHAT_REVOKED_KEY_TTL_SECONDS,
-                    "1",
-                )
-                await redis.publish(
-                    REDIS_KEY_CHAT_CANCEL.format(chat_id=chat_id), "cancel"
-                )
-            except RedisError as e:
-                logger.error(
-                    "Failed to stop chat stream %s: %s", chat_id, e, exc_info=True
-                )
-
-    except RedisError as e:
-        logger.error(
-            "Redis error stopping chat stream %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+    CancellationHandler.request_cancel(str(chat_id))
 
 
 @router.post(
@@ -544,45 +488,17 @@ async def respond_to_permission(
                 detail="user_answers must be a JSON object",
             )
 
-    try:
-        async with redis_connection() as redis:
-            permission_manager = PermissionManager(redis)
-            success = await permission_manager.respond_to_permission(
-                request_id, approved, alternative_instruction, parsed_answers
-            )
+    success = await PermissionManager.respond(
+        request_id, approved, alternative_instruction, parsed_answers
+    )
 
-            if not success:
-                # When a permission request is not found (expired or never existed), we publish
-                # a "denied" message to the Redis pub/sub channel. This wakes up any waiting
-                # permission handler immediately, allowing it to fail the tool right away.
-                try:
-                    expired_response = json.dumps(
-                        {
-                            "approved": False,
-                            "alternative_instruction": "Permission request expired. Please try again.",
-                        }
-                    )
-                    channel = REDIS_KEY_PERMISSION_RESPONSE.format(
-                        request_id=request_id
-                    )
-                    await redis.publish(channel, expired_response)
-                except Exception as e:
-                    logger.warning("Failed to publish expired message: %s", e)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Permission request not found or expired",
-                )
-
-            return PermissionRespondResponse(success=True)
-
-    except RedisError as e:
-        logger.error(
-            "Redis error responding to permission %s: %s", request_id, e, exc_info=True
-        )
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Permission request not found or expired",
         )
+
+    return PermissionRespondResponse(success=True)
 
 
 @router.post(

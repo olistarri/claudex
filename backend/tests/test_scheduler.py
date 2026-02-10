@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
+from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.db_models import User
+from app.models.db_models import (
+    RecurrenceType,
+    ScheduledTask,
+    TaskExecution,
+    TaskExecutionStatus,
+    TaskStatus,
+    User,
+)
+from app.services.scheduler import SchedulerService
 
 
 class TestCreateScheduledTask:
@@ -408,3 +420,89 @@ class TestSchedulerNotFound:
         )
 
         assert response.status_code == 404
+
+
+class TestSchedulerRecovery:
+    async def test_recover_stale_execution_without_dispatch(
+        self,
+        db_session: AsyncSession,
+        session_factory,
+        sample_user: User,
+    ) -> None:
+        scheduled_task = ScheduledTask(
+            user_id=sample_user.id,
+            task_name="Stale Task",
+            prompt_message="Run stale recovery",
+            recurrence_type=RecurrenceType.DAILY,
+            scheduled_time="09:00",
+            scheduled_day=None,
+            next_execution=datetime.now(timezone.utc) + timedelta(days=1),
+            status=TaskStatus.PENDING,
+            model_id="claude-haiku-4-5",
+        )
+        db_session.add(scheduled_task)
+        await db_session.flush()
+
+        execution = TaskExecution(
+            task_id=scheduled_task.id,
+            executed_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+            status=TaskExecutionStatus.RUNNING,
+        )
+        db_session.add(execution)
+        await db_session.flush()
+
+        scheduler_service = SchedulerService(session_factory=session_factory)
+        result = await scheduler_service.check_due_tasks(limit=10)
+
+        await db_session.refresh(scheduled_task)
+        await db_session.refresh(execution)
+
+        assert result["tasks_triggered"] == 0
+        assert scheduled_task.status == TaskStatus.ACTIVE
+        assert execution.status == TaskExecutionStatus.FAILED
+        assert execution.completed_at is not None
+
+    async def test_do_not_recover_tracked_running_execution(
+        self,
+        db_session: AsyncSession,
+        session_factory,
+        sample_user: User,
+    ) -> None:
+        scheduled_task = ScheduledTask(
+            user_id=sample_user.id,
+            task_name="Active Dispatch Task",
+            prompt_message="Run active dispatch",
+            recurrence_type=RecurrenceType.DAILY,
+            scheduled_time="09:00",
+            scheduled_day=None,
+            next_execution=datetime.now(timezone.utc) + timedelta(days=1),
+            status=TaskStatus.PENDING,
+            model_id="claude-haiku-4-5",
+        )
+        db_session.add(scheduled_task)
+        await db_session.flush()
+
+        execution = TaskExecution(
+            task_id=scheduled_task.id,
+            executed_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+            status=TaskExecutionStatus.RUNNING,
+        )
+        db_session.add(execution)
+        await db_session.flush()
+
+        scheduler_service = SchedulerService(session_factory=session_factory)
+        running_dispatch = asyncio.create_task(asyncio.sleep(60))
+        scheduler_service._scheduled_tasks[str(execution.id)] = running_dispatch
+
+        try:
+            result = await scheduler_service.check_due_tasks(limit=10)
+            await db_session.refresh(scheduled_task)
+            await db_session.refresh(execution)
+        finally:
+            running_dispatch.cancel()
+            with suppress(asyncio.CancelledError):
+                await running_dispatch
+
+        assert result["tasks_triggered"] == 0
+        assert scheduled_task.status == TaskStatus.PENDING
+        assert execution.status == TaskExecutionStatus.RUNNING

@@ -25,7 +25,6 @@ httpx
 aiosmtplib
 prometheus-fastapi-instrumentator
 slowapi
-celery[redis]
 sse-starlette
 wtforms
 redis

@@ -63,11 +63,9 @@ class MessageAttachmentDict(TypedDict, total=False):
 
 
 class ChatCompletionResult(TypedDict):
-    task_id: str
     message_id: str
     chat_id: str
     last_seq: int
-    status: str
 
 
 class YamlFrontmatterResult(TypedDict):

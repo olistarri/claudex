@@ -1,30 +1,31 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, AsyncIterator, Callable
-from uuid import UUID, uuid4
+from typing import Any, AsyncIterator, Callable
+from uuid import UUID
 
-from celery.exceptions import Ignore
 from sqlalchemy import select
 
-from app.db.session import get_celery_session
-from app.models.db_models import Chat, Message, MessageRole, MessageStreamStatus, User
+from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
+from app.core.config import get_settings
+from app.services.claude_agent import ClaudeAgentService
+from app.models.db_models import Chat, Message, MessageRole, MessageStreamStatus
 from app.prompts.system_prompt import build_system_prompt_for_chat
-from app.services.exceptions import ClaudeAgentException, UserException
+from app.services.db import SessionFactoryType
+from app.services.exceptions import ClaudeAgentException
 from app.services.message import MessageService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
-from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
 from app.services.streaming.cancellation import CancellationHandler, StreamCancelled
-from app.services.streaming.context_usage import ContextUsageTracker
 from app.services.streaming.events import StreamEvent
 from app.services.streaming.publisher import StreamPublisher
-from app.services.streaming.session import SessionUpdateCallback
+from app.services.streaming.types import ChatStreamRequest
 from app.services.streaming.protocol import (
     StreamSnapshotAccumulator,
     build_envelope,
@@ -33,14 +34,8 @@ from app.services.streaming.protocol import (
 from app.services.user import UserService
 from app.utils.redis import redis_connection
 
-if TYPE_CHECKING:
-    from celery import Task
-
-    from app.services.claude_agent import ClaudeAgentService
-
-SessionFactoryType = Callable[[], Any]
-
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @dataclass(kw_only=True)
@@ -48,13 +43,12 @@ class StreamContext:
     chat_id: str
     chat_uuid: UUID
     stream: AsyncIterator[StreamEvent]
-    task: Task[Any, Any]
     ai_service: ClaudeAgentService
     assistant_message_id: str | None
     stream_id: UUID
     sandbox_service: SandboxService | None
     chat: Chat
-    session_factory: Any
+    session_factory: SessionFactoryType
     last_seq: int = 0
     session_container: dict[str, Any] | None = None
     user_id: str | None = None
@@ -80,19 +74,11 @@ class StreamOrchestrator:
         self,
         publisher: StreamPublisher,
         cancellation: CancellationHandler,
+        start_background_chat: Callable[[ChatStreamRequest], str],
     ) -> None:
         self.publisher = publisher
         self.cancellation = cancellation
-
-    @staticmethod
-    def hydrate_chat(chat_data: dict[str, Any]) -> Chat:
-        return Chat(
-            id=UUID(chat_data["id"]),
-            user_id=UUID(chat_data["user_id"]),
-            title=chat_data["title"],
-            sandbox_id=chat_data.get("sandbox_id"),
-            session_id=chat_data.get("session_id"),
-        )
+        self.start_background_chat = start_background_chat
 
     async def process_stream(self, ctx: StreamContext) -> StreamOutcome:
         try:
@@ -165,11 +151,6 @@ class StreamOrchestrator:
                 payload = {k: v for k, v in event.items() if k != "type"}
                 await self._emit_envelope(ctx, kind, payload)
                 await self._flush_snapshot(ctx, force=False)
-
-                ctx.task.update_state(
-                    state="PROGRESS",
-                    meta={"status": "Processing", "events_emitted": len(ctx.events)},
-                )
         finally:
             if revocation_task:
                 revocation_task.cancel()
@@ -233,28 +214,134 @@ class StreamOrchestrator:
         ):
             return
 
+        await self.refresh_context_usage(
+            chat_id=ctx.chat_id,
+            session_id=str(session_id),
+            sandbox_id=ctx.sandbox_id,
+            user_id=ctx.user_id,
+            model_id=ctx.model_id,
+            ai_service=ctx.ai_service,
+            redis_client=self.publisher.redis,
+            session_factory=ctx.session_factory,
+            assistant_message_id=ctx.assistant_message_id,
+            stream_id=ctx.stream_id,
+        )
+
+    async def refresh_context_usage(
+        self,
+        *,
+        chat_id: str,
+        session_id: str,
+        sandbox_id: str,
+        user_id: str,
+        model_id: str,
+        ai_service: ClaudeAgentService,
+        redis_client: Any,
+        session_factory: SessionFactoryType,
+        assistant_message_id: str | None = None,
+        stream_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
         try:
-            tracker = ContextUsageTracker(
-                chat_id=ctx.chat_id,
-                session_id=str(session_id),
-                sandbox_id=ctx.sandbox_id,
-                user_id=ctx.user_id,
-                model_id=ctx.model_id,
+            user_settings = await UserService(
+                session_factory=session_factory
+            ).get_user_settings(UUID(user_id))
+            token_usage = await ai_service.get_context_token_usage(
+                session_id=session_id,
+                sandbox_id=sandbox_id,
+                model_id=model_id,
+                user_settings=user_settings,
             )
-            message_id = (
-                UUID(ctx.assistant_message_id) if ctx.assistant_message_id else None
+            if token_usage is None:
+                return None
+
+            context_window = settings.CONTEXT_WINDOW_TOKENS
+            percentage = (
+                min((token_usage / context_window) * 100, 100.0)
+                if context_window > 0
+                else 0.0
             )
-            await tracker.fetch_and_broadcast(
-                ctx.ai_service,
-                self.publisher.redis,
-                ctx.session_factory,
-                message_id=message_id,
-                stream_id=ctx.stream_id,
+            context_data: dict[str, Any] = {
+                "tokens_used": token_usage,
+                "context_window": context_window,
+                "percentage": percentage,
+            }
+
+            async with session_factory() as db:
+                result = await db.execute(select(Chat).filter(Chat.id == UUID(chat_id)))
+                chat = result.scalar_one_or_none()
+                if chat:
+                    chat.context_token_usage = token_usage
+                    db.add(chat)
+                    await db.commit()
+
+            await redis_client.setex(
+                REDIS_KEY_CHAT_CONTEXT_USAGE.format(chat_id=chat_id),
+                settings.CONTEXT_USAGE_CACHE_TTL_SECONDS,
+                json.dumps(context_data),
             )
+
+            await self._publish_context_usage_event(
+                chat_id=chat_id,
+                session_factory=session_factory,
+                context_data=context_data,
+                assistant_message_id=assistant_message_id,
+                stream_id=stream_id,
+            )
+            return context_data
         except Exception as exc:
-            logger.debug(
-                "Final context usage fetch failed for chat %s: %s", ctx.chat_id, exc
+            logger.debug("Context usage refresh failed for chat %s: %s", chat_id, exc)
+            return None
+
+    async def _publish_context_usage_event(
+        self,
+        *,
+        chat_id: str,
+        session_factory: SessionFactoryType,
+        context_data: dict[str, Any],
+        assistant_message_id: str | None,
+        stream_id: UUID | None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "context_usage": context_data,
+            "chat_id": chat_id,
+        }
+        message_service = MessageService(session_factory=session_factory)
+        message_uuid: UUID | None = None
+        target_stream_id: UUID | None = stream_id
+
+        if assistant_message_id:
+            message_uuid = UUID(assistant_message_id)
+
+        if message_uuid is None or target_stream_id is None:
+            latest_assistant = await message_service.get_latest_assistant_message(
+                UUID(chat_id)
             )
+            if (
+                not latest_assistant
+                or not latest_assistant.active_stream_id
+                or latest_assistant.stream_status != MessageStreamStatus.IN_PROGRESS
+            ):
+                return
+            message_uuid = latest_assistant.id
+            target_stream_id = latest_assistant.active_stream_id
+
+        seq = await message_service.append_event_with_next_seq(
+            chat_id=UUID(chat_id),
+            message_id=message_uuid,
+            stream_id=target_stream_id,
+            event_type="system",
+            render_payload=payload,
+            audit_payload={"payload": redact_for_audit(payload)},
+        )
+        envelope = build_envelope(
+            chat_id=UUID(chat_id),
+            message_id=message_uuid,
+            stream_id=target_stream_id,
+            seq=seq,
+            kind="system",
+            payload=payload,
+        )
+        await self.publisher.publish_envelope(envelope)
 
     async def _emit_envelope(
         self,
@@ -355,7 +442,7 @@ class StreamOrchestrator:
         sandbox_service: SandboxService | None,
         chat: Chat,
         assistant_message_id: str | None,
-        session_factory: Any,
+        session_factory: SessionFactoryType,
     ) -> None:
         if not (sandbox_service and chat.sandbox_id and assistant_message_id):
             return
@@ -468,8 +555,6 @@ class StreamOrchestrator:
         next_msg: dict[str, Any],
         assistant_message: Message,
     ) -> None:
-        from app.tasks.chat import process_chat
-
         user_service = UserService(session_factory=ctx.session_factory)
         user_settings = await user_service.get_user_settings(ctx.chat.user_id, db=None)
 
@@ -478,209 +563,26 @@ class StreamOrchestrator:
             user_settings,
         )
 
-        process_chat.delay(
-            prompt=next_msg["content"],
-            system_prompt=system_prompt,
-            custom_instructions=(
-                user_settings.custom_instructions if user_settings else None
-            ),
-            chat_data={
-                "id": ctx.chat_id,
-                "user_id": str(ctx.chat.user_id),
-                "title": ctx.chat.title,
-                "sandbox_id": ctx.chat.sandbox_id,
-                "session_id": ctx.chat.session_id,
-            },
-            permission_mode=next_msg.get("permission_mode", "auto"),
-            model_id=next_msg["model_id"],
-            session_id=ctx.chat.session_id,
-            assistant_message_id=str(assistant_message.id),
-            thinking_mode=next_msg.get("thinking_mode"),
-            attachments=next_msg.get("attachments"),
-            is_custom_prompt=False,
-            is_queue_continuation=True,
+        self.start_background_chat(
+            ChatStreamRequest(
+                prompt=next_msg["content"],
+                system_prompt=system_prompt,
+                custom_instructions=(
+                    user_settings.custom_instructions if user_settings else None
+                ),
+                chat_data={
+                    "id": ctx.chat_id,
+                    "user_id": str(ctx.chat.user_id),
+                    "title": ctx.chat.title,
+                    "sandbox_id": ctx.chat.sandbox_id,
+                    "session_id": ctx.chat.session_id,
+                },
+                permission_mode=next_msg.get("permission_mode", "auto"),
+                model_id=next_msg["model_id"],
+                session_id=ctx.chat.session_id,
+                assistant_message_id=str(assistant_message.id),
+                thinking_mode=next_msg.get("thinking_mode"),
+                attachments=next_msg.get("attachments"),
+                is_custom_prompt=False,
+            )
         )
-
-    @staticmethod
-    async def run_chat_stream(
-        task: Task[Any, Any],
-        prompt: str,
-        system_prompt: str,
-        custom_instructions: str | None,
-        chat_data: dict[str, Any],
-        model_id: str,
-        sandbox_service: SandboxService,
-        session_factory: SessionFactoryType,
-        context_usage_trigger: Callable[..., Any] | None = None,
-        permission_mode: str = "auto",
-        session_id: str | None = None,
-        assistant_message_id: str | None = None,
-        thinking_mode: str | None = None,
-        attachments: list[dict[str, Any]] | None = None,
-        is_custom_prompt: bool = False,
-        is_queue_continuation: bool = False,
-    ) -> str:
-        from app.services.claude_agent import ClaudeAgentService
-
-        chat = StreamOrchestrator.hydrate_chat(chat_data)
-
-        chat_id = str(chat.id)
-        chat_uuid = UUID(chat_id)
-        session_container: dict[str, Any] = {"session_id": session_id}
-        events: list[StreamEvent] = []
-        stream_id = uuid4()
-
-        publisher = StreamPublisher(chat_id)
-        result: str = ""
-
-        try:
-            await publisher.connect(task)
-
-            cancellation = CancellationHandler(chat_id, publisher.redis)
-            orchestrator = StreamOrchestrator(publisher, cancellation)
-
-            task.update_state(
-                state="PROGRESS", meta={"status": "Starting AI processing"}
-            )
-
-            async with ClaudeAgentService(
-                session_factory=session_factory
-            ) as ai_service:
-                session_callback = SessionUpdateCallback(
-                    chat_id=chat_id,
-                    assistant_message_id=assistant_message_id,
-                    session_factory=session_factory,
-                    session_container=session_container,
-                    sandbox_id=str(chat.sandbox_id) if chat.sandbox_id else "",
-                    user_id=str(chat.user_id),
-                    model_id=model_id,
-                    context_usage_trigger=context_usage_trigger,
-                )
-
-                user = User(id=chat.user_id)
-
-                stream = ai_service.get_ai_stream(
-                    prompt=prompt,
-                    system_prompt=system_prompt,
-                    custom_instructions=custom_instructions,
-                    user=user,
-                    chat=chat,
-                    permission_mode=permission_mode,
-                    model_id=model_id,
-                    session_id=session_id,
-                    session_callback=session_callback,
-                    thinking_mode=thinking_mode,
-                    attachments=attachments,
-                    is_custom_prompt=is_custom_prompt,
-                )
-
-                sandbox_id_str = str(chat.sandbox_id) if chat.sandbox_id else ""
-                if session_id and sandbox_id_str and context_usage_trigger:
-                    context_usage_trigger(
-                        chat_id=chat_id,
-                        session_id=session_id,
-                        sandbox_id=sandbox_id_str,
-                        user_id=str(chat.user_id),
-                        model_id=model_id,
-                    )
-
-                ctx = StreamContext(
-                    chat_id=chat_id,
-                    chat_uuid=chat_uuid,
-                    stream=stream,
-                    task=task,
-                    ai_service=ai_service,
-                    assistant_message_id=assistant_message_id,
-                    stream_id=stream_id,
-                    sandbox_service=sandbox_service,
-                    chat=chat,
-                    session_factory=session_factory,
-                    session_container=session_container,
-                    user_id=str(chat.user_id),
-                    model_id=model_id,
-                    sandbox_id=sandbox_id_str,
-                    events=events,
-                )
-
-                try:
-                    outcome = await orchestrator.process_stream(ctx)
-                except StreamCancelled:
-                    raise Ignore()
-
-                task.update_state(
-                    state="SUCCESS",
-                    meta={
-                        "status": "Completed",
-                        "content": outcome.final_content,
-                        "session_id": session_container["session_id"],
-                    },
-                )
-
-                result = outcome.final_content
-        finally:
-            await publisher.cleanup()
-
-        return result
-
-    @staticmethod
-    async def initialize_and_run_chat(
-        task: Task[Any, Any],
-        prompt: str,
-        system_prompt: str,
-        custom_instructions: str | None,
-        chat_data: dict[str, Any],
-        model_id: str,
-        permission_mode: str,
-        session_id: str | None,
-        assistant_message_id: str | None,
-        thinking_mode: str | None,
-        attachments: list[dict[str, Any]] | None,
-        context_usage_trigger: Callable[..., Any] | None = None,
-        is_custom_prompt: bool = False,
-        is_queue_continuation: bool = False,
-    ) -> str:
-        async with get_celery_session() as (SessionFactory, _):
-            async with SessionFactory() as db:
-                user_id = UUID(chat_data["user_id"])
-                user_service = UserService(session_factory=SessionFactory)
-
-                try:
-                    user_settings = await user_service.get_user_settings(user_id, db=db)
-                except UserException:
-                    raise UserException("User settings not found")
-
-                provider_type = user_settings.sandbox_provider
-                api_key = None
-                if provider_type == SandboxProviderType.E2B.value:
-                    api_key = user_settings.e2b_api_key
-                elif provider_type == SandboxProviderType.MODAL.value:
-                    api_key = user_settings.modal_api_key
-                provider = create_sandbox_provider(
-                    provider_type=provider_type,
-                    api_key=api_key,
-                )
-
-            sandbox_service = SandboxService(
-                provider=provider, session_factory=SessionFactory
-            )
-            try:
-                return await StreamOrchestrator.run_chat_stream(
-                    task,
-                    prompt=prompt,
-                    system_prompt=system_prompt,
-                    custom_instructions=custom_instructions,
-                    chat_data=chat_data,
-                    model_id=model_id,
-                    sandbox_service=sandbox_service,
-                    session_factory=SessionFactory,
-                    context_usage_trigger=context_usage_trigger,
-                    permission_mode=permission_mode,
-                    session_id=session_id,
-                    assistant_message_id=assistant_message_id,
-                    thinking_mode=thinking_mode,
-                    attachments=attachments,
-                    is_custom_prompt=is_custom_prompt,
-                    is_queue_continuation=is_queue_continuation,
-                )
-            finally:
-                await sandbox_service.cleanup()

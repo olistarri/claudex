@@ -11,7 +11,7 @@ import migrate as migrate_module
 
 
 @pytest.mark.asyncio
-async def test_health_and_healthz_endpoints() -> None:
+async def test_health_endpoint() -> None:
     app = main_module.create_application()
 
     async with AsyncClient(
@@ -20,12 +20,6 @@ async def test_health_and_healthz_endpoints() -> None:
         health_response = await client.get("/health")
         assert health_response.status_code == 200
         assert health_response.json() == {"status": "healthy"}
-
-        healthz_response = await client.get(
-            f"{main_module.settings.API_V1_STR}/healthz"
-        )
-        assert healthz_response.status_code == 200
-        assert healthz_response.json() == {"status": "healthy"}
 
 
 @pytest.mark.asyncio

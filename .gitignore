@@ -57,7 +57,6 @@ wheels/
 **/.claude/settings.local.json
 
 # Celery beat artifacts
-backend/celerybeat-schedule*
 frontend/core
 
 # Tauri / Desktop
@@ -69,3 +68,5 @@ frontend/src-tauri/icons/ios/
 backend/desktop/.venv-build/
 backend/desktop/.pyinstaller/
 backend/desktop/build/
+# Runtime scheduler state file
+backend/*beat-schedule*

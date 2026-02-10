@@ -30,7 +30,9 @@ from app.core.config import get_settings
 from app.core.middleware import (
     setup_middleware,
 )
-from app.db.session import engine, celery_engine, SessionLocal
+from app.db.session import engine, SessionLocal
+from app.services.maintenance import MaintenanceService
+from app.services.streaming.runner import ChatStreamRuntime
 from app.utils.redis import redis_connection
 from app.admin.config import create_admin
 from app.admin.views import (
@@ -50,9 +52,14 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    yield
-    await engine.dispose()
-    await celery_engine.dispose()
+    maintenance_service = MaintenanceService()
+    await maintenance_service.start()
+    try:
+        yield
+    finally:
+        await maintenance_service.stop()
+        await ChatStreamRuntime.stop_background_chats()
+        await engine.dispose()
 
 
 async def _check_database_ready() -> tuple[bool, str | None]:
@@ -184,10 +191,6 @@ def create_application() -> FastAPI:
 
     @application.get("/health")
     async def health_check() -> dict[str, str]:
-        return {"status": "healthy"}
-
-    @application.get(f"{settings.API_V1_STR}/healthz")
-    async def healthz() -> dict[str, str]:
         return {"status": "healthy"}
 
     @application.get(f"{settings.API_V1_STR}/readyz")

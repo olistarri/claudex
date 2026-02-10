@@ -25,7 +25,7 @@ async def upload_agent(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomAgentDict:
     try:
-        user_settings = await user_service.get_user_settings_for_update(
+        user_settings = await user_service.get_user_settings(
             current_user.id, db=db
         )
     except UserException as e:
@@ -79,7 +79,7 @@ async def update_agent(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
+        user_settings = await user_service.get_user_settings(
             current_user.id, db=db
         )
     except UserException as e:
@@ -141,7 +141,7 @@ async def delete_agent(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
+        user_settings = await user_service.get_user_settings(
             current_user.id, db=db
         )
     except UserException as e:

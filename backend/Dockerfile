@@ -44,7 +44,5 @@ RUN mkdir -p /app/storage/claude-data /app/storage/images /app/storage/pdfs /app
 
 EXPOSE 8080
 
-ENV SERVICE_MODE=api
-
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD []
