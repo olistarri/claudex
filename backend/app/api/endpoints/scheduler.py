@@ -37,7 +37,7 @@ async def create_scheduled_task(
     try:
         return await scheduler_service.create_task(current_user.id, task_data, db)
     except SchedulerException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/tasks", response_model=list[ScheduledTaskResponse])
@@ -59,7 +59,7 @@ async def get_scheduled_task(
     try:
         return await scheduler_service.get_task(task_id, current_user.id, db)
     except SchedulerException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.put("/tasks/{task_id}", response_model=ScheduledTaskResponse)
@@ -77,9 +77,7 @@ async def update_scheduled_task(
             task_id, current_user.id, task_update, db
         )
     except SchedulerException as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -92,7 +90,7 @@ async def delete_scheduled_task(
     try:
         await scheduler_service.delete_task(task_id, current_user.id, db)
     except SchedulerException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post("/tasks/{task_id}/toggle", response_model=TaskToggleResponse)
@@ -107,9 +105,7 @@ async def toggle_scheduled_task(
     try:
         return await scheduler_service.toggle_task(task_id, current_user.id, db)
     except SchedulerException as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/tasks/{task_id}/history", response_model=PaginatedTaskExecutions)
@@ -125,4 +121,4 @@ async def get_task_execution_history(
             task_id, current_user.id, pagination, db
         )
     except SchedulerException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))

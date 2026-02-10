@@ -448,6 +448,47 @@ class TestOAuthCallback:
         assert response.status_code == 200
         assert "Gmail Connected" in response.text
         assert "test@gmail.com" in response.text
+        assert "postMessage('gmail-connected', '*')" not in response.text
+
+    async def test_oauth_callback_escapes_email_and_uses_specific_origin(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        integration_user_fixture: User,
+        mock_base_url,
+    ) -> None:
+        await async_client.post(
+            "/api/v1/integrations/gmail/oauth-client",
+            headers=auth_headers,
+            json={"client_config": VALID_WEB_OAUTH_CLIENT},
+        )
+
+        state = gmail_oauth.create_oauth_state(integration_user_fixture.id)
+
+        mock_token_response = MagicMock()
+        mock_token_response.status_code = 200
+        mock_token_response.json.return_value = MOCK_TOKENS_RESPONSE
+        mock_token_response.raise_for_status = MagicMock()
+
+        mock_userinfo_response = MagicMock()
+        mock_userinfo_response.status_code = 200
+        mock_userinfo_response.json.return_value = {"email": "<b>xss@example.com</b>"}
+
+        with patch("app.services.gmail_oauth.httpx.AsyncClient") as mock_client:
+            mock_async_client = AsyncMock()
+            mock_async_client.post = AsyncMock(return_value=mock_token_response)
+            mock_async_client.get = AsyncMock(return_value=mock_userinfo_response)
+            mock_client.return_value.__aenter__.return_value = mock_async_client
+
+            response = await async_client.get(
+                "/api/v1/integrations/gmail/callback",
+                params={"code": "test_auth_code", "state": state},
+            )
+
+        assert response.status_code == 200
+        assert "<b>xss@example.com</b>" not in response.text
+        assert "&lt;b&gt;xss@example.com&lt;/b&gt;" in response.text
+        assert "postMessage('gmail-connected', '*')" not in response.text
 
     async def test_oauth_callback_invalid_state(
         self,

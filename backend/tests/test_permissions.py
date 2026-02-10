@@ -204,3 +204,20 @@ class TestPermissionResponse:
         )
 
         assert response.status_code == 403
+
+    async def test_permission_response_timeout_bounds(
+        self,
+        async_client: AsyncClient,
+        integration_chat_fixture: tuple[User, Chat, SandboxService],
+    ) -> None:
+        _, chat, _ = integration_chat_fixture
+        chat_scoped_token = create_chat_scoped_token(str(chat.id))
+        fake_request_id = str(uuid.uuid4())
+
+        response = await async_client.get(
+            f"/api/v1/chats/{chat.id}/permissions/response/{fake_request_id}",
+            params={"timeout": 0},
+            headers={"Authorization": f"Bearer {chat_scoped_token}"},
+        )
+
+        assert response.status_code == 422

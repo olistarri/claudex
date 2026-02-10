@@ -721,10 +721,7 @@ class ChatService(BaseDbService[Chat]):
         current_stream_id = active_stream_id
         current_message_id = active_message_id
 
-        if (
-            CancellationHandler.is_cancelled(str(chat_id))
-            or cancel_event.is_set()
-        ):
+        if CancellationHandler.is_cancelled(str(chat_id)) or cancel_event.is_set():
             logger.info("Stream already cancelled for chat %s", chat_id)
             stream_id, message_id = await self._resolve_active_cancel_targets(
                 chat_id=chat_id,

@@ -73,7 +73,9 @@ class MaintenanceService:
             try:
                 result = await job.run()
                 if result.get("error"):
-                    logger.error("Maintenance job %s failed: %s", job.name, result["error"])
+                    logger.error(
+                        "Maintenance job %s failed: %s", job.name, result["error"]
+                    )
             except Exception:
                 logger.exception("Maintenance job %s crashed", job.name)
             try:

@@ -29,11 +29,11 @@ async def upload_command(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomSlashCommandDict:
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_commands: list[CustomSlashCommandDict] = (
         user_settings.custom_slash_commands or []
@@ -51,16 +51,19 @@ async def upload_command(
     flag_modified(user_settings, "custom_slash_commands")
 
     try:
-        await user_service.commit_settings_and_invalidate_cache(
-            user_settings, db, current_user.id
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to save command metadata",
+            rollback_side_effect=lambda: command_service.delete(
+                str(current_user.id), command_data["name"]
+            ),
         )
-    except Exception as e:
-        await command_service.delete(str(current_user.id), command_data["name"])
-        await db.rollback()
+    except UserException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save command metadata",
-        ) from e
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return command_data
 
@@ -75,28 +78,22 @@ async def update_command(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomSlashCommandDict:
     try:
-        sanitized_name = command_service.sanitize_name(command_name)
-        if sanitized_name != command_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid command name format",
-            )
+        command_service.validate_exact_sanitized_name(command_name)
     except CommandException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_commands: list[CustomSlashCommandDict] = (
         user_settings.custom_slash_commands or []
     )
-    command_index = next(
-        (i for i, c in enumerate(current_commands) if c.get("name") == command_name),
-        None,
+    command_index = command_service.find_item_index_by_name(
+        current_commands, command_name
     )
 
     if command_index is None:
@@ -117,15 +114,16 @@ async def update_command(
     flag_modified(user_settings, "custom_slash_commands")
 
     try:
-        await user_service.commit_settings_and_invalidate_cache(
-            user_settings, db, current_user.id
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to update command",
         )
-    except Exception as e:
-        await db.rollback()
+    except UserException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update command",
-        ) from e
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return updated_command
 
@@ -139,26 +137,20 @@ async def delete_command(
     user_service: UserService = Depends(get_user_service),
 ) -> CommandDeleteResponse:
     try:
-        sanitized_name = command_service.sanitize_name(command_name)
-        if sanitized_name != command_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid command name format",
-            )
+        command_service.validate_exact_sanitized_name(command_name)
     except CommandException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_commands = user_settings.custom_slash_commands or []
-    command_index = next(
-        (i for i, c in enumerate(current_commands) if c.get("name") == command_name),
-        None,
+    command_index = command_service.find_item_index_by_name(
+        current_commands, command_name
     )
 
     if command_index is None:
@@ -175,8 +167,16 @@ async def delete_command(
     ):
         flag_modified(user_settings, "installed_plugins")
 
-    await user_service.commit_settings_and_invalidate_cache(
-        user_settings, db, current_user.id
-    )
+    try:
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to delete command",
+        )
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return CommandDeleteResponse(status=DeleteResponseStatus.DELETED.value)

@@ -35,7 +35,11 @@ from app.models.types import (
     CustomSlashCommandDict,
     InstalledPluginDict,
 )
-from app.services.exceptions import MarketplaceException, UserException
+from app.services.exceptions import (
+    MarketplaceException,
+    ServiceException,
+    UserException,
+)
 from app.services.marketplace import MarketplaceService
 from app.services.plugin_installer import PluginInstallerService
 from app.services.user import UserService
@@ -122,9 +126,7 @@ async def install_plugin_components(
 
     if result.installed:
         try:
-            user_settings = await user_service.get_user_settings(
-                current_user.id, db=db
-            )
+            user_settings = await user_service.get_user_settings(current_user.id, db=db)
         except UserException as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -217,9 +219,7 @@ async def uninstall_plugin_components(
     skill_service: SkillService = Depends(get_skill_service),
 ) -> UninstallResponse:
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -330,7 +330,7 @@ async def uninstall_plugin_components(
                     )
                 )
 
-        except Exception as e:
+        except (ServiceException, OSError) as e:
             failed.append(
                 InstallComponentResult(
                     component=component_id, success=False, error=str(e)

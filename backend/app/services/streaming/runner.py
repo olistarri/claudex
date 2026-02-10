@@ -70,7 +70,9 @@ class ChatStreamRuntime:
 
     @classmethod
     def _prune_finished_background_tasks(cls) -> None:
-        cls._background_tasks = {task for task in cls._background_tasks if not task.done()}
+        cls._background_tasks = {
+            task for task in cls._background_tasks if not task.done()
+        }
         finished_tasks = [
             task for task in list(cls._background_task_chat_ids) if task.done()
         ]
@@ -95,9 +97,7 @@ class ChatStreamRuntime:
         )
 
     @classmethod
-    def _on_background_task_done(
-        cls, task_id: str, task: asyncio.Task[str]
-    ) -> None:
+    def _on_background_task_done(cls, task_id: str, task: asyncio.Task[str]) -> None:
         try:
             if task.cancelled():
                 return
@@ -385,12 +385,14 @@ class ChatStreamRuntime:
                 attachments=request.attachments,
                 is_custom_prompt=request.is_custom_prompt,
             )
-            context_usage_task, context_usage_stop_event = cls._start_context_usage_polling(
-                orchestrator=orchestrator,
-                state=state,
-                request=request,
-                ai_service=ai_service,
-                session_factory=session_factory,
+            context_usage_task, context_usage_stop_event = (
+                cls._start_context_usage_polling(
+                    orchestrator=orchestrator,
+                    state=state,
+                    request=request,
+                    ai_service=ai_service,
+                    session_factory=session_factory,
+                )
             )
             try:
                 stream_context = cls._build_stream_context(

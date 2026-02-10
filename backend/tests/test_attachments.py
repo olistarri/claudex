@@ -124,3 +124,32 @@ class TestAttachmentAccess:
         )
 
         assert response.status_code == 401
+
+    async def test_temp_preview_rejects_prefix_bypass_path(
+        self,
+        async_client: AsyncClient,
+        integration_user_fixture: User,
+        auth_headers: dict[str, str],
+    ) -> None:
+        storage_base = Path(settings.STORAGE_PATH).resolve()
+        sibling_storage = storage_base.parent / f"{storage_base.name}_evil"
+        sibling_storage.mkdir(parents=True, exist_ok=True)
+
+        escaped_file = sibling_storage / "escape.txt"
+        escaped_file.write_text("forbidden")
+
+        try:
+            bypass_path = f"../{sibling_storage.name}/escape.txt"
+            response = await async_client.get(
+                "/api/v1/attachments/temp/preview",
+                params={"path": bypass_path},
+                headers=auth_headers,
+            )
+
+            assert response.status_code == 403
+        finally:
+            escaped_file.unlink(missing_ok=True)
+            try:
+                sibling_storage.rmdir()
+            except OSError:
+                pass

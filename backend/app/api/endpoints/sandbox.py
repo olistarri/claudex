@@ -68,11 +68,6 @@ async def start_browser(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start browser: {str(e)}",
-        )
 
 
 @router.post("/{sandbox_id}/browser/stop", response_model=MessageResponse)
@@ -87,11 +82,6 @@ async def stop_browser(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to stop browser: {str(e)}",
         )
 
 
@@ -132,11 +122,6 @@ async def get_file_content(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get file content: {str(e)}",
-        )
 
 
 @router.put("/{sandbox_id}/files", response_model=UpdateFileResponse)
@@ -155,11 +140,6 @@ async def update_file_in_sandbox(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update file: {str(e)}",
-        )
 
 
 @router.get("/{sandbox_id}/secrets", response_model=SecretsListResponse)
@@ -174,11 +154,6 @@ async def get_secrets(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get secrets: {str(e)}",
         )
 
 
@@ -195,11 +170,6 @@ async def add_secret(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add secret: {str(e)}",
         )
 
 
@@ -218,11 +188,6 @@ async def update_secret(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update secret: {str(e)}",
-        )
 
 
 @router.delete("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
@@ -239,11 +204,6 @@ async def delete_secret(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete secret: {str(e)}",
-        )
 
 
 @router.put("/{sandbox_id}/ide-theme", response_model=MessageResponse)
@@ -259,11 +219,6 @@ async def update_ide_theme(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update IDE theme: {str(e)}",
         )
 
 
@@ -285,9 +240,4 @@ async def download_sandbox_files(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate zip file: {str(e)}",
         )

@@ -25,11 +25,11 @@ async def upload_agent(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomAgentDict:
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_agents: list[CustomAgentDict] = user_settings.custom_agents or []
 
@@ -45,16 +45,19 @@ async def upload_agent(
     flag_modified(user_settings, "custom_agents")
 
     try:
-        await user_service.commit_settings_and_invalidate_cache(
-            user_settings, db, current_user.id
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to save agent metadata",
+            rollback_side_effect=lambda: agent_service.delete(
+                str(current_user.id), str(agent_data["name"])
+            ),
         )
-    except Exception as e:
-        await agent_service.delete(str(current_user.id), str(agent_data["name"]))
-        await db.rollback()
+    except UserException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save agent metadata",
-        ) from e
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return agent_data
 
@@ -69,27 +72,19 @@ async def update_agent(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomAgentDict:
     try:
-        sanitized_name = agent_service.sanitize_name(agent_name)
-        if sanitized_name != agent_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid agent name format",
-            )
+        agent_service.validate_exact_sanitized_name(agent_name)
     except AgentException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_agents: list[CustomAgentDict] = user_settings.custom_agents or []
-    agent_index = next(
-        (i for i, c in enumerate(current_agents) if c.get("name") == agent_name),
-        None,
-    )
+    agent_index = agent_service.find_item_index_by_name(current_agents, agent_name)
 
     if agent_index is None:
         raise HTTPException(
@@ -109,15 +104,16 @@ async def update_agent(
     flag_modified(user_settings, "custom_agents")
 
     try:
-        await user_service.commit_settings_and_invalidate_cache(
-            user_settings, db, current_user.id
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to update agent",
         )
-    except Exception as e:
-        await db.rollback()
+    except UserException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update agent",
-        ) from e
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return updated_agent
 
@@ -131,27 +127,19 @@ async def delete_agent(
     user_service: UserService = Depends(get_user_service),
 ) -> AgentDeleteResponse:
     try:
-        sanitized_name = agent_service.sanitize_name(agent_name)
-        if sanitized_name != agent_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid agent name format",
-            )
+        agent_service.validate_exact_sanitized_name(agent_name)
     except AgentException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings(
-            current_user.id, db=db
-        )
-    except UserException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
     current_agents = user_settings.custom_agents or []
-    agent_index = next(
-        (i for i, c in enumerate(current_agents) if c.get("name") == agent_name),
-        None,
-    )
+    agent_index = agent_service.find_item_index_by_name(current_agents, agent_name)
 
     if agent_index is None:
         return AgentDeleteResponse(status=DeleteResponseStatus.NOT_FOUND.value)
@@ -165,8 +153,16 @@ async def delete_agent(
     if user_service.remove_installed_component(user_settings, f"agent:{agent_name}"):
         flag_modified(user_settings, "installed_plugins")
 
-    await user_service.commit_settings_and_invalidate_cache(
-        user_settings, db, current_user.id
-    )
+    try:
+        await user_service.commit_settings_with_cleanup(
+            user_settings,
+            db,
+            current_user.id,
+            failure_message="Failed to delete agent",
+        )
+    except UserException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+        )
 
     return AgentDeleteResponse(status=DeleteResponseStatus.DELETED.value)
