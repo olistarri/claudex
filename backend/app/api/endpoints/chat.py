@@ -79,6 +79,16 @@ async def _ensure_chat_access(
         )
 
 
+def _parse_non_negative_seq(value: str | None) -> int:
+    if value is None:
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return parsed if parsed >= 0 else 0
+
+
 @router.post(
     "/chats",
     response_model=ChatSchema,
@@ -348,15 +358,6 @@ async def stream_events(
     chat_service: ChatService = Depends(get_chat_service),
 ) -> EventSourceResponse:
     await _ensure_chat_access(chat_id, chat_service, current_user)
-
-    def _parse_non_negative_seq(value: str | None) -> int:
-        if value is None:
-            return 0
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            return 0
-        return parsed if parsed >= 0 else 0
 
     # Browser EventSource reconnects send the current cursor via Last-Event-ID.
     # Keep query-param baseline support and use whichever is more advanced.
