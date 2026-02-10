@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -9,9 +9,16 @@ def _utc_now() -> datetime:
 
 
 class Base(DeclarativeBase):
-    created_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=_utc_now
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utc_now,
+        server_default=func.now(),
+        nullable=False,
     )
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=_utc_now, onupdate=_utc_now
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_utc_now,
+        onupdate=_utc_now,
+        server_default=func.now(),
+        nullable=False,
     )
