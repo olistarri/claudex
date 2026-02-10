@@ -5,8 +5,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
-import aiohttp
 import aiosmtplib
+import httpx
 from email_validator import EmailNotValidError, validate_email
 from jinja2 import Environment, FileSystemLoader
 from pydantic import EmailStr
@@ -48,21 +48,19 @@ class EmailService:
             return EmailService._disposable_domains_cache
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://raw.githubusercontent.com/7c/fakefilter/main/txt/data.txt",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as response:
-                    if response.status == 200:
-                        content = await response.text()
-                        domains = set()
-                        for line in content.splitlines():
-                            line = line.strip()
-                            if line and not line.startswith("#"):
-                                domains.add(line.lower())
-                        EmailService._disposable_domains_cache = domains
-                        EmailService._disposable_domains_cache_time = now
-                        return domains
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    "https://raw.githubusercontent.com/7c/fakefilter/main/txt/data.txt"
+                )
+                if response.status_code == 200:
+                    domains = set()
+                    for line in response.text.splitlines():
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            domains.add(line.lower())
+                    EmailService._disposable_domains_cache = domains
+                    EmailService._disposable_domains_cache_time = now
+                    return domains
         except Exception:
             pass
 
