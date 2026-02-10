@@ -234,31 +234,6 @@ class MessageService(BaseDbService[Message]):
             await db.commit()
             return next_seq
 
-    async def claim_stream_cancellation(
-        self,
-        *,
-        message_id: UUID,
-        stream_id: UUID,
-    ) -> bool:
-        async with self.session_factory() as db:
-            now = datetime.now(timezone.utc)
-            result = await db.execute(
-                update(Message)
-                .where(
-                    Message.id == message_id,
-                    Message.active_stream_id == stream_id,
-                    Message.stream_status == MessageStreamStatus.IN_PROGRESS,
-                )
-                .values(
-                    stream_status=MessageStreamStatus.INTERRUPTED,
-                    updated_at=now,
-                )
-                .returning(Message.id)
-            )
-            claimed = result.scalar_one_or_none() is not None
-            await db.commit()
-            return claimed
-
     async def get_chat_messages(
         self, chat_id: UUID, cursor: str | None = None, limit: int = 20
     ) -> CursorPaginatedMessages:
@@ -360,25 +335,6 @@ class MessageService(BaseDbService[Message]):
             )
             result = await db.execute(query)
             return list(result.scalars().all())
-
-    async def get_latest_stream_event(
-        self,
-        *,
-        chat_id: UUID,
-        stream_id: UUID,
-    ) -> MessageEvent | None:
-        async with self.session_factory() as db:
-            query = (
-                select(MessageEvent)
-                .where(
-                    MessageEvent.chat_id == chat_id,
-                    MessageEvent.stream_id == stream_id,
-                )
-                .order_by(MessageEvent.seq.desc())
-                .limit(1)
-            )
-            result = await db.execute(query)
-            return cast(MessageEvent | None, result.scalar_one_or_none())
 
     async def get_message_events_after_seq(
         self,
