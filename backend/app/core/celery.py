@@ -1,6 +1,4 @@
-import json
 import logging
-from typing import TYPE_CHECKING, Any
 
 from celery import Celery
 
@@ -8,9 +6,6 @@ from app.core.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
 
 celery_app = Celery(
     "claudex",
@@ -53,33 +48,3 @@ celery_app.conf.beat_schedule = {
         "schedule": 3600.0,
     },
 }
-
-
-class SSEEventPublisher:
-    def __init__(self, redis_client: "Redis[str]"):
-        self.redis = redis_client
-
-    async def _publish_event(
-        self, chat_id: str, event_type: str, data: str, event_id: str | None = None
-    ) -> None:
-        event: dict[str, Any] = {
-            "type": event_type,
-            "data": data,
-        }
-        if event_id:
-            event["id"] = event_id
-
-        channel = f"chat:{chat_id}"
-        await self.redis.publish(channel, json.dumps(event))
-
-        if event_id:
-            await self.redis.setex(
-                f"event:{chat_id}:{event_id}",
-                settings.CELERY_RESULT_EXPIRES_SECONDS,
-                json.dumps(event),
-            )
-
-    async def publish_content(
-        self, chat_id: str, content: str, event_id: str | None = None
-    ) -> None:
-        await self._publish_event(chat_id, "content", content, event_id)

@@ -534,7 +534,7 @@ class StreamOrchestrator:
         result: str = ""
 
         try:
-            await publisher.connect(task, skip_stream_delete=is_queue_continuation)
+            await publisher.connect(task)
 
             cancellation = CancellationHandler(chat_id, publisher.redis)
             orchestrator = StreamOrchestrator(publisher, cancellation)

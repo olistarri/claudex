@@ -504,8 +504,8 @@ class SandboxProvider(ABC):
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: Any,
+        _exc_val: BaseException | None,
+        _exc_tb: Any,
     ) -> bool:
         await self.cleanup()
         return False

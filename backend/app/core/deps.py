@@ -14,7 +14,6 @@ from app.services.provider import ProviderService
 from app.services.claude_agent import ClaudeAgentService
 from app.services.command import CommandService
 from app.services.exceptions import UserException
-from app.services.message import MessageService
 from app.services.refresh_token import RefreshTokenService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
@@ -28,10 +27,6 @@ from app.services.user import UserService
 
 def get_provider_service() -> ProviderService:
     return ProviderService()
-
-
-def get_message_service() -> MessageService:
-    return MessageService(session_factory=SessionLocal)
 
 
 def get_user_service() -> UserService:

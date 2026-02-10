@@ -27,9 +27,7 @@ class StreamPublisher:
         self.chat_id = chat_id
         self._redis: Redis[str] | None = None
 
-    async def connect(
-        self, task: Task[Any, Any], skip_stream_delete: bool = False
-    ) -> None:
+    async def connect(self, task: Task[Any, Any]) -> None:
         try:
             self._redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
             await self._redis.setex(
