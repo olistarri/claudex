@@ -1,13 +1,18 @@
+import json
+import html
 import logging
 from datetime import datetime, timedelta, timezone
 
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.core.config import get_settings
 from app.core.deps import get_db, get_user_service
 from app.core.security import get_current_user
 from app.models.db_models import User
@@ -27,6 +32,7 @@ from app.services.user import UserService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @router.post("/gmail/oauth-client", response_model=OAuthClientResponse)
@@ -157,7 +163,7 @@ async def oauth_callback(
         tokens = await gmail_oauth.exchange_code_for_tokens(
             code, client_id, client_secret
         )
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.error("Token exchange failed: %s", e)
         return HTMLResponse(
             content=_callback_html(
@@ -237,7 +243,7 @@ async def start_device_flow(
 ) -> DeviceCodeResponse:
     try:
         data: dict[str, Any] = await copilot_oauth.start_device_authorization()
-    except Exception:
+    except httpx.HTTPError:
         raise HTTPException(
             status_code=502,
             detail="Failed to initiate GitHub device authorization",
@@ -261,7 +267,7 @@ async def poll_token(
         data: dict[str, Any] = await copilot_oauth.poll_access_token(
             request.device_code
         )
-    except Exception:
+    except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="GitHub token request failed")
 
     if data.get("access_token"):
@@ -285,7 +291,7 @@ async def start_openai_device_flow(
 ) -> DeviceCodeResponse:
     try:
         data: dict[str, Any] = await openai_oauth.start_device_authorization()
-    except Exception:
+    except httpx.HTTPError:
         raise HTTPException(
             status_code=502,
             detail="Failed to initiate OpenAI device authorization",
@@ -309,7 +315,7 @@ async def poll_openai_token(
         data: dict[str, Any] = await openai_oauth.poll_device_token(
             request.device_code, request.user_code
         )
-    except Exception:
+    except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="OpenAI token request failed")
 
     status_code = data.get("status_code", 0)
@@ -328,7 +334,7 @@ async def poll_openai_token(
             tokens = await openai_oauth.exchange_authorization_code(
                 auth_code, code_verifier
             )
-        except Exception:
+        except httpx.HTTPError:
             raise HTTPException(
                 status_code=502,
                 detail="Failed to exchange OpenAI authorization code",
@@ -346,6 +352,16 @@ async def poll_openai_token(
 
 
 def _callback_html(error: str | None, email: str | None = None) -> str:
+    frontend_origin = settings.FRONTEND_URL.strip()
+    parsed_origin = urlparse(frontend_origin)
+    safe_origin = ""
+    if parsed_origin.scheme in {"http", "https"} and parsed_origin.netloc:
+        safe_origin = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
+
+    escaped_error = html.escape(error) if error else None
+    escaped_email = html.escape(email) if email else None
+    origin_js = json.dumps(safe_origin)
+
     if error:
         return f"""
 <!DOCTYPE html>
@@ -354,7 +370,7 @@ def _callback_html(error: str | None, email: str | None = None) -> str:
 <body style="font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: #fff;">
     <div style="text-align: center;">
         <h2 style="color: #ef4444;">Connection Failed</h2>
-        <p>{error}</p>
+        <p>{escaped_error}</p>
         <p style="color: #888;">You can close this window.</p>
     </div>
     <script>setTimeout(() => window.close(), 3000);</script>
@@ -368,11 +384,12 @@ def _callback_html(error: str | None, email: str | None = None) -> str:
 <body style="font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: #fff;">
     <div style="text-align: center;">
         <h2 style="color: #22c55e;">Gmail Connected</h2>
-        <p>Successfully connected{f" as {email}" if email else ""}.</p>
+        <p>Successfully connected{f" as {escaped_email}" if escaped_email else ""}.</p>
         <p style="color: #888;">This window will close automatically.</p>
     </div>
     <script>
-        if (window.opener) window.opener.postMessage('gmail-connected', '*');
+        const targetOrigin = {origin_js};
+        if (window.opener && targetOrigin) window.opener.postMessage('gmail-connected', targetOrigin);
         setTimeout(() => window.close(), 2000);
     </script>
 </body>

@@ -18,6 +18,14 @@ router = APIRouter()
 settings = get_settings()
 
 
+def _is_within_base_path(path: Path, base: Path) -> bool:
+    try:
+        path.relative_to(base)
+        return True
+    except ValueError:
+        return False
+
+
 def _get_mime_type(file_path: Path) -> str:
     mime_type, _ = mimetypes.guess_type(str(file_path))
     return mime_type or "application/octet-stream"
@@ -44,7 +52,7 @@ async def _get_attachment_with_path(
     storage_base = Path(settings.STORAGE_PATH).resolve()
     file_path = (storage_base / attachment.file_path).resolve()
 
-    if not str(file_path).startswith(str(storage_base)):
+    if not _is_within_base_path(file_path, storage_base):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
@@ -92,7 +100,7 @@ async def preview_temp_attachment(
     user_temp_base = (storage_base / "temp" / str(current_user.id)).resolve()
     file_path = (storage_base / path).resolve()
 
-    if not str(file_path).startswith(str(user_temp_base)):
+    if not _is_within_base_path(file_path, user_temp_base):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
         )
