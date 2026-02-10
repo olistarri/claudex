@@ -13,7 +13,6 @@ import pytest_asyncio
 from filelock import FileLock
 from httpx import ASGITransport, AsyncClient
 from redis.asyncio import Redis
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
@@ -49,13 +48,12 @@ from app.models.db_models import Chat, Message, User, UserSettings
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.services.provider import ProviderService
 from app.services.chat import ChatService
-from app.services.claude_agent import ClaudeAgentService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.docker_provider import LocalDockerProvider
 from app.services.sandbox_providers.types import DockerConfig
 from app.services.storage import StorageService
-from app.services.streaming.context_usage import ContextUsageTracker
-from app.services.streaming.orchestrator import StreamOrchestrator
+from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.types import ChatStreamRequest
 from app.services.user import UserService
 
 settings = get_settings()
@@ -295,11 +293,9 @@ def create_e2e_application(
     async def override_get_chat_service():
         storage_service = StorageService(sandbox_service)
         user_service = UserService(session_factory=session_factory)
-        ai_service = ClaudeAgentService(session_factory=session_factory)
         yield chat_service_cls(
             storage_service,
             sandbox_service,
-            ai_service,
             user_service,
             session_factory=session_factory,
         )
@@ -325,12 +321,11 @@ class TestChatService(ChatService):
         self,
         storage_service,
         sandbox_service,
-        ai_service,
         user_service,
         session_factory=None,
     ):
         super().__init__(
-            storage_service, sandbox_service, ai_service, user_service, session_factory
+            storage_service, sandbox_service, user_service, session_factory
         )
         self._test_sandbox_service = sandbox_service
         self._test_session_factory = session_factory
@@ -341,7 +336,6 @@ class TestChatService(ChatService):
         prompt,
         system_prompt,
         custom_instructions,
-        user,
         chat,
         permission_mode,
         model_id,
@@ -352,10 +346,6 @@ class TestChatService(ChatService):
         is_custom_prompt=False,
     ):
         task_id = str(uuid.uuid4())
-        mock_task = MagicMock()
-        mock_task.request = MagicMock()
-        mock_task.request.id = task_id
-        mock_task.update_state = MagicMock()
 
         chat_data = {
             "id": str(chat.id),
@@ -365,47 +355,23 @@ class TestChatService(ChatService):
             "session_id": chat.session_id,
         }
 
-        await StreamOrchestrator.run_chat_stream(
-            task=mock_task,
-            prompt=prompt,
-            system_prompt=system_prompt,
-            custom_instructions=custom_instructions,
-            chat_data=chat_data,
-            model_id=model_id,
+        await ChatStreamRuntime.execute_chat_stream(
+            request=ChatStreamRequest(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                custom_instructions=custom_instructions,
+                chat_data=chat_data,
+                model_id=model_id,
+                permission_mode=permission_mode,
+                session_id=session_id,
+                assistant_message_id=assistant_message_id,
+                thinking_mode=thinking_mode,
+                attachments=attachments,
+                is_custom_prompt=is_custom_prompt,
+            ),
             sandbox_service=self._test_sandbox_service,
-            permission_mode=permission_mode,
-            session_id=session_id,
-            assistant_message_id=assistant_message_id,
-            thinking_mode=thinking_mode,
-            attachments=attachments,
             session_factory=self._test_session_factory,
         )
-
-        async with self._test_session_factory() as session:
-            result = await session.execute(select(Chat).filter(Chat.id == chat.id))
-            refreshed_chat = result.scalar_one_or_none()
-
-        if refreshed_chat and refreshed_chat.session_id and refreshed_chat.sandbox_id:
-            tracker = ContextUsageTracker(
-                chat_id=str(refreshed_chat.id),
-                session_id=refreshed_chat.session_id,
-                sandbox_id=refreshed_chat.sandbox_id,
-                user_id=str(user.id),
-                model_id=model_id,
-            )
-
-            redis_client: Redis[str] = Redis.from_url(
-                settings.REDIS_URL, decode_responses=True
-            )
-            try:
-                async with ClaudeAgentService(
-                    session_factory=self._test_session_factory
-                ) as ai_service:
-                    await tracker.fetch_and_broadcast(
-                        ai_service, redis_client, self._test_session_factory
-                    )
-            finally:
-                await redis_client.close()
 
         mock_result = MagicMock()
         mock_result.id = task_id

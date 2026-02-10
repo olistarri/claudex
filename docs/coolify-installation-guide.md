@@ -10,14 +10,13 @@ This guide provides step-by-step instructions for deploying Claudex on any VPS u
 4. [Add PostgreSQL Database](#add-postgresql-database)
 5. [Add Redis Database](#add-redis-database)
 6. [Add API Application](#add-api-application)
-7. [Add Celery Beat Application](#add-celery-beat-application)
-8. [Add Celery Workers](#add-celery-workers)
-9. [Add Frontend Application](#add-frontend-application)
-10. [Deploy All Services](#deploy-all-services)
-11. [Post-Deployment Configuration](#post-deployment-configuration)
-12. [Troubleshooting](#troubleshooting)
-13. [Environment Variables Reference](#environment-variables-reference)
-14. [Optional Environment Variables](#optional-environment-variables)
+7. [In-Process Maintenance Jobs](#in-process-maintenance-jobs)
+8. [Add Frontend Application](#add-frontend-application)
+9. [Deploy All Services](#deploy-all-services)
+10. [Post-Deployment Configuration](#post-deployment-configuration)
+11. [Troubleshooting](#troubleshooting)
+12. [Environment Variables Reference](#environment-variables-reference)
+13. [Optional Environment Variables](#optional-environment-variables)
 
 ---
 
@@ -196,7 +195,6 @@ In **Advanced** → **Custom Docker Options**, add:
 Navigate to the **Environment Variables** tab and add the following:
 
 ```env
-SERVICE_MODE=api
 ENVIRONMENT=production
 SECRET_KEY=your-secure-secret-key-minimum-32-characters
 DATABASE_URL=postgresql+asyncpg://postgres:YOUR_POSTGRES_PASSWORD@postgres:5432/postgres
@@ -216,11 +214,10 @@ TRUSTED_PROXY_HOSTS=*
 
 | Variable | Description |
 |----------|-------------|
-| `SERVICE_MODE` | Determines which service to run (`api`, `celery-beat`, `celery-worker`) |
 | `ENVIRONMENT` | Set to `production` for production deployments |
 | `SECRET_KEY` | Secure random string (32+ chars) for JWT signing |
 | `DATABASE_URL` | PostgreSQL connection string with asyncpg driver |
-| `REDIS_URL` | Redis connection string for caching and Celery broker |
+| `REDIS_URL` | Redis connection string for caching and distributed locks |
 | `BASE_URL` | Public URL of the API service |
 | `FRONTEND_URL` | Public URL of the frontend |
 | `ALLOWED_ORIGINS` | CORS allowed origins (frontend URL) |
@@ -247,83 +244,20 @@ Click **Deploy** but wait to start it until all services are configured.
 
 ---
 
-## Add Celery Beat Application
+## In-Process Maintenance Jobs
 
-Celery Beat handles scheduled tasks like cleanup jobs and periodic processing.
+Scheduled task execution and cleanup jobs run inside the API service lifecycle.
 
-### Step 1: Clone API Configuration
+### What this means
 
-The easiest way is to duplicate the API application:
+- No separate worker service is required
+- No separate beat service is required
+- Redis is still required for distributed job locking when API runs with multiple workers
 
-1. Go to the API application settings
-2. Click **Clone** (or manually create a new application with the same settings)
+### Deployment impact
 
-### Step 2: Modify Configuration
-
-Update the following settings:
-
-| Setting | Value |
-|---------|-------|
-| Name | `celery-beat` |
-
-### Step 3: Update Environment Variables
-
-Change the `SERVICE_MODE` variable:
-
-```env
-SERVICE_MODE=celery-beat
-```
-
-### Step 4: Remove Domain
-
-Celery Beat doesn't need a public domain. Remove any domain configuration.
-
-### Step 5: Deploy
-
-Click **Deploy** (will start after API is running).
-
----
-
-## Add Celery Workers
-
-Celery Workers process background tasks like AI chat requests. You can run multiple workers for better throughput.
-
-### Step 1: Create First Worker
-
-Clone the API configuration as before:
-
-1. Duplicate the API application
-2. Update settings:
-
-| Setting | Value |
-|---------|-------|
-| Name | `celery-worker-1` |
-
-### Step 2: Update Environment Variables
-
-```env
-SERVICE_MODE=celery-worker
-```
-
-### Step 3: Remove Domain
-
-Celery Workers don't need public domains.
-
-### Step 4: Scale Horizontally (Optional)
-
-For better performance, create additional workers:
-
-- `celery-worker-2`
-- `celery-worker-3`
-- etc.
-
-Each worker can handle concurrent tasks. The recommended number of workers depends on your VPS resources:
-
-| VPS RAM | Recommended Workers |
-|---------|---------------------|
-| 4GB | 1-2 |
-| 8GB | 2-4 |
-| 16GB+ | 4-8 |
+- Deploy only `api`, `postgres`, `redis`, and `frontend`
+- Ensure Redis is reachable from the API service
 
 ---
 
@@ -387,8 +321,6 @@ Your production environment should now have the following resources:
 | postgres | Database | (internal) |
 | redis | Database | (internal) |
 | api | Application | api.yourdomain.com |
-| celery-beat | Application | (none) |
-| celery-worker-1 | Application | (none) |
 | frontend | Application | yourdomain.com |
 
 ### Step 2: Deploy in Order
@@ -398,9 +330,7 @@ Deploy services in this order to ensure dependencies are ready:
 1. **PostgreSQL** - Wait for green status
 2. **Redis** - Wait for green status
 3. **API** - Wait for green status and health check
-4. **Celery Beat** - Wait for green status
-5. **Celery Workers** - Wait for green status
-6. **Frontend** - Wait for green status
+4. **Frontend** - Wait for green status
 
 ### Step 3: Verify Health Status
 
@@ -408,7 +338,7 @@ All services should show green health indicators:
 
 ### Step 4: Check API Health and Readiness
 
-Visit `https://api.yourdomain.com/api/v1/healthz` to verify liveness:
+Visit `https://api.yourdomain.com/health` to verify liveness:
 
 ```json
 {
@@ -596,7 +526,6 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 ```env
 # Service Configuration
-SERVICE_MODE=api
 ENVIRONMENT=production
 
 # Security
@@ -630,22 +559,6 @@ TRUSTED_PROXY_HOSTS=*
 VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
 VITE_WS_URL=wss://api.yourdomain.com/api/v1/ws
 ```
-
-### Celery Beat Environment Variables
-
-Same as API but with:
-```env
-SERVICE_MODE=celery-beat
-```
-
-### Celery Worker Environment Variables
-
-Same as API but with:
-```env
-SERVICE_MODE=celery-worker
-```
-
----
 
 ## Optional Environment Variables
 
@@ -789,7 +702,6 @@ Fine-tune caching and task expiration. These are advanced settings that most dep
 CONTEXT_WINDOW_TOKENS=200000
 TASK_TTL_SECONDS=3600
 PERMISSION_REQUEST_TTL_SECONDS=300
-CELERY_RESULT_EXPIRES_SECONDS=3600
 USER_SETTINGS_CACHE_TTL_SECONDS=300
 MODELS_CACHE_TTL_SECONDS=3600
 CONTEXT_USAGE_CACHE_TTL_SECONDS=600
@@ -800,7 +712,6 @@ CONTEXT_USAGE_CACHE_TTL_SECONDS=600
 | `CONTEXT_WINDOW_TOKENS` | `200000` | Maximum context window size in tokens |
 | `TASK_TTL_SECONDS` | `3600` | Background task TTL (1 hour) |
 | `PERMISSION_REQUEST_TTL_SECONDS` | `300` | Permission request expiration (5 minutes) |
-| `CELERY_RESULT_EXPIRES_SECONDS` | `3600` | Celery task result expiration (1 hour) |
 | `CHAT_SCOPED_TOKEN_EXPIRE_MINUTES` | `10` | Chat-scoped token expiration (10 minutes) |
 | `CHAT_REVOKED_KEY_TTL_SECONDS` | `3600` | Revoked chat key TTL (1 hour) |
 | `USER_SETTINGS_CACHE_TTL_SECONDS` | `300` | User settings cache TTL (5 minutes) |

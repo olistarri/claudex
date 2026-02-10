@@ -1,5 +1,14 @@
 # CLAUDE.md
 
+## Project Context
+
+- Open-source, self-hosted application — designed for single-user or small-team use, not enterprise scale
+- Runs as a single API instance (no distributed workers, no multi-replica coordination)
+- Do not introduce distributed-system patterns (distributed locks, cross-instance heartbeats, consensus protocols) — prefer simple in-process state (e.g., in-memory sets/dicts, asyncio tasks)
+- Use Redis for pub/sub and caching only, not as a task broker or distributed coordination layer
+- Background work runs as asyncio tasks in the API process — no separate worker services
+- Treat per-user request handling as effectively sequential for reviews and refactors: do not flag bugs that only appear under overlapping concurrent requests (retries, double-submit, multi-tab) unless the task explicitly asks for concurrency hardening
+
 ## SQLAlchemy Model Conventions
 
 - Always add `server_default=` when using `default=` - the `default` only applies in Python/ORM, while `server_default` ensures the database has the default value for raw SQL inserts
@@ -14,6 +23,14 @@
 - Manual edits to generated Alembic migrations are allowed when necessary for correctness
 - Run Alembic migration commands inside the Docker backend container (not on host)
 
+## Test Workflow
+
+- Run all backend test commands inside the Docker backend container (not on host)
+- Do not run `pytest` directly on the host machine
+- Run backend static checks (`ruff`, `mypy`) inside the Docker backend container (not on host)
+- Do not run `ruff` or `mypy` directly on the host machine
+- Use Docker-based commands such as `docker compose exec api pytest ...`
+- Use Docker-based commands such as `docker compose exec api ruff check ...` 
 ## Code Style
 
 - Don't add comments or docstrings for self-explanatory code

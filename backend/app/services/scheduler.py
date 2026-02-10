@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from calendar import monthrange
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, cast
+from functools import partial
+from typing import Any, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_celery_session
+from app.core.config import get_settings
 from app.models.db_models import (
     Chat,
     Message,
@@ -38,16 +41,50 @@ from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import SchedulerException
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
-from app.services.streaming.orchestrator import StreamOrchestrator
+from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.types import ChatStreamRequest
 from app.services.user import UserService
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class SchedulerService(BaseDbService[ScheduledTask]):
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         super().__init__(session_factory)
+        self._scheduled_tasks: dict[str, asyncio.Task[dict[str, Any]]] = {}
+        self._max_concurrent_executions = max(
+            1, settings.SCHEDULED_TASK_MAX_CONCURRENT_EXECUTIONS
+        )
+
+    async def stop(self) -> None:
+        running_tasks = list(self._scheduled_tasks.values())
+        if not running_tasks:
+            return
+        for scheduled_task in running_tasks:
+            scheduled_task.cancel()
+        for scheduled_task in running_tasks:
+            with suppress(asyncio.CancelledError):
+                await scheduled_task
+        self._scheduled_tasks = {}
+
+    def _active_scheduled_task_count(self) -> int:
+        self._scheduled_tasks = {
+            execution_id: scheduled_task
+            for execution_id, scheduled_task in self._scheduled_tasks.items()
+            if not scheduled_task.done()
+        }
+        return len(self._scheduled_tasks)
+
+    def _active_execution_ids(self) -> set[UUID]:
+        active_ids: set[UUID] = set()
+        for execution_id in self._scheduled_tasks:
+            try:
+                active_ids.add(UUID(execution_id))
+            except ValueError:
+                continue
+        return active_ids
 
     def _tz(self, name: str | None) -> ZoneInfo:
         if not name:
@@ -385,7 +422,6 @@ class SchedulerService(BaseDbService[ScheduledTask]):
             )
             .order_by(ScheduledTask.next_execution)
             .limit(limit)
-            .with_for_update(skip_locked=True)
         )
         tasks = list(task_result.scalars().all())
 
@@ -453,8 +489,69 @@ class SchedulerService(BaseDbService[ScheduledTask]):
         else:
             task.status = TaskStatus.ACTIVE
 
+    async def _fail_execution_by_ids(
+        self,
+        task_id: str,
+        execution_id: str,
+        reason: str,
+    ) -> None:
+        try:
+            task_uuid = UUID(task_id)
+            execution_uuid = UUID(execution_id)
+        except ValueError:
+            return
+
+        async with self.session_factory() as db:
+            execution = await db.get(TaskExecution, execution_uuid)
+            scheduled_task = await db.get(ScheduledTask, task_uuid)
+            if not execution or not scheduled_task:
+                return
+            if execution.status != TaskExecutionStatus.RUNNING:
+                return
+            self._mark_execution(execution, TaskExecutionStatus.FAILED, reason)
+            self._finalize_task(scheduled_task, success=False)
+            db.add_all([execution, scheduled_task])
+            await db.commit()
+
+    async def _recover_stale_executions(
+        self,
+        db: AsyncSession,
+        now: datetime,
+    ) -> int:
+        active_execution_ids = self._active_execution_ids()
+        stale_cutoff = now - timedelta(
+            seconds=settings.SCHEDULED_TASK_DISPATCH_STALE_SECONDS
+        )
+        stale_result = await db.execute(
+            select(TaskExecution, ScheduledTask)
+            .join(ScheduledTask, ScheduledTask.id == TaskExecution.task_id)
+            .where(
+                TaskExecution.status == TaskExecutionStatus.RUNNING,
+                TaskExecution.completed_at.is_(None),
+                TaskExecution.executed_at <= stale_cutoff,
+                ScheduledTask.status == TaskStatus.PENDING,
+            )
+        )
+
+        recovered = 0
+        for execution, scheduled_task in stale_result.all():
+            if execution.id in active_execution_ids:
+                continue
+            self._mark_execution(
+                execution,
+                TaskExecutionStatus.FAILED,
+                "Scheduled task dispatch interrupted before execution started",
+            )
+            self._finalize_task(scheduled_task, success=False)
+            db.add_all([execution, scheduled_task])
+            recovered += 1
+
+        return recovered
+
     def _create_sandbox(
-        self, user_settings: UserSettings, session_factory: Any
+        self,
+        user_settings: UserSettings,
+        session_factory: SessionFactoryType,
     ) -> SandboxService:
         api_key = None
         if user_settings.sandbox_provider == SandboxProviderType.E2B.value:
@@ -468,201 +565,292 @@ class SchedulerService(BaseDbService[ScheduledTask]):
         )
         return SandboxService(provider, session_factory=session_factory)
 
+    @staticmethod
+    def _log_scheduled_task_result(
+        task_id: str,
+        execution_id: str,
+        scheduled_task: asyncio.Task[dict[str, Any]],
+    ) -> None:
+        if scheduled_task.cancelled():
+            logger.info(
+                "Scheduled task %s execution %s cancelled", task_id, execution_id
+            )
+            return
+        try:
+            result = scheduled_task.result()
+        except Exception:
+            logger.exception(
+                "Scheduled task %s execution %s crashed",
+                task_id,
+                execution_id,
+            )
+            return
+        if result.get("error"):
+            logger.error(
+                "Scheduled task %s execution %s failed: %s",
+                task_id,
+                execution_id,
+                result["error"],
+            )
+
+    def _on_scheduled_task_done(
+        self,
+        task_id: str,
+        execution_id: str,
+        scheduled_task: asyncio.Task[dict[str, Any]],
+    ) -> None:
+        try:
+            self._log_scheduled_task_result(task_id, execution_id, scheduled_task)
+        finally:
+            self._scheduled_tasks.pop(execution_id, None)
+
+    def _start_scheduled_task(self, task_id: str, execution_id: str) -> None:
+        scheduled_task = asyncio.create_task(
+            self.run_scheduled_task(
+                task_id=task_id,
+                execution_id=execution_id,
+            )
+        )
+        self._scheduled_tasks[execution_id] = scheduled_task
+        scheduled_task.add_done_callback(
+            partial(self._on_scheduled_task_done, task_id, execution_id)
+        )
+
     async def check_due_tasks(
         self,
-        execute_task_trigger: Callable[[str, str], Any],
         limit: int = 100,
     ) -> dict[str, Any]:
-        async with get_celery_session() as (session_factory, _):
+        active_scheduled_tasks = self._active_scheduled_task_count()
+        available_slots = self._max_concurrent_executions - active_scheduled_tasks
+        if available_slots <= 0:
+            return {"tasks_triggered": 0}
+        claim_limit = min(limit, available_slots)
+
+        try:
+            async with self.session_factory() as db:
+                now = datetime.now(timezone.utc)
+                recovered = await self._recover_stale_executions(db, now=now)
+                claimed = await self._claim_due_tasks(db, now=now, limit=claim_limit)
+                await db.commit()
+                if recovered:
+                    logger.warning(
+                        "Recovered %s stale scheduled task execution(s)",
+                        recovered,
+                    )
+        except Exception as e:
+            logger.error("Error checking scheduled tasks: %s", e)
+            return {"error": str(e)}
+
+        for task_id, execution_id in claimed:
             try:
-                async with session_factory() as db:
-                    now = datetime.now(timezone.utc)
-                    claimed = await self._claim_due_tasks(db, now=now, limit=limit)
-                    await db.commit()
+                self._start_scheduled_task(str(task_id), str(execution_id))
+            except Exception:
+                logger.exception(
+                    "Failed to dispatch scheduled task %s execution %s",
+                    task_id,
+                    execution_id,
+                )
+                await self._fail_execution_by_ids(
+                    str(task_id),
+                    str(execution_id),
+                    "Scheduled task dispatch failed",
+                )
 
-                    for task_id, execution_id in claimed:
-                        execute_task_trigger(str(task_id), str(execution_id))
-
-                    return {"tasks_triggered": len(claimed)}
-
-            except Exception as e:
-                logger.error("Error checking scheduled tasks: %s", e)
-                return {"error": str(e)}
+        return {"tasks_triggered": len(claimed)}
 
     async def run_scheduled_task(
         self,
-        task: Any,
         task_id: str,
         execution_id: str,
     ) -> dict[str, Any]:
         sandbox_service: SandboxService | None = None
         sandbox_id: str | None = None
+        session_factory = self.session_factory
 
-        async with get_celery_session() as (session_factory, _):
-            try:
-                task_uuid = UUID(task_id)
-                execution_uuid = UUID(execution_id)
+        try:
+            task_uuid = UUID(task_id)
+            execution_uuid = UUID(execution_id)
 
-                async with session_factory() as db:
-                    scheduled_task = await db.get(ScheduledTask, task_uuid)
-                    if not scheduled_task:
-                        return {"error": "Task not found"}
+            async with session_factory() as db:
+                scheduled_task = await db.get(ScheduledTask, task_uuid)
+                if not scheduled_task:
+                    return {"error": "Task not found"}
 
-                    execution = await db.get(TaskExecution, execution_uuid)
-                    if not execution or execution.task_id != scheduled_task.id:
-                        return {"error": "Execution not found"}
+                execution = await db.get(TaskExecution, execution_uuid)
+                if not execution or execution.task_id != scheduled_task.id:
+                    return {"error": "Execution not found"}
 
-                    if execution.status != TaskExecutionStatus.RUNNING:
-                        return {"status": "skipped", "reason": "execution_not_running"}
+                if execution.status != TaskExecutionStatus.RUNNING:
+                    return {"status": "skipped", "reason": "execution_not_running"}
 
-                    user = await db.get(User, scheduled_task.user_id)
-                    if not user:
-                        return {"error": "User not found"}
+                user = await db.get(User, scheduled_task.user_id)
+                if not user:
+                    return {"error": "User not found"}
 
-                    user_settings = await UserService().get_user_settings(
-                        user.id, db=db
-                    )
-                    if not scheduled_task.model_id:
-                        raise SchedulerException("Scheduled task missing model_id")
-                    model_id = scheduled_task.model_id
+                user_settings = await UserService(
+                    session_factory=session_factory
+                ).get_user_settings(user.id, db=db)
+                if not scheduled_task.model_id:
+                    raise SchedulerException("Scheduled task missing model_id")
+                model_id = scheduled_task.model_id
 
-                    try:
-                        validate_model_api_keys(user_settings, model_id)
-                    except (ValueError, APIKeyValidationError) as e:
-                        self._mark_execution(
-                            execution, TaskExecutionStatus.FAILED, str(e)
-                        )
-                        self._finalize_task(scheduled_task, success=False)
-                        db.add_all([execution, scheduled_task])
-                        await db.commit()
-                        return {"error": str(e)}
-
-                sandbox_service = self._create_sandbox(user_settings, session_factory)
-                sandbox_id = await sandbox_service.create_sandbox()
-
-                await sandbox_service.initialize_sandbox(
-                    sandbox_id=sandbox_id,
-                    github_token=user_settings.github_personal_access_token,
-                    custom_env_vars=user_settings.custom_env_vars,
-                    custom_skills=user_settings.custom_skills,
-                    custom_slash_commands=user_settings.custom_slash_commands,
-                    custom_agents=user_settings.custom_agents,
-                    user_id=str(user.id),
-                    auto_compact_disabled=user_settings.auto_compact_disabled,
-                    attribution_disabled=user_settings.attribution_disabled,
-                    custom_providers=user_settings.custom_providers,
-                    gmail_oauth_client=user_settings.gmail_oauth_client,
-                    gmail_oauth_tokens=user_settings.gmail_oauth_tokens,
-                )
-
-                async with session_factory() as db:
-                    sandbox_provider = user_settings.sandbox_provider or "docker"
-                    chat = Chat(
-                        title=scheduled_task.task_name,
-                        user_id=user.id,
-                        sandbox_id=sandbox_id,
-                        sandbox_provider=sandbox_provider,
-                    )
-                    db.add(chat)
-                    await db.flush()
-
-                    user_message = Message(
-                        chat_id=chat.id,
-                        content_text=scheduled_task.prompt_message,
-                        content_render={
-                            "events": [
-                                {
-                                    "type": "user_text",
-                                    "text": scheduled_task.prompt_message,
-                                }
-                            ],
-                            "segments": [],
-                        },
-                        last_seq=0,
-                        active_stream_id=None,
-                        role=MessageRole.USER,
-                    )
-                    assistant_message = Message(
-                        chat_id=chat.id,
-                        content_text="",
-                        content_render={"events": [], "segments": []},
-                        last_seq=0,
-                        active_stream_id=None,
-                        role=MessageRole.ASSISTANT,
-                        model_id=scheduled_task.model_id,
-                        stream_status=MessageStreamStatus.IN_PROGRESS,
-                    )
-                    db.add_all([user_message, assistant_message])
-                    await db.flush()
-
-                    execution = await db.get(TaskExecution, execution_uuid)
-                    if execution:
-                        execution.chat_id = chat.id
-                        db.add(execution)
+                try:
+                    validate_model_api_keys(user_settings, model_id)
+                except (ValueError, APIKeyValidationError) as e:
+                    self._mark_execution(execution, TaskExecutionStatus.FAILED, str(e))
+                    self._finalize_task(scheduled_task, success=False)
+                    db.add_all([execution, scheduled_task])
                     await db.commit()
+                    return {"error": str(e)}
 
-                chat_data = {
-                    "id": str(chat.id),
-                    "user_id": str(user.id),
-                    "title": chat.title,
-                    "sandbox_id": sandbox_id,
-                    "session_id": None,
-                }
+            sandbox_service = self._create_sandbox(user_settings, session_factory)
+            sandbox_id = await sandbox_service.create_sandbox()
 
-                system_prompt = build_system_prompt_for_chat(sandbox_id, user_settings)
+            await sandbox_service.initialize_sandbox(
+                sandbox_id=sandbox_id,
+                github_token=user_settings.github_personal_access_token,
+                custom_env_vars=user_settings.custom_env_vars,
+                custom_skills=user_settings.custom_skills,
+                custom_slash_commands=user_settings.custom_slash_commands,
+                custom_agents=user_settings.custom_agents,
+                user_id=str(user.id),
+                auto_compact_disabled=user_settings.auto_compact_disabled,
+                attribution_disabled=user_settings.attribution_disabled,
+                custom_providers=user_settings.custom_providers,
+                gmail_oauth_client=user_settings.gmail_oauth_client,
+                gmail_oauth_tokens=user_settings.gmail_oauth_tokens,
+            )
 
-                await StreamOrchestrator.run_chat_stream(
-                    task,
+            async with session_factory() as db:
+                sandbox_provider = user_settings.sandbox_provider or "docker"
+                chat = Chat(
+                    title=scheduled_task.task_name,
+                    user_id=user.id,
+                    sandbox_id=sandbox_id,
+                    sandbox_provider=sandbox_provider,
+                )
+                db.add(chat)
+                await db.flush()
+
+                user_message = Message(
+                    chat_id=chat.id,
+                    content_text=scheduled_task.prompt_message,
+                    content_render={
+                        "events": [
+                            {
+                                "type": "user_text",
+                                "text": scheduled_task.prompt_message,
+                            }
+                        ],
+                        "segments": [],
+                    },
+                    last_seq=0,
+                    active_stream_id=None,
+                    role=MessageRole.USER,
+                )
+                assistant_message = Message(
+                    chat_id=chat.id,
+                    content_text="",
+                    content_render={"events": [], "segments": []},
+                    last_seq=0,
+                    active_stream_id=None,
+                    role=MessageRole.ASSISTANT,
+                    model_id=scheduled_task.model_id,
+                    stream_status=MessageStreamStatus.IN_PROGRESS,
+                )
+                db.add_all([user_message, assistant_message])
+                await db.flush()
+
+                execution = await db.get(TaskExecution, execution_uuid)
+                if execution:
+                    execution.chat_id = chat.id
+                    db.add(execution)
+                await db.commit()
+
+            chat_data = {
+                "id": str(chat.id),
+                "user_id": str(user.id),
+                "title": chat.title,
+                "sandbox_id": sandbox_id,
+                "session_id": None,
+            }
+
+            system_prompt = build_system_prompt_for_chat(sandbox_id, user_settings)
+
+            await ChatStreamRuntime.execute_chat_stream(
+                request=ChatStreamRequest(
                     prompt=scheduled_task.prompt_message,
                     system_prompt=system_prompt,
                     custom_instructions=user_settings.custom_instructions,
                     chat_data=chat_data,
                     model_id=model_id,
-                    sandbox_service=sandbox_service,
-                    session_factory=session_factory,
                     permission_mode="auto",
                     session_id=None,
                     assistant_message_id=str(assistant_message.id),
                     thinking_mode="ultra",
                     attachments=None,
-                )
+                    is_custom_prompt=False,
+                ),
+                sandbox_service=sandbox_service,
+                session_factory=session_factory,
+            )
 
-                async with session_factory() as db:
-                    execution = await db.get(TaskExecution, execution_uuid)
-                    scheduled_task = await db.get(ScheduledTask, task_uuid)
-                    if execution and scheduled_task:
-                        self._mark_execution(execution, TaskExecutionStatus.SUCCESS)
-                        self._finalize_task(scheduled_task, success=True)
-                        db.add_all([execution, scheduled_task])
-                        await db.commit()
-
-                return {
-                    "status": "success",
-                    "task_id": task_id,
-                    "chat_id": str(chat.id),
-                    "execution_id": str(execution_uuid),
-                }
-
-            except Exception as e:
-                logger.error("Fatal error in execute_scheduled_task: %s", e)
-                message = e.message if isinstance(e, SchedulerException) else str(e)
-                async with session_factory() as db:
-                    execution = await db.get(TaskExecution, UUID(execution_id))
-                    scheduled_task = await db.get(ScheduledTask, UUID(task_id))
-                    if execution and scheduled_task:
+            async with session_factory() as db:
+                execution = await db.get(TaskExecution, execution_uuid)
+                scheduled_task = await db.get(ScheduledTask, task_uuid)
+                if execution and scheduled_task:
+                    assistant_status = await db.scalar(
+                        select(Message.stream_status).where(
+                            Message.id == assistant_message.id
+                        )
+                    )
+                    if assistant_status == MessageStreamStatus.INTERRUPTED:
                         self._mark_execution(
-                            execution, TaskExecutionStatus.FAILED, message
+                            execution,
+                            TaskExecutionStatus.FAILED,
+                            "Scheduled task interrupted",
                         )
                         self._finalize_task(scheduled_task, success=False)
-                        db.add_all([execution, scheduled_task])
-                        await db.commit()
-                return {"error": message}
+                    else:
+                        self._mark_execution(execution, TaskExecutionStatus.SUCCESS)
+                        self._finalize_task(scheduled_task, success=True)
+                    db.add_all([execution, scheduled_task])
+                    await db.commit()
 
-            finally:
-                if sandbox_service is not None:
-                    try:
-                        if sandbox_id is not None:
-                            await sandbox_service.delete_sandbox(sandbox_id)
-                        await sandbox_service.cleanup()
-                    except Exception:
-                        logger.exception("Failed to clean up sandbox")
+            return {
+                "status": "success",
+                "task_id": task_id,
+                "chat_id": str(chat.id),
+                "execution_id": str(execution_uuid),
+            }
+
+        except Exception as e:
+            logger.error("Fatal error in execute_scheduled_task: %s", e)
+            message = e.message if isinstance(e, SchedulerException) else str(e)
+            async with session_factory() as db:
+                execution = await db.get(TaskExecution, UUID(execution_id))
+                scheduled_task = await db.get(ScheduledTask, UUID(task_id))
+                if execution and scheduled_task:
+                    self._mark_execution(execution, TaskExecutionStatus.FAILED, message)
+                    self._finalize_task(scheduled_task, success=False)
+                    db.add_all([execution, scheduled_task])
+                    await db.commit()
+            return {"error": message}
+        except asyncio.CancelledError:
+            reason = "Scheduled task cancelled during shutdown"
+            logger.warning(
+                "Scheduled task %s execution %s cancelled",
+                task_id,
+                execution_id,
+            )
+            await self._fail_execution_by_ids(task_id, execution_id, reason)
+            return {"error": reason}
+
+        finally:
+            if sandbox_service is not None:
+                try:
+                    if sandbox_id is not None:
+                        await sandbox_service.delete_sandbox(sandbox_id)
+                    await sandbox_service.cleanup()
+                except Exception:
+                    logger.exception("Failed to clean up sandbox")

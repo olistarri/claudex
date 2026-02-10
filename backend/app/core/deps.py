@@ -11,7 +11,6 @@ from app.models.db_models import Chat, User
 from app.services.agent import AgentService
 from app.services.chat import ChatService
 from app.services.provider import ProviderService
-from app.services.claude_agent import ClaudeAgentService
 from app.services.command import CommandService
 from app.services.exceptions import UserException
 from app.services.refresh_token import RefreshTokenService
@@ -174,11 +173,9 @@ async def get_chat_service(
     sandbox_service: SandboxService = Depends(get_sandbox_service),
     user_service: UserService = Depends(get_user_service),
 ) -> AsyncIterator[ChatService]:
-    async with ClaudeAgentService(session_factory=SessionLocal) as ai_service:
-        yield ChatService(
-            file_service,
-            sandbox_service,
-            ai_service,
-            user_service,
-            session_factory=SessionLocal,
-        )
+    yield ChatService(
+        file_service,
+        sandbox_service,
+        user_service,
+        session_factory=SessionLocal,
+    )

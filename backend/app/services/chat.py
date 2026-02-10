@@ -11,13 +11,10 @@ from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.constants import (
-    REDIS_KEY_CHAT_CANCEL,
-    REDIS_KEY_CHAT_REVOKED,
     REDIS_KEY_CHAT_STREAM_LIVE,
-    REDIS_KEY_CHAT_TASK,
     STREAM_STATUS_CANCELLED,
 )
-from app.models.db_models import StreamEventKind, ToolStatus
+from app.models.db_models import StreamEventKind
 from app.core.config import get_settings
 from app.models.db_models import (
     Chat,
@@ -42,7 +39,6 @@ from app.models.types import ChatCompletionResult, MessageAttachmentDict
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.provider import ProviderService
-from app.services.claude_agent import ClaudeAgentService
 from app.services.exceptions import ChatException, ErrorCode
 from app.services.message import MessageService
 from app.services.sandbox import SandboxService
@@ -51,14 +47,15 @@ from app.services.sandbox_providers import (
     SandboxProviderType,
     create_docker_config,
 )
+from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.types import ChatStreamRequest
 from app.services.storage import StorageService
 from app.services.user import UserService
-from app.tasks.chat import process_chat
 
 if TYPE_CHECKING:
-    from celery.result import AsyncResult
     from redis.asyncio import Redis
     from redis.asyncio.client import PubSub
+from app.services.streaming.cancellation import CancellationHandler
 from app.utils.message_events import extract_user_prompt
 from app.utils.redis import redis_connection, redis_pubsub
 from app.utils.attachment_urls import build_attachment_preview_url
@@ -76,13 +73,11 @@ class ChatService(BaseDbService[Chat]):
         self,
         storage_service: StorageService,
         sandbox_service: SandboxService,
-        ai_service: ClaudeAgentService,
         user_service: UserService,
         session_factory: SessionFactoryType | None = None,
     ) -> None:
         super().__init__(session_factory)
         self.sandbox_service = sandbox_service
-        self.ai_service = ai_service
         self.storage_service = storage_service
         self.user_service = user_service
         self.message_service = MessageService(session_factory=self._session_factory)
@@ -362,30 +357,17 @@ class ChatService(BaseDbService[Chat]):
         return await self.message_service.get_chat_messages(chat_id, cursor, limit)
 
     async def _monitor_stream_cancellation(
-        self, chat_id: UUID, cancel_event: asyncio.Event, redis: "Redis[str]"
+        self, chat_id: UUID, cancel_event: asyncio.Event
     ) -> None:
         try:
-            async with redis_pubsub(
-                redis, REDIS_KEY_CHAT_CANCEL.format(chat_id=chat_id)
-            ) as pubsub:
-                while True:
-                    message = await pubsub.get_message(
-                        ignore_subscribe_messages=True, timeout=1.0
-                    )
-                    if message and message.get("type") == "message":
-                        logger.info("Stream cancellation received for chat %s", chat_id)
-                        cancel_event.set()
-                        break
+            did_wait = await CancellationHandler.wait_for_cancel(str(chat_id))
+            if not did_wait:
+                return
+            logger.info("Stream cancellation received for chat %s", chat_id)
+            cancel_event.set()
         except asyncio.CancelledError:
             logger.debug("Cancellation monitor task cancelled for chat %s", chat_id)
             raise
-        except Exception as exc:
-            logger.error(
-                "Error monitoring cancellation for chat %s: %s",
-                chat_id,
-                exc,
-                exc_info=True,
-            )
 
     async def _replay_stream_backlog(
         self,
@@ -739,10 +721,7 @@ class ChatService(BaseDbService[Chat]):
         current_stream_id = active_stream_id
         current_message_id = active_message_id
 
-        if (
-            await redis.get(REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id))
-            or cancel_event.is_set()
-        ):
+        if CancellationHandler.is_cancelled(str(chat_id)) or cancel_event.is_set():
             logger.info("Stream already cancelled for chat %s", chat_id)
             stream_id, message_id = await self._resolve_active_cancel_targets(
                 chat_id=chat_id,
@@ -889,7 +868,7 @@ class ChatService(BaseDbService[Chat]):
 
                     cancel_event = asyncio.Event()
                     monitor_task = asyncio.create_task(
-                        self._monitor_stream_cancellation(chat_id, cancel_event, redis)
+                        self._monitor_stream_cancellation(chat_id, cancel_event)
                     )
 
                     try:
@@ -1009,11 +988,10 @@ class ChatService(BaseDbService[Chat]):
         )
 
         try:
-            task = await self._enqueue_chat_task(
+            await self._enqueue_chat_task(
                 prompt=ai_prompt,
                 system_prompt=system_prompt,
                 custom_instructions=custom_instructions,
-                user=current_user,
                 chat=chat,
                 permission_mode=request.permission_mode,
                 model_id=request.model_id,
@@ -1023,19 +1001,15 @@ class ChatService(BaseDbService[Chat]):
                 attachments=attachments,
                 is_custom_prompt=is_custom_prompt,
             )
-
-            await self._store_active_task(chat_id, task.id)
         except Exception as e:
             logger.error("Failed to enqueue chat task: %s", e)
             await self.message_service.soft_delete_message(assistant_message.id)
             raise
 
         return {
-            "task_id": task.id,
             "message_id": str(assistant_message.id),
             "chat_id": str(chat_id),
             "last_seq": int(chat.last_event_seq or 0),
-            "status": ToolStatus.STARTED.value,
         }
 
     async def restore_to_checkpoint(
@@ -1238,7 +1212,6 @@ class ChatService(BaseDbService[Chat]):
         prompt: str,
         system_prompt: str,
         custom_instructions: str | None,
-        user: User,
         chat: Chat,
         permission_mode: str,
         model_id: str,
@@ -1247,8 +1220,11 @@ class ChatService(BaseDbService[Chat]):
         thinking_mode: str | None,
         attachments: list[MessageAttachmentDict] | None,
         is_custom_prompt: bool = False,
-    ) -> "AsyncResult[object]":
-        return process_chat.delay(
+    ) -> None:
+        stream_attachments = (
+            [dict(item) for item in attachments] if attachments else None
+        )
+        request = ChatStreamRequest(
             prompt=prompt,
             system_prompt=system_prompt,
             custom_instructions=custom_instructions,
@@ -1264,17 +1240,10 @@ class ChatService(BaseDbService[Chat]):
             session_id=session_id,
             assistant_message_id=assistant_message_id,
             thinking_mode=thinking_mode,
-            attachments=attachments,
+            attachments=stream_attachments,
             is_custom_prompt=is_custom_prompt,
         )
-
-    async def _store_active_task(self, chat_id: UUID, task_id: str) -> None:
-        async with redis_connection() as redis:
-            await redis.setex(
-                REDIS_KEY_CHAT_TASK.format(chat_id=chat_id),
-                settings.TASK_TTL_SECONDS,
-                task_id,
-            )
+        ChatStreamRuntime.start_background_chat(request=request)
 
     async def _resume_sandbox(self, chat_id: UUID, user: User) -> None:
         try:

@@ -88,8 +88,6 @@ async def install_plugin_components(
     installer_service: PluginInstallerService = Depends(get_plugin_installer_service),
     user_service: UserService = Depends(get_user_service),
 ) -> InstallResponse:
-    # 3-phase install to minimize DB lock time:
-    # 1. read settings without lock, 2. network IO, 3. short write lock
     try:
         user_settings_readonly = await user_service.get_user_settings(
             current_user.id, db=db
@@ -128,9 +126,7 @@ async def install_plugin_components(
 
     if result.installed:
         try:
-            user_settings = await user_service.get_user_settings_for_update(
-                current_user.id, db=db
-            )
+            user_settings = await user_service.get_user_settings(current_user.id, db=db)
         except UserException as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -223,9 +219,7 @@ async def uninstall_plugin_components(
     skill_service: SkillService = Depends(get_skill_service),
 ) -> UninstallResponse:
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

@@ -8,22 +8,19 @@ from pydantic import ValidationError
 from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.constants import (
-    REDIS_KEY_CHAT_STREAM_LIVE,
-    REDIS_KEY_PERMISSION_REQUEST,
-    REDIS_KEY_PERMISSION_RESPONSE,
-)
+from app.constants import REDIS_KEY_CHAT_STREAM_LIVE
 from app.core.config import get_settings
 from app.core.deps import get_chat_service
 from app.core.security import validate_chat_scoped_token
-from app.services.chat import ChatService
-from app.utils.redis import redis_connection, redis_pubsub
 from app.models.schemas import (
     PermissionRequest,
     PermissionRequestResponse,
     PermissionResult,
 )
+from app.services.chat import ChatService
+from app.services.permission_manager import PermissionManager
 from app.services.streaming.protocol import build_envelope, redact_for_audit
+from app.utils.redis import redis_connection
 
 router = APIRouter()
 settings = get_settings()
@@ -44,23 +41,6 @@ async def _validate_token_for_chat(authorization: str, chat_id: UUID) -> None:
         )
 
 
-def _parse_response_payload(raw_payload: str | bytes) -> PermissionResult:
-    try:
-        payload_text = (
-            raw_payload.decode("utf-8")
-            if isinstance(raw_payload, bytes)
-            else raw_payload
-        )
-        data: dict[str, object] = json.loads(payload_text)
-        result: PermissionResult = PermissionResult.model_validate(data)
-        return result
-    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid response payload",
-        ) from exc
-
-
 @router.post(
     "/chats/{chat_id}/permissions/request",
     response_model=PermissionRequestResponse,
@@ -73,63 +53,52 @@ async def create_permission_request(
 ) -> PermissionRequestResponse:
     await _validate_token_for_chat(authorization, chat_id)
     chat_id_str = str(chat_id)
+    request_id = str(uuid.uuid4())
 
-    async with redis_connection() as redis:
-        request_id = str(uuid.uuid4())
-        request_key = REDIS_KEY_PERMISSION_REQUEST.format(request_id=request_id)
-        payload = json.dumps(
-            {
-                "chat_id": chat_id_str,
+    request_data = {
+        "chat_id": chat_id_str,
+        "tool_name": request.tool_name,
+        "tool_input": request.tool_input,
+        "timestamp": asyncio.get_running_loop().time(),
+    }
+    PermissionManager.create_request(request_id, request_data)
+
+    try:
+        message_service = chat_service.message_service
+        latest_assistant = await message_service.get_latest_assistant_message(chat_id)
+        if latest_assistant and latest_assistant.active_stream_id:
+            render_payload = {
+                "request_id": request_id,
                 "tool_name": request.tool_name,
                 "tool_input": request.tool_input,
-                "timestamp": asyncio.get_running_loop().time(),
             }
-        )
-
-        try:
-            await redis.setex(
-                request_key,
-                settings.PERMISSION_REQUEST_TTL_SECONDS,
-                payload,
+            seq = await message_service.append_event_with_next_seq(
+                chat_id=chat_id,
+                message_id=latest_assistant.id,
+                stream_id=latest_assistant.active_stream_id,
+                event_type="permission_request",
+                render_payload=render_payload,
+                audit_payload={"payload": redact_for_audit(render_payload)},
             )
-
-            message_service = chat_service.message_service
-            latest_assistant = await message_service.get_latest_assistant_message(
-                chat_id
+            envelope = build_envelope(
+                chat_id=chat_id,
+                message_id=latest_assistant.id,
+                stream_id=latest_assistant.active_stream_id,
+                seq=seq,
+                kind="permission_request",
+                payload=render_payload,
             )
-            if latest_assistant and latest_assistant.active_stream_id:
-                render_payload = {
-                    "request_id": request_id,
-                    "tool_name": request.tool_name,
-                    "tool_input": request.tool_input,
-                }
-                seq = await message_service.append_event_with_next_seq(
-                    chat_id=chat_id,
-                    message_id=latest_assistant.id,
-                    stream_id=latest_assistant.active_stream_id,
-                    event_type="permission_request",
-                    render_payload=render_payload,
-                    audit_payload={"payload": redact_for_audit(render_payload)},
-                )
-                envelope = build_envelope(
-                    chat_id=chat_id,
-                    message_id=latest_assistant.id,
-                    stream_id=latest_assistant.active_stream_id,
-                    seq=seq,
-                    kind="permission_request",
-                    payload=render_payload,
-                )
+            async with redis_connection() as redis:
                 await redis.publish(
                     REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id_str),
                     json.dumps(envelope, ensure_ascii=False),
                 )
-
-        except (RedisError, SQLAlchemyError) as exc:
-            await redis.delete(request_key)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create permission request",
-            ) from exc
+    except (RedisError, SQLAlchemyError) as exc:
+        PermissionManager.remove(request_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create permission request",
+        ) from exc
 
     return PermissionRequestResponse(request_id=request_id)
 
@@ -145,74 +114,30 @@ async def get_permission_response(
     timeout: int = Query(default=300, ge=1, le=600),
 ) -> PermissionResult:
     await _validate_token_for_chat(authorization, chat_id)
-    chat_id_str = str(chat_id)
-
-    async with redis_connection() as redis:
-        request_key = REDIS_KEY_PERMISSION_REQUEST.format(request_id=request_id)
-
-        request_data = await redis.get(request_key)
-        if not request_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Permission request not found or expired",
-            )
-
-        try:
-            request_json = json.loads(request_data)
-        except json.JSONDecodeError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Invalid stored permission data",
-            ) from exc
-
-        if request_json.get("chat_id") != chat_id_str:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission request does not belong to this chat",
-            )
-
-        # Refresh TTL so the request remains available while waiting.
-        await redis.setex(
-            request_key,
-            settings.PERMISSION_REQUEST_TTL_SECONDS,
-            json.dumps(request_json),
+    request_data = PermissionManager.get_request_data(request_id)
+    if request_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Permission request not found or expired",
         )
 
-        channel = REDIS_KEY_PERMISSION_RESPONSE.format(request_id=request_id)
+    if request_data.get("chat_id") != str(chat_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission request does not belong to this chat",
+        )
 
-        try:
-            async with redis_pubsub(redis, channel) as pubsub:
-                try:
-                    async with asyncio.timeout(timeout):
-                        async for message in pubsub.listen():
-                            if message.get("type") != "message":
-                                continue
+    response = await PermissionManager.wait_for_response(request_id, timeout=timeout)
+    if response is None:
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Permission request timed out",
+        )
 
-                            try:
-                                result = _parse_response_payload(message["data"])
-                            except HTTPException:
-                                await redis.delete(request_key)
-                                raise
-
-                            await redis.delete(request_key)
-                            return result
-
-                except asyncio.TimeoutError as exc:
-                    await redis.delete(request_key)
-                    raise HTTPException(
-                        status_code=status.HTTP_408_REQUEST_TIMEOUT,
-                        detail="Permission request timed out",
-                    ) from exc
-        except HTTPException:
-            raise
-        except RedisError as exc:
-            await redis.delete(request_key)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to get permission response",
-            ) from exc
-
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Unexpected state: permission response not received",
-    )
+    try:
+        return PermissionResult(**response)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid response payload",
+        ) from exc

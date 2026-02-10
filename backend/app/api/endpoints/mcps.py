@@ -39,9 +39,7 @@ async def create_mcp(
         )
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -98,9 +96,7 @@ async def update_mcp(
         )
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -161,9 +157,7 @@ async def delete_mcp(
         )
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

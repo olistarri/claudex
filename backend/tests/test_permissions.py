@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 
 from httpx import AsyncClient
 from redis.asyncio import Redis
 
-from app.constants import REDIS_KEY_PERMISSION_RESPONSE
 from app.core.security import create_chat_scoped_token
 from app.models.db_models import Chat, User
+from app.services.permission_manager import PermissionManager
 from app.services.sandbox import SandboxService
 
 
@@ -113,12 +112,9 @@ class TestPermissionResponse:
         )
         request_id = create_response.json()["request_id"]
 
-        async def send_approval():
+        async def send_approval() -> None:
             await asyncio.sleep(0.1)
-            channel = REDIS_KEY_PERMISSION_RESPONSE.format(request_id=request_id)
-            await redis_client.publish(
-                channel, json.dumps({"approved": True, "alternative_instruction": None})
-            )
+            await PermissionManager.respond(request_id, approved=True)
 
         approval_task = asyncio.create_task(send_approval())
 
@@ -154,17 +150,12 @@ class TestPermissionResponse:
         )
         request_id = create_response.json()["request_id"]
 
-        async def send_denial():
+        async def send_denial() -> None:
             await asyncio.sleep(0.1)
-            channel = REDIS_KEY_PERMISSION_RESPONSE.format(request_id=request_id)
-            await redis_client.publish(
-                channel,
-                json.dumps(
-                    {
-                        "approved": False,
-                        "alternative_instruction": "Please use a safer command",
-                    }
-                ),
+            await PermissionManager.respond(
+                request_id,
+                approved=False,
+                alternative_instruction="Please use a safer command",
             )
 
         denial_task = asyncio.create_task(send_denial())

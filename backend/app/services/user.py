@@ -49,15 +49,12 @@ class UserService(BaseDbService[UserSettings]):
         cache_key = REDIS_KEY_USER_SETTINGS.format(user_id=user_id)
         await redis.delete(cache_key)
 
-    async def _fetch_user_settings(
+    async def get_user_settings(
         self,
         user_id: UUID,
         db: AsyncSession | None = None,
-        for_update: bool = False,
     ) -> UserSettings:
         stmt = select(UserSettings).where(UserSettings.user_id == user_id)
-        if for_update:
-            stmt = stmt.with_for_update()
 
         user_settings: UserSettings | None
         if db is None:
@@ -72,20 +69,6 @@ class UserService(BaseDbService[UserSettings]):
             raise UserException("User settings not found")
 
         return user_settings
-
-    async def get_user_settings(
-        self,
-        user_id: UUID,
-        db: AsyncSession | None = None,
-    ) -> UserSettings:
-        return await self._fetch_user_settings(user_id=user_id, db=db, for_update=False)
-
-    async def get_user_settings_for_update(
-        self,
-        user_id: UUID,
-        db: AsyncSession,
-    ) -> UserSettings:
-        return await self._fetch_user_settings(user_id=user_id, db=db, for_update=True)
 
     async def get_user_settings_response(
         self,
@@ -119,9 +102,7 @@ class UserService(BaseDbService[UserSettings]):
         self, user_id: UUID, settings_update: dict[str, JSONValue], db: AsyncSession
     ) -> UserSettings:
         user_settings: UserSettings | None = await db.scalar(
-            select(UserSettings)
-            .where(UserSettings.user_id == user_id)
-            .with_for_update()
+            select(UserSettings).where(UserSettings.user_id == user_id)
         )
         if not user_settings:
             raise UserException("User settings not found")

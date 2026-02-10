@@ -50,9 +50,7 @@ async def upload_oauth_client(
         )
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -77,9 +75,7 @@ async def delete_oauth_client(
     user_service: UserService = Depends(get_user_service),
 ) -> OAuthClientResponse:
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -140,7 +136,7 @@ async def oauth_callback(
         )
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(user_id, db=db)
+        user_settings = await user_service.get_user_settings(user_id, db=db)
     except UserException:
         return HTMLResponse(
             content=_callback_html("Authentication failed: User not found"),
@@ -214,9 +210,7 @@ async def disconnect_gmail(
     user_service: UserService = Depends(get_user_service),
 ) -> OAuthClientResponse:
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

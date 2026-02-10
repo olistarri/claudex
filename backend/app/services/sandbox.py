@@ -25,7 +25,7 @@ from app.constants import (
     SANDBOX_IDE_SETTINGS_PATH,
     SANDBOX_IDE_TOKEN_PATH,
 )
-from app.db.session import get_celery_session
+from app.db.session import SessionLocal
 from app.models.db_models import Chat
 from app.models.types import (
     CustomAgentDict,
@@ -98,16 +98,15 @@ class SandboxService:
 
     @classmethod
     async def cleanup_orphaned_sandboxes(cls) -> dict[str, Any]:
-        async with get_celery_session() as (session_factory, _):
-            async with session_factory() as db:
-                result = await db.execute(
-                    select(Chat.sandbox_id).where(
-                        Chat.sandbox_id.isnot(None),
-                        Chat.deleted_at.is_(None),
-                        Chat.sandbox_provider == SandboxProviderType.DOCKER.value,
-                    )
+        async with SessionLocal() as db:
+            result = await db.execute(
+                select(Chat.sandbox_id).where(
+                    Chat.sandbox_id.isnot(None),
+                    Chat.deleted_at.is_(None),
+                    Chat.sandbox_provider == SandboxProviderType.DOCKER.value,
                 )
-                active_sandbox_ids = {row[0] for row in result.fetchall() if row[0]}
+            )
+            active_sandbox_ids = {row[0] for row in result.fetchall() if row[0]}
 
         provider = LocalDockerProvider(create_docker_config())
         orphaned_ids: list[str] = []

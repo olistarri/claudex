@@ -25,9 +25,7 @@ async def upload_agent(
     user_service: UserService = Depends(get_user_service),
 ) -> CustomAgentDict:
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -79,9 +77,7 @@ async def update_agent(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -136,9 +132,7 @@ async def delete_agent(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     try:
-        user_settings = await user_service.get_user_settings_for_update(
-            current_user.id, db=db
-        )
+        user_settings = await user_service.get_user_settings(current_user.id, db=db)
     except UserException as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)

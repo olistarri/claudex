@@ -64,7 +64,7 @@ def _truncate_audit_string(value: str) -> dict[str, Any]:
     }
 
 
-def redact_for_audit(value: Any, key_path: tuple[str, ...] = ()) -> JSONValue:
+def redact_for_audit(value: Any) -> JSONValue:
     if isinstance(value, dict):
         redacted: JSONDict = {}
         for key, nested in value.items():
@@ -72,11 +72,11 @@ def redact_for_audit(value: Any, key_path: tuple[str, ...] = ()) -> JSONValue:
             if any(part in lower for part in SENSITIVE_KEY_PARTS):
                 redacted[key] = "[REDACTED]"
                 continue
-            redacted[key] = redact_for_audit(nested, (*key_path, key))
+            redacted[key] = redact_for_audit(nested)
         return redacted
 
     if isinstance(value, list):
-        return [redact_for_audit(item, key_path) for item in value]
+        return [redact_for_audit(item) for item in value]
 
     if isinstance(value, (bytes, bytearray, memoryview)):
         return "[BINARY_OMITTED]"
