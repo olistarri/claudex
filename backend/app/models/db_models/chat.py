@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import JSON
@@ -25,7 +26,12 @@ from .enums import AttachmentType, MessageRole, MessageStreamStatus
 class Chat(Base):
     __tablename__ = "chats"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -63,7 +69,12 @@ class Chat(Base):
 class Message(Base):
     __tablename__ = "messages"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     chat_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
     )
@@ -127,7 +138,12 @@ class Message(Base):
 class MessageAttachment(Base):
     __tablename__ = "message_attachments"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     message_id: Mapped[UUID] = mapped_column(
         GUID(),
         ForeignKey("messages.id", ondelete="CASCADE"),
@@ -154,7 +170,12 @@ class MessageAttachment(Base):
 class MessageEvent(Base):
     __tablename__ = "message_events"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     message_id: Mapped[UUID] = mapped_column(
         GUID(),
         ForeignKey("messages.id", ondelete="CASCADE"),

@@ -1,8 +1,10 @@
 from logging.config import fileConfig
 import asyncio
 from sqlalchemy import pool
+import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.dialects import postgresql
 
 from alembic import context
 from app.db.base import Base
@@ -29,6 +31,22 @@ def render_item(type_, obj, autogen_context):
     return False
 
 
+def compare_server_default(
+    migration_context,
+    inspected_column,
+    metadata_column,
+    rendered_column_default,
+    metadata_default,
+    rendered_metadata_default,
+):
+    json_types = (sa.JSON, postgresql.JSON, postgresql.JSONB)
+    if isinstance(inspected_column.type, json_types) or isinstance(
+        metadata_column.type, json_types
+    ):
+        return False
+    return None
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=database_url,
@@ -36,6 +54,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_item=render_item,
+        compare_server_default=compare_server_default,
     )
 
     with context.begin_transaction():
@@ -47,6 +66,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         render_item=render_item,
+        compare_server_default=compare_server_default,
     )
 
     with context.begin_transaction():

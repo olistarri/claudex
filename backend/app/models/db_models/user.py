@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, text
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.models.types import (
@@ -24,12 +24,23 @@ from app.db.types import GUID, EncryptedJSON, EncryptedString
 class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     email: Mapped[str] = mapped_column(String(length=320), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(length=256), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    is_superuser: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     username: Mapped[str] = mapped_column(
         String(length=64), unique=True, nullable=False
@@ -44,9 +55,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     reset_token_expires: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    daily_message_limit: Mapped[int | None] = mapped_column(
-        Integer, default=None, nullable=True
-    )
+    daily_message_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
     settings = relationship(
         "UserSettings",
@@ -59,7 +68,12 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 class UserSettings(Base):
     __tablename__ = "user_settings"
 
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    id: Mapped[UUID] = mapped_column(
+        GUID(),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
