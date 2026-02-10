@@ -135,7 +135,7 @@ async def get_permission_response(
         )
 
     try:
-        return PermissionResult.model_validate(response)
+        return PermissionResult(**response)
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1221,6 +1221,9 @@ class ChatService(BaseDbService[Chat]):
         attachments: list[MessageAttachmentDict] | None,
         is_custom_prompt: bool = False,
     ) -> None:
+        stream_attachments = (
+            [dict(item) for item in attachments] if attachments else None
+        )
         request = ChatStreamRequest(
             prompt=prompt,
             system_prompt=system_prompt,
@@ -1237,7 +1240,7 @@ class ChatService(BaseDbService[Chat]):
             session_id=session_id,
             assistant_message_id=assistant_message_id,
             thinking_mode=thinking_mode,
-            attachments=attachments,
+            attachments=stream_attachments,
             is_custom_prompt=is_custom_prompt,
         )
         ChatStreamRuntime.start_background_chat(request=request)

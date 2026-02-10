@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Literal, cast
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import (
@@ -551,20 +551,18 @@ async def queue_message(
                 ]
             )
         )
+    queue_attachments = [dict(item) for item in attachments] if attachments else None
 
     try:
         async with redis_connection() as redis:
             queue_service = QueueService(redis)
-            return cast(
-                QueueUpsertResponse,
-                await queue_service.upsert_message(
-                    str(chat_id),
-                    content,
-                    model_id,
-                    permission_mode=permission_mode,
-                    thinking_mode=thinking_mode,
-                    attachments=attachments,
-                ),
+            return await queue_service.upsert_message(
+                str(chat_id),
+                content,
+                model_id,
+                permission_mode=permission_mode,
+                thinking_mode=thinking_mode,
+                attachments=queue_attachments,
             )
     except RedisError as e:
         logger.error("Redis error queueing message: %s", e, exc_info=True)
@@ -618,7 +616,7 @@ async def update_queued_message(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No queued message found",
                 )
-            return cast(QueuedMessage, result)
+            return result
     except RedisError as e:
         logger.error("Redis error updating queued message: %s", e, exc_info=True)
         raise HTTPException(
