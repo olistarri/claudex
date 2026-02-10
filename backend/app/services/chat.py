@@ -309,29 +309,6 @@ class ChatService(BaseDbService[Chat]):
             sandbox_id_value: str | None = row[0]
             return sandbox_id_value
 
-    async def verify_sandbox_access(self, sandbox_id: str, user_id: UUID) -> bool:
-        async with self.session_factory() as db:
-            query = select(
-                exists().where(
-                    Chat.sandbox_id == sandbox_id,
-                    Chat.user_id == user_id,
-                    Chat.deleted_at.is_(None),
-                )
-            )
-            result = await db.execute(query)
-            return bool(result.scalar())
-
-    async def sandbox_exists(self, sandbox_id: str) -> bool:
-        async with self.session_factory() as db:
-            query = select(
-                exists().where(
-                    Chat.sandbox_id == sandbox_id,
-                    Chat.deleted_at.is_(None),
-                )
-            )
-            result = await db.execute(query)
-            return bool(result.scalar())
-
     async def delete_all_chats(self, user: User) -> int:
         async with self.session_factory() as db:
             sandbox_query = select(Chat.sandbox_id).filter(
@@ -1062,19 +1039,6 @@ class ChatService(BaseDbService[Chat]):
             "last_seq": int(chat.last_event_seq or 0),
             "status": ToolStatus.STARTED.value,
         }
-
-    async def get_chat_by_sandbox_id(
-        self, sandbox_id: str, user_id: UUID
-    ) -> Chat | None:
-        async with self.session_factory() as db:
-            query = select(Chat).filter(
-                Chat.sandbox_id == sandbox_id,
-                Chat.user_id == user_id,
-                Chat.deleted_at.is_(None),
-            )
-            result = await db.execute(query)
-            chat: Chat | None = result.scalar_one_or_none()
-            return chat
 
     async def restore_to_checkpoint(
         self, chat_id: UUID, message_id: UUID, current_user: User

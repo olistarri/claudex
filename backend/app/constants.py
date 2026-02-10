@@ -13,7 +13,6 @@ REDIS_KEY_CHAT_CANCEL: Final[str] = "chat:{chat_id}:cancel"
 REDIS_KEY_PERMISSION_REQUEST: Final[str] = "permission_request:{request_id}"
 REDIS_KEY_PERMISSION_RESPONSE: Final[str] = "permission_response:{request_id}"
 REDIS_KEY_USER_SETTINGS: Final[str] = "user_settings:{user_id}"
-REDIS_KEY_MODELS_LIST: Final[str] = "models:list:{active_only}"
 REDIS_KEY_CHAT_CONTEXT_USAGE: Final[str] = "chat:{chat_id}:context_usage"
 REDIS_KEY_CHAT_QUEUE: Final[str] = "chat:{chat_id}:queue"
 
@@ -214,14 +213,6 @@ DOCKER_STATUS_RUNNING: Final[str] = "running"
 
 # Additional sandbox paths
 SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
-SANDBOX_CLAUDE_SETTINGS_PATH: Final[str] = "/home/user/.claude/settings.json"
-SANDBOX_OPENAI_DIR: Final[str] = "/home/user/.codex"
-SANDBOX_OPENAI_AUTH_PATH: Final[str] = "/home/user/.codex/auth.json"
-PERMISSION_SERVER_PATH: Final[str] = "/usr/local/bin/permission_server.py"
 
 # Stream status
 STREAM_STATUS_CANCELLED: Final[str] = "cancelled"
-
-# File/directory types
-FILE_TYPE_FILE: Final[str] = "file"
-FILE_TYPE_DIRECTORY: Final[str] = "dir"

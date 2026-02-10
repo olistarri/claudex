@@ -12,13 +12,13 @@ from sqlalchemy.types import TypeDecorator
 class GUID(UUID):
     cache_ok = True
 
-    def process_bind_param(self, value: Any, dialect: Dialect) -> str | None:
+    def process_bind_param(self, value: Any, _dialect: Dialect) -> str | None:
         if value is None:
             return value
         return str(value)
 
     def process_result_value(
-        self, value: Any, dialect: Dialect
+        self, value: Any, _dialect: Dialect
     ) -> uuid_module.UUID | None:
         if value is None:
             return value
@@ -31,7 +31,7 @@ class EncryptedString(TypeDecorator[str]):
     impl = String
     cache_ok = True
 
-    def process_bind_param(self, value: str | None, dialect: Dialect) -> str | None:
+    def process_bind_param(self, value: str | None, _dialect: Dialect) -> str | None:
         # Local import to avoid circular import
         from app.core.security import encrypt_value
 
@@ -39,7 +39,7 @@ class EncryptedString(TypeDecorator[str]):
             return None
         return encrypt_value(value)
 
-    def process_result_value(self, value: str | None, dialect: Dialect) -> str | None:
+    def process_result_value(self, value: str | None, _dialect: Dialect) -> str | None:
         # Local import to avoid circular import
         from app.core.security import decrypt_value
 
@@ -55,7 +55,7 @@ class EncryptedJSON(TypeDecorator[Any]):
     impl = String
     cache_ok = True
 
-    def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
+    def process_bind_param(self, value: Any, _dialect: Dialect) -> Any:
         # Local import to avoid circular import
         from app.core.security import encrypt_value
 
@@ -67,7 +67,7 @@ class EncryptedJSON(TypeDecorator[Any]):
             serialized = json.dumps(value, separators=(",", ":"), ensure_ascii=True)
         return encrypt_value(serialized)
 
-    def process_result_value(self, value: Any, dialect: Dialect) -> Any:
+    def process_result_value(self, value: Any, _dialect: Dialect) -> Any:
         # Local import to avoid circular import
         from app.core.security import decrypt_value
 

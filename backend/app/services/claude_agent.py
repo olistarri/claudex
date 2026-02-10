@@ -111,8 +111,8 @@ class ClaudeAgentService:
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> bool:
         try:
             await self.cancel_active_stream()
@@ -287,17 +287,6 @@ class ClaudeAgentService:
                 logger.error("Error closing transport: %s", e)
             finally:
                 self._active_transport = None
-
-    def get_active_transport(
-        self,
-    ) -> (
-        E2BSandboxTransport
-        | DockerSandboxTransport
-        | HostSandboxTransport
-        | ModalSandboxTransport
-        | None
-    ):
-        return self._active_transport
 
     def _build_auth_env(
         self, model_id: str, user_settings: UserSettings
@@ -490,21 +479,6 @@ class ClaudeAgentService:
             if mcp.get("env_vars"):
                 config["env"] = mcp["env_vars"]
 
-        return config
-
-    @staticmethod
-    def _npx_server_config(
-        package: str,
-        *,
-        env: dict[str, str] | None = None,
-        extra_args: list[str] | None = None,
-    ) -> dict[str, Any]:
-        args = ["-y", package]
-        if extra_args:
-            args.extend(extra_args)
-        config: dict[str, object] = {"command": "npx", "args": args}
-        if env:
-            config["env"] = env
         return config
 
     async def _build_claude_options(
