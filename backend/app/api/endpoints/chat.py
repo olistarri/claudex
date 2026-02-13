@@ -51,7 +51,7 @@ from app.models.schemas import (
 from app.services.chat import ChatService
 from app.services.streaming.cancellation import CancellationHandler
 from app.services.claude_agent import ClaudeAgentService
-from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.exceptions import (
     ChatException,
     ClaudeAgentException,

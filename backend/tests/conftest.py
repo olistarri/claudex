@@ -52,7 +52,7 @@ from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.docker_provider import LocalDockerProvider
 from app.services.sandbox_providers.types import DockerConfig
 from app.services.storage import StorageService
-from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest
 from app.services.user import UserService
 

@@ -44,7 +44,7 @@ from app.services.sandbox_providers import (
     SandboxProviderType,
     create_docker_config,
 )
-from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest
 from app.services.storage import StorageService
 from app.services.user import UserService

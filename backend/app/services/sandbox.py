@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import base64
 import io
@@ -37,11 +39,13 @@ from app.models.types import (
 from app.models.schemas.settings import ProviderType
 from app.services.agent import AgentService
 from app.services.command import CommandService
-from app.services.exceptions import SandboxException
+from app.services.db import SessionFactoryType
+from app.services.exceptions import SandboxException, UserException
 from app.services.sandbox_providers import create_docker_config
 from app.services.sandbox_providers import (
     PtySize,
     SandboxProvider,
+    create_sandbox_provider,
 )
 from app.services.sandbox_providers.docker_provider import LocalDockerProvider
 from app.services.sandbox_providers.types import CommandResult
@@ -95,6 +99,37 @@ class SandboxService:
                         e,
                     )
         await self.provider.cleanup()
+
+    @classmethod
+    async def create_for_user(
+        cls,
+        *,
+        user_id: uuid.UUID,
+        session_factory: SessionFactoryType,
+    ) -> SandboxService:
+        from app.services.user import UserService
+
+        user_service = UserService(session_factory=session_factory)
+        async with session_factory() as db:
+            try:
+                user_settings = await user_service.get_user_settings(user_id, db=db)
+            except UserException:
+                raise UserException("User settings not found")
+
+            provider_type = user_settings.sandbox_provider
+            api_key: str | None = None
+            if provider_type == SandboxProviderType.E2B.value:
+                key = user_settings.e2b_api_key
+                api_key = key if isinstance(key, str) else None
+            elif provider_type == SandboxProviderType.MODAL.value:
+                key = user_settings.modal_api_key
+                api_key = key if isinstance(key, str) else None
+
+            provider = create_sandbox_provider(
+                provider_type=provider_type,
+                api_key=api_key,
+            )
+        return cls(provider=provider, session_factory=session_factory)
 
     @classmethod
     async def cleanup_orphaned_sandboxes(cls) -> dict[str, Any]:

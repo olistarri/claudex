@@ -41,7 +41,7 @@ from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import SchedulerException
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType, create_sandbox_provider
-from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest
 from app.services.user import UserService
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys

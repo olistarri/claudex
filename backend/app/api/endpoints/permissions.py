@@ -19,7 +19,7 @@ from app.models.schemas import (
 )
 from app.services.chat import ChatService
 from app.services.permission_manager import PermissionManager
-from app.services.streaming.protocol import build_envelope, redact_for_audit
+from app.services.streaming.protocol import StreamEnvelope
 from app.utils.redis import redis_connection
 
 router = APIRouter()
@@ -78,9 +78,11 @@ async def create_permission_request(
                 stream_id=latest_assistant.active_stream_id,
                 event_type="permission_request",
                 render_payload=render_payload,
-                audit_payload={"payload": redact_for_audit(render_payload)},
+                audit_payload={
+                    "payload": StreamEnvelope.sanitize_payload(render_payload)
+                },
             )
-            envelope = build_envelope(
+            envelope = StreamEnvelope.build(
                 chat_id=chat_id,
                 message_id=latest_assistant.id,
                 stream_id=latest_assistant.active_stream_id,

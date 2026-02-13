@@ -32,7 +32,7 @@ from app.core.middleware import (
 )
 from app.db.session import engine, SessionLocal
 from app.services.maintenance import MaintenanceService
-from app.services.streaming.runner import ChatStreamRuntime
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.utils.redis import redis_connection
 from app.admin.config import create_admin
 from app.admin.views import (
