@@ -1,21 +1,13 @@
-import { useEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
+import { useEffect, useMemo, useCallback, useRef, ReactNode, lazy, Suspense } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { Sidebar, useLayoutSidebar } from '@/components/layout';
 import { useUIStore, useChatStore } from '@/store';
 import { ViewSwitcher } from '@/components/ui/ViewSwitcher';
-import {
-  BrowserView,
-  IDEView,
-  MobilePreviewView,
-  SecretsView,
-  TerminalView,
-  WebPreviewView,
-} from '@/components/views';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
+import { Spinner } from '@/components/ui/primitives/Spinner';
 import type { ViewType } from '@/types/ui.types';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
-import { Editor } from '@/components/editor/editor-core/Editor';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatStreaming } from '@/hooks/useChatStreaming';
 import { usePermissionRequest } from '@/hooks/usePermissionRequest';
@@ -27,6 +19,34 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useContextUsageState } from '@/hooks/useContextUsageState';
 import { useSettingsQuery, useModelSelection } from '@/hooks/queries';
 import { mergeAgents } from '@/utils/settings';
+
+const Editor = lazy(() =>
+  import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
+);
+const IDEView = lazy(() =>
+  import('@/components/views/IDEView').then((m) => ({ default: m.IDEView })),
+);
+const SecretsView = lazy(() =>
+  import('@/components/views/SecretsView').then((m) => ({ default: m.SecretsView })),
+);
+const WebPreviewView = lazy(() =>
+  import('@/components/views/WebPreviewView').then((m) => ({ default: m.WebPreviewView })),
+);
+const MobilePreviewView = lazy(() =>
+  import('@/components/views/MobilePreviewView').then((m) => ({ default: m.MobilePreviewView })),
+);
+const BrowserView = lazy(() =>
+  import('@/components/views/BrowserView').then((m) => ({ default: m.BrowserView })),
+);
+const TerminalView = lazy(() =>
+  import('@/components/views/TerminalView').then((m) => ({ default: m.TerminalView })),
+);
+
+const viewLoadingFallback = (
+  <div className="flex h-full w-full items-center justify-center bg-surface-secondary dark:bg-surface-dark-secondary">
+    <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
+  </div>
+);
 
 export function ChatPage() {
   const { chatId } = useParams();
@@ -296,28 +316,50 @@ export function ChatPage() {
           );
         case 'editor':
           return (
-            <Editor
-              files={fileStructure}
-              isExpanded={true}
-              selectedFile={selectedFile}
-              onFileSelect={handleFileSelect}
-              chatId={chatId}
-              currentChat={currentChat}
-              isSandboxSyncing={isFileMetadataLoading}
-              onRefresh={handleRefresh}
-              isRefreshing={isRefreshing}
-            />
+            <Suspense fallback={viewLoadingFallback}>
+              <Editor
+                files={fileStructure}
+                isExpanded={true}
+                selectedFile={selectedFile}
+                onFileSelect={handleFileSelect}
+                chatId={chatId}
+                currentChat={currentChat}
+                isSandboxSyncing={isFileMetadataLoading}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
+              />
+            </Suspense>
           );
         case 'ide':
-          return <IDEView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <IDEView sandboxId={currentChat?.sandbox_id} isActive={true} />
+            </Suspense>
+          );
         case 'secrets':
-          return <SecretsView chatId={chatId} sandboxId={currentChat?.sandbox_id} />;
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <SecretsView chatId={chatId} sandboxId={currentChat?.sandbox_id} />
+            </Suspense>
+          );
         case 'webPreview':
-          return <WebPreviewView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <WebPreviewView sandboxId={currentChat?.sandbox_id} isActive={true} />
+            </Suspense>
+          );
         case 'mobilePreview':
-          return <MobilePreviewView sandboxId={currentChat?.sandbox_id} />;
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <MobilePreviewView sandboxId={currentChat?.sandbox_id} />
+            </Suspense>
+          );
         case 'browser':
-          return <BrowserView sandboxId={currentChat?.sandbox_id} isActive={true} />;
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <BrowserView sandboxId={currentChat?.sandbox_id} isActive={true} />
+            </Suspense>
+          );
         default:
           return null;
       }
@@ -358,7 +400,9 @@ export function ChatPage() {
       return (
         <div className="relative flex h-full w-full">
           <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
-            <TerminalView currentChat={currentChat} isVisible={isTerminal} panelKey={slot} />
+            <Suspense fallback={viewLoadingFallback}>
+              <TerminalView currentChat={currentChat} isVisible={isTerminal} panelKey={slot} />
+            </Suspense>
           </div>
           <div className={isTerminal ? 'hidden' : 'flex h-full w-full'}>
             {renderNonTerminalView(view)}

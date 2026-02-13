@@ -1,7 +1,7 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, lazy, Suspense } from 'react';
 import { Globe, RotateCcw, Play, Square } from 'lucide-react';
-import { Button, Spinner } from '@/components/ui';
-import { VNCClient } from '@/components/sandbox/vnc-browser/VNCClient';
+import { Button } from '@/components/ui/primitives/Button';
+import { Spinner } from '@/components/ui/primitives/Spinner';
 import {
   useVNCUrlQuery,
   useBrowserStatusQuery,
@@ -9,6 +9,10 @@ import {
   useStopBrowserMutation,
 } from '@/hooks/queries';
 import { cn } from '@/utils/cn';
+
+const VNCClient = lazy(() =>
+  import('@/components/sandbox/vnc-browser/VNCClient').then((m) => ({ default: m.VNCClient })),
+);
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 
@@ -192,14 +196,27 @@ export const BrowserView = memo(function BrowserView({
           </div>
         )}
 
-        <VNCClient
-          wsUrl={vncUrl ?? null}
-          isActive={isActive && !!vncUrl && !!isBrowserRunning}
-          instanceKey={vncInstanceKey}
-          onConnect={handleConnect}
-          onDisconnect={handleDisconnect}
-          onError={handleError}
-        />
+        {vncUrl && isBrowserRunning && (
+          <Suspense
+            fallback={
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-secondary/70 dark:bg-surface-dark-secondary/70">
+                <Spinner
+                  size="md"
+                  className="text-text-quaternary dark:text-text-dark-quaternary"
+                />
+              </div>
+            }
+          >
+            <VNCClient
+              wsUrl={vncUrl}
+              isActive={isActive}
+              instanceKey={vncInstanceKey}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              onError={handleError}
+            />
+          </Suspense>
+        )}
       </div>
     </div>
   );

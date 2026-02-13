@@ -1,4 +1,7 @@
-import { Button, Input, Switch, SegmentedControl } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { Input } from '@/components/ui/primitives/Input';
+import { Switch } from '@/components/ui/primitives/Switch';
+import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl';
 import type {
   UserSettings,
   GeneralSecretFieldConfig,

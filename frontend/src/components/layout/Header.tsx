@@ -135,6 +135,7 @@ function UserMenu({
   theme,
   onToggleTheme,
   onSettings,
+  onPrefetchSettings,
   onLogout,
 }: {
   displayName: string;
@@ -142,6 +143,7 @@ function UserMenu({
   theme: string;
   onToggleTheme: () => void;
   onSettings: () => void;
+  onPrefetchSettings: () => void;
   onLogout: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -221,6 +223,8 @@ function UserMenu({
                 onSettings();
                 closeMenu();
               }}
+              onMouseEnter={onPrefetchSettings}
+              onFocus={onPrefetchSettings}
               variant="unstyled"
               className={menuItemClasses}
             >
@@ -284,6 +288,10 @@ export function Header({ onLogout, userName = 'User', isAuthPage = false }: Head
     [navigate],
   );
 
+  const prefetchSettingsPage = useCallback(() => {
+    void import('@/pages/SettingsPage');
+  }, []);
+
   const showStandaloneThemeToggle = isAuthPage || !isAuthenticated;
 
   return (
@@ -308,7 +316,11 @@ export function Header({ onLogout, userName = 'User', isAuthPage = false }: Head
               usage={usage}
               theme={theme}
               onToggleTheme={toggleTheme}
-              onSettings={() => handleNavigate('/settings')}
+              onSettings={() => {
+                prefetchSettingsPage();
+                handleNavigate('/settings');
+              }}
+              onPrefetchSettings={prefetchSettingsPage}
               onLogout={handleLogout}
             />
           ) : (

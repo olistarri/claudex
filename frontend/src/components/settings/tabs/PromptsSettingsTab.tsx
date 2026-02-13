@@ -1,4 +1,4 @@
-import { ListManagementTab } from '@/components/ui';
+import { ListManagementTab } from '@/components/ui/ListManagementTab';
 import type { CustomPrompt } from '@/types';
 import { FileText } from 'lucide-react';
 

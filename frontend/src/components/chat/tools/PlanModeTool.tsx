@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from 'react';
 import { Map, CheckCircle, XCircle, AlertCircle, Terminal } from 'lucide-react';
-import { Button, MarkDown } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
 import type { ToolAggregate } from '@/types';
 import { ToolCard } from './common';
 import { useExitPlanMode } from '@/hooks/useExitPlanMode';
@@ -81,7 +82,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
           {planContent && (
             <div className="mt-3 overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs dark:bg-white/5">
               <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary dark:text-text-dark-primary">
-                <MarkDown content={planContent} />
+                <LazyMarkDown content={planContent} />
               </div>
             </div>
           )}

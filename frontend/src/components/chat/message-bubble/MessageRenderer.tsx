@@ -1,10 +1,11 @@
-import React, { memo } from 'react';
-import { MarkDown } from '@/components/ui';
+import React, { memo, Suspense } from 'react';
+import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import { buildSegments } from './segmentBuilder';
 import type { AssistantStreamEvent } from '@/types';
+import { Spinner } from '@/components/ui/primitives/Spinner';
 
 interface MessageRendererProps {
   contentText: string;
@@ -58,7 +59,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
                 key={segment.id}
                 className="prose prose-sm dark:prose-invert max-w-none break-words"
               >
-                <MarkDown content={segment.text} />
+                <LazyMarkDown content={segment.text} />
               </div>
             );
           case 'thinking': {
@@ -75,7 +76,21 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
             const Component = getToolComponent(segment.tool.name);
             return (
               <div key={segment.id} className="mb-2 mt-1">
-                <Component tool={segment.tool} chatId={chatId} />
+                <Suspense
+                  fallback={
+                    <div className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 dark:border-border-dark/50">
+                      <Spinner
+                        size="sm"
+                        className="text-text-quaternary dark:text-text-dark-quaternary"
+                      />
+                      <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                        Loading tool output...
+                      </span>
+                    </div>
+                  }
+                >
+                  <Component tool={segment.tool} chatId={chatId} />
+                </Suspense>
               </div>
             );
           }
