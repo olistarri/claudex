@@ -10,23 +10,35 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from redis.asyncio import Redis
+from sqlalchemy import select
 
 from app.constants import REDIS_KEY_CHAT_STREAM_LIVE
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.db_models import Chat, MessageStreamStatus, User
+from app.models.db_models import (
+    Chat,
+    Message,
+    MessageRole,
+    MessageStreamStatus,
+    User,
+)
+from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.claude_agent import ClaudeAgentService
 from app.services.db import SessionFactoryType
 from app.services.exceptions import ClaudeAgentException
 from app.services.message import MessageService
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
-from app.services.streaming.cancellation import CancellationHandler, StreamCancelled
-from app.services.streaming.completion import StreamCompletionHandler
+from app.services.streaming.cancellation import CancellationHandler
 from app.services.streaming.context_usage import ContextUsagePoller
-from app.services.streaming.events import StreamEvent
-from app.services.streaming.protocol import StreamEnvelope, StreamSnapshotAccumulator
-from app.services.streaming.session import SessionUpdateCallback
-from app.services.streaming.types import ChatStreamRequest
+from app.services.streaming.types import (
+    ChatStreamRequest,
+    StreamEnvelope,
+    StreamEvent,
+    StreamSnapshotAccumulator,
+)
+from app.services.user import UserService
+from app.utils.redis import redis_connection
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -45,6 +57,60 @@ SNAPSHOT_EVENT_KINDS = frozenset(
 )
 
 
+class SessionUpdateCallback:
+    def __init__(
+        self,
+        chat_id: str,
+        assistant_message_id: str | None,
+        session_factory: SessionFactoryType,
+        session_container: dict[str, Any],
+    ) -> None:
+        self.chat_id = chat_id
+        self.assistant_message_id = assistant_message_id
+        self.session_factory = session_factory
+        self.session_container = session_container
+        self._pending_task: asyncio.Task[None] | None = None
+
+    def __call__(self, new_session_id: str) -> None:
+        self.session_container["session_id"] = new_session_id
+        task = asyncio.create_task(self._update_session_id(new_session_id))
+        self._pending_task = task
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task[None]) -> None:
+        if self._pending_task is task:
+            self._pending_task = None
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.error("Session ID update task failed: %s", exc)
+
+    async def _update_session_id(self, session_id: str) -> None:
+        try:
+            async with self.session_factory() as db:
+                chat_uuid = UUID(self.chat_id)
+                chat_query = select(Chat).filter(Chat.id == chat_uuid)
+                chat_result = await db.execute(chat_query)
+                chat_record = chat_result.scalar_one_or_none()
+                if chat_record:
+                    chat_record.session_id = session_id
+                    db.add(chat_record)
+
+                if self.assistant_message_id:
+                    message_uuid = UUID(self.assistant_message_id)
+                    message_query = select(Message).filter(Message.id == message_uuid)
+                    message_result = await db.execute(message_query)
+                    message = message_result.scalar_one_or_none()
+                    if message:
+                        message.session_id = session_id
+                        db.add(message)
+
+                await db.commit()
+        except Exception as exc:
+            logger.error("Failed to update session_id: %s", exc)
+
+
 class ChatStreamRuntime:
     _background_tasks: set[asyncio.Task[str]] = set()
     _background_task_chat_ids: dict[asyncio.Task[str], str] = {}
@@ -52,24 +118,19 @@ class ChatStreamRuntime:
     def __init__(
         self,
         *,
-        chat: Chat,
-        stream_id: UUID,
-        sandbox_id: str,
-        session_container: dict[str, Any],
-        assistant_message_id: str | None,
-        user_id: str,
-        model_id: str,
+        request: ChatStreamRequest,
         sandbox_service: SandboxService,
         session_factory: SessionFactoryType,
     ) -> None:
+        chat = Chat.from_dict(request.chat_data)
         self.chat = chat
         self.chat_id = str(chat.id)
-        self.stream_id = stream_id
-        self.sandbox_id = sandbox_id
-        self.session_container = session_container
-        self.assistant_message_id = assistant_message_id
-        self.user_id = user_id
-        self.model_id = model_id
+        self.stream_id = uuid4()
+        self.sandbox_id = str(chat.sandbox_id) if chat.sandbox_id else ""
+        self.session_container: dict[str, Any] = {"session_id": request.session_id}
+        self.assistant_message_id = request.assistant_message_id
+        self.user_id = str(chat.user_id)
+        self.model_id = request.model_id
         self.sandbox_service = sandbox_service
         self.session_factory = session_factory
 
@@ -81,42 +142,42 @@ class ChatStreamRuntime:
         self.message_service = MessageService(session_factory=session_factory)
         self._event_buffer: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
 
-        self._redis: Redis[str] | None = None
-        self.cancellation: CancellationHandler | None = None
+        self.redis: Redis[str] | None = None
+        self._cancel_event: asyncio.Event | None = None
+        self._cancelled: bool = False
 
     async def _connect_redis(self) -> None:
         try:
-            self._redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            self.redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
         except Exception as exc:
             logger.error("Failed to connect to Redis: %s", exc)
-            if self._redis:
+            if self.redis:
                 try:
-                    await self._redis.close()
+                    await self.redis.close()
                 except Exception:
                     logger.debug("Error closing Redis client during connect rollback")
-            self._redis = None
+            self.redis = None
 
     async def _close_redis(self) -> None:
-        if not self._redis:
+        if not self.redis:
             return
         try:
-            await self._redis.close()
+            await self.redis.close()
         except Exception as exc:
             logger.debug("Error closing Redis client: %s", exc)
-        self._redis = None
+        self.redis = None
 
     async def run(
         self, ai_service: ClaudeAgentService, stream: AsyncIterator[StreamEvent]
     ) -> str:
         try:
-            start_seq = await self._emit_event(
+            start_seq = await self.emit_event(
                 "stream_started",
                 {"status": "started"},
                 apply_snapshot=False,
             )
             if self.assistant_message_id:
-                message_service = self.message_service
-                await message_service.update_message_snapshot(
+                await self.message_service.update_message_snapshot(
                     UUID(self.assistant_message_id),
                     content_text="",
                     content_render=self.snapshot.to_render(),
@@ -125,27 +186,21 @@ class ChatStreamRuntime:
                 )
             await self._consume_stream(ai_service, stream)
 
-            if self.cancellation and self.cancellation.was_cancelled:
-                if not self.cancellation.cancel_requested:
-                    await ai_service.cancel_active_stream()
-                final_content = await self._complete_stream(
+            if self._cancelled:
+                return await self._complete_stream(
                     ai_service, MessageStreamStatus.INTERRUPTED
                 )
-                raise StreamCancelled(final_content)
 
             if self.event_count == 0:
                 raise ClaudeAgentException("Stream completed without any events")
 
-            final_content = await self._complete_stream(
+            return await self._complete_stream(
                 ai_service, MessageStreamStatus.COMPLETED
             )
-            return final_content
 
-        except StreamCancelled:
-            raise
         except Exception as exc:
             logger.error("Error in stream processing: %s", exc)
-            await self._emit_event(
+            await self.emit_event(
                 "error",
                 {"error": str(exc)},
                 apply_snapshot=False,
@@ -158,38 +213,53 @@ class ChatStreamRuntime:
         ai_service: ClaudeAgentService,
         stream: AsyncIterator[StreamEvent],
     ) -> None:
-        stream_iter = stream.__aiter__()
-        current_task = asyncio.current_task()
-        revocation_task = (
-            self.cancellation.create_monitor_task(current_task, ai_service)
-            if self.cancellation
-            else None
+        stream_iter = aiter(stream)
+        while True:
+            event = await self._next_or_cancel(stream_iter)
+            if event is None:
+                if self._cancelled:
+                    await CancellationHandler.cancel_stream(self.chat_id, ai_service)
+                break
+
+            self.event_count += 1
+            kind = str(event.get("type") or "system")
+            payload = {k: v for k, v in event.items() if k != "type"}
+            await self.emit_event(kind, payload)
+            await self._flush_snapshot(force=False)
+
+    async def _next_or_cancel(
+        self, stream_iter: AsyncIterator[StreamEvent]
+    ) -> StreamEvent | None:
+        next_coro = anext(stream_iter)
+        if not self._cancel_event:
+            try:
+                return await next_coro
+            except StopAsyncIteration:
+                return None
+
+        next_task = asyncio.ensure_future(next_coro)
+        cancel_task = asyncio.ensure_future(self._cancel_event.wait())
+        done, _ = await asyncio.wait(
+            {next_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED
         )
+        if cancel_task in done:
+            self._cancelled = True
+            next_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await next_task
+            return None
 
-        try:
-            while True:
-                try:
-                    event = await stream_iter.__anext__()
-                except StopAsyncIteration:
-                    break
-                except asyncio.CancelledError:
-                    if self.cancellation and self.cancellation.was_cancelled:
-                        await self.cancellation.cancel_stream(ai_service)
-                        break
-                    raise
+        cancel_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cancel_task
+        exc = next_task.exception()
+        if exc is not None:
+            if isinstance(exc, StopAsyncIteration):
+                return None
+            raise exc
+        return next_task.result()
 
-                self.event_count += 1
-                kind = str(event.get("type") or "system")
-                payload = {k: v for k, v in event.items() if k != "type"}
-                await self._emit_event(kind, payload)
-                await self._flush_snapshot(force=False)
-        finally:
-            if revocation_task:
-                revocation_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await revocation_task
-
-    async def _emit_event(
+    async def emit_event(
         self,
         kind: str,
         payload: dict[str, Any],
@@ -233,10 +303,10 @@ class ChatStreamRuntime:
         self.last_seq = seq
 
     async def _signal_redis(self) -> None:
-        if not self._redis:
+        if not self.redis:
             return
         try:
-            await self._redis.publish(
+            await self.redis.publish(
                 REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=self.chat_id),
                 "flush",
             )
@@ -295,29 +365,155 @@ class ChatStreamRuntime:
         await self._save_final_snapshot(ai_service, status)
         final_content = self.snapshot.content_text
 
-        handler = StreamCompletionHandler(runtime=self, ai_service=ai_service)
         if status == MessageStreamStatus.COMPLETED:
-            await handler.create_checkpoint()
-            queue_processed = await handler.process_next_queued()
+            await self._create_checkpoint()
+            queue_processed = await self._process_next_queued()
             if not queue_processed:
-                await handler.emit_final_context_usage()
-                await self._emit_event(
+                await self._emit_final_context_usage(ai_service)
+                await self.emit_event(
                     "complete",
                     {"status": "completed"},
                     apply_snapshot=False,
                 )
         else:
-            await handler.emit_final_context_usage()
+            await self._emit_final_context_usage(ai_service)
             terminal_kind = (
                 "cancelled" if status == MessageStreamStatus.INTERRUPTED else "complete"
             )
-            await self._emit_event(
+            await self.emit_event(
                 terminal_kind,
                 {"status": status.value},
                 apply_snapshot=False,
             )
 
         return final_content
+
+    async def _create_checkpoint(self) -> None:
+        if not (
+            self.sandbox_service and self.chat.sandbox_id and self.assistant_message_id
+        ):
+            return
+
+        try:
+            checkpoint_id = await self.sandbox_service.create_checkpoint(
+                self.chat.sandbox_id, self.assistant_message_id
+            )
+            if not checkpoint_id:
+                return
+
+            async with self.session_factory() as db:
+                message_uuid = UUID(self.assistant_message_id)
+                query = select(Message).filter(Message.id == message_uuid)
+                result = await db.execute(query)
+                message = result.scalar_one_or_none()
+                if message:
+                    message.checkpoint_id = checkpoint_id
+                    db.add(message)
+                    await db.commit()
+        except Exception as exc:
+            logger.warning("Failed to create checkpoint: %s", exc)
+
+    async def _process_next_queued(self) -> bool:
+        try:
+            async with redis_connection() as redis:
+                queue_service = QueueService(redis)
+                next_msg = await queue_service.pop_next_message(self.chat_id)
+            if not next_msg:
+                return False
+
+            user_message = await self.message_service.create_message(
+                UUID(self.chat_id),
+                next_msg["content"],
+                MessageRole.USER,
+                attachments=next_msg.get("attachments"),
+            )
+            assistant_message = await self.message_service.create_message(
+                UUID(self.chat_id),
+                "",
+                MessageRole.ASSISTANT,
+                model_id=next_msg["model_id"],
+                stream_status=MessageStreamStatus.IN_PROGRESS,
+            )
+
+            await self.emit_event(
+                "queue_processing",
+                {
+                    "queued_message_id": next_msg["id"],
+                    "user_message_id": str(user_message.id),
+                    "assistant_message_id": str(assistant_message.id),
+                    "content": next_msg["content"],
+                    "model_id": next_msg["model_id"],
+                    "attachments": MessageService.serialize_attachments(
+                        next_msg, user_message
+                    ),
+                },
+                apply_snapshot=False,
+            )
+
+            user_service = UserService(session_factory=self.session_factory)
+            user_settings = await user_service.get_user_settings(
+                self.chat.user_id, db=None
+            )
+
+            system_prompt = build_system_prompt_for_chat(
+                self.chat.sandbox_id or "",
+                user_settings,
+            )
+
+            ChatStreamRuntime.start_background_chat(
+                ChatStreamRequest(
+                    prompt=next_msg["content"],
+                    system_prompt=system_prompt,
+                    custom_instructions=(
+                        user_settings.custom_instructions if user_settings else None
+                    ),
+                    chat_data={
+                        "id": self.chat_id,
+                        "user_id": str(self.chat.user_id),
+                        "title": self.chat.title,
+                        "sandbox_id": self.chat.sandbox_id,
+                        "session_id": self.chat.session_id,
+                    },
+                    permission_mode=next_msg.get("permission_mode", "auto"),
+                    model_id=next_msg["model_id"],
+                    session_id=self.chat.session_id,
+                    assistant_message_id=str(assistant_message.id),
+                    thinking_mode=next_msg.get("thinking_mode"),
+                    attachments=next_msg.get("attachments"),
+                    is_custom_prompt=False,
+                )
+            )
+
+            logger.info(
+                "Queued message %s for chat %s has been processed",
+                next_msg["id"],
+                self.chat_id,
+            )
+            return True
+
+        except Exception as exc:
+            logger.error("Failed to process queued message: %s", exc)
+            return False
+
+    async def _emit_final_context_usage(self, ai_service: ClaudeAgentService) -> None:
+        session_id = (
+            self.session_container.get("session_id")
+            if self.session_container
+            else self.chat.session_id
+        )
+        if (
+            not session_id
+            or not self.sandbox_id
+            or not self.user_id
+            or not self.model_id
+            or not self.redis
+        ):
+            return
+
+        await ContextUsagePoller(runtime=self).refresh(
+            ai_service=ai_service,
+            session_id=str(session_id),
+        )
 
     @classmethod
     async def stop_background_chats(cls) -> None:
@@ -397,7 +593,7 @@ class ChatStreamRuntime:
         resolved_task_id = str(uuid4())
         chat_id = str(request.chat_data["id"])
         background_task = asyncio.create_task(
-            cls.execute_chat(
+            cls._bootstrap_and_execute(
                 request=request,
             )
         )
@@ -407,25 +603,6 @@ class ChatStreamRuntime:
             partial(cls._on_background_task_done, resolved_task_id)
         )
         return resolved_task_id
-
-    @staticmethod
-    def _build_instance(
-        request: ChatStreamRequest,
-        sandbox_service: SandboxService,
-        session_factory: SessionFactoryType,
-    ) -> ChatStreamRuntime:
-        chat = Chat.from_dict(request.chat_data)
-        return ChatStreamRuntime(
-            chat=chat,
-            stream_id=uuid4(),
-            sandbox_id=str(chat.sandbox_id) if chat.sandbox_id else "",
-            session_container={"session_id": request.session_id},
-            assistant_message_id=request.assistant_message_id,
-            user_id=str(chat.user_id),
-            model_id=request.model_id,
-            sandbox_service=sandbox_service,
-            session_factory=session_factory,
-        )
 
     @staticmethod
     async def _mark_message_failed(
@@ -463,94 +640,68 @@ class ChatStreamRuntime:
             )
 
     @classmethod
-    async def _handle_bootstrap_failure(
-        cls,
-        *,
-        request: ChatStreamRequest,
-        session_factory: SessionFactoryType,
-        stream_status: MessageStreamStatus,
-    ) -> None:
-        await cls._mark_message_failed(
-            assistant_message_id=request.assistant_message_id,
-            session_factory=session_factory,
-            stream_status=stream_status,
-        )
-
-    @classmethod
-    async def _run_stream(
-        cls,
-        *,
-        request: ChatStreamRequest,
-        instance: ChatStreamRuntime,
-    ) -> str:
-        async with ClaudeAgentService(
-            session_factory=instance.session_factory
-        ) as ai_service:
-            session_callback = SessionUpdateCallback(
-                chat_id=instance.chat_id,
-                assistant_message_id=request.assistant_message_id,
-                session_factory=instance.session_factory,
-                session_container=instance.session_container,
-            )
-            user = User(id=instance.chat.user_id)
-            stream = ai_service.get_ai_stream(
-                prompt=request.prompt,
-                system_prompt=request.system_prompt,
-                custom_instructions=request.custom_instructions,
-                user=user,
-                chat=instance.chat,
-                permission_mode=request.permission_mode,
-                model_id=request.model_id,
-                session_id=request.session_id,
-                session_callback=session_callback,
-                thinking_mode=request.thinking_mode,
-                attachments=request.attachments,
-                is_custom_prompt=request.is_custom_prompt,
-            )
-            poller = ContextUsagePoller(runtime=instance)
-            poll_task, stop_event = poller.start(ai_service)
-            try:
-                try:
-                    return await instance.run(ai_service, stream)
-                except StreamCancelled:
-                    return ""
-            finally:
-                await ContextUsagePoller.stop(poll_task, stop_event)
-        raise RuntimeError("ClaudeAgentService context manager exited without entering")
-
-    @classmethod
-    async def execute_chat_stream(
+    async def execute_chat(
         cls,
         *,
         request: ChatStreamRequest,
         sandbox_service: SandboxService,
         session_factory: SessionFactoryType,
     ) -> str:
-        instance = cls._build_instance(request, sandbox_service, session_factory)
-
-        cancellation_event = CancellationHandler.register(instance.chat_id)
+        runtime = cls(
+            request=request,
+            sandbox_service=sandbox_service,
+            session_factory=session_factory,
+        )
+        cancel_event = CancellationHandler.register(runtime.chat_id)
         try:
-            await instance._connect_redis()
-            instance.cancellation = CancellationHandler(
-                instance.chat_id, event=cancellation_event
-            )
-            return await cls._run_stream(
-                request=request,
-                instance=instance,
-            )
+            await runtime._connect_redis()
+            runtime._cancel_event = cancel_event
+
+            async with ClaudeAgentService(
+                session_factory=runtime.session_factory
+            ) as ai_service:
+                session_callback = SessionUpdateCallback(
+                    chat_id=runtime.chat_id,
+                    assistant_message_id=request.assistant_message_id,
+                    session_factory=runtime.session_factory,
+                    session_container=runtime.session_container,
+                )
+                user = User(id=runtime.chat.user_id)
+                stream = ai_service.get_ai_stream(
+                    prompt=request.prompt,
+                    system_prompt=request.system_prompt,
+                    custom_instructions=request.custom_instructions,
+                    user=user,
+                    chat=runtime.chat,
+                    permission_mode=request.permission_mode,
+                    model_id=request.model_id,
+                    session_id=request.session_id,
+                    session_callback=session_callback,
+                    thinking_mode=request.thinking_mode,
+                    attachments=request.attachments,
+                    is_custom_prompt=request.is_custom_prompt,
+                )
+                context_poller = ContextUsagePoller(runtime=runtime)
+                poll_task, stop_event = context_poller.start(ai_service)
+                try:
+                    return await runtime.run(ai_service, stream)
+                finally:
+                    await ContextUsagePoller.stop(poll_task, stop_event)
+            raise RuntimeError("ClaudeAgentService exited without returning")
+
         except asyncio.CancelledError:
-            await cls._handle_bootstrap_failure(
-                request=request,
+            await cls._mark_message_failed(
+                assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
             )
             raise
         finally:
-            CancellationHandler.unregister(instance.chat_id, cancellation_event)
-            await instance._close_redis()
+            CancellationHandler.unregister(runtime.chat_id, cancel_event)
+            await runtime._close_redis()
 
     @classmethod
-    async def execute_chat(
+    async def _bootstrap_and_execute(
         cls,
         *,
         request: ChatStreamRequest,
@@ -562,21 +713,21 @@ class ChatStreamRuntime:
                 session_factory=session_factory,
             )
         except asyncio.CancelledError:
-            await cls._handle_bootstrap_failure(
-                request=request,
+            await cls._mark_message_failed(
+                assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
             )
             raise
         except Exception:
-            await cls._handle_bootstrap_failure(
-                request=request,
+            await cls._mark_message_failed(
+                assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.FAILED,
             )
             raise
         try:
-            return await cls.execute_chat_stream(
+            return await cls.execute_chat(
                 request=request,
                 sandbox_service=sandbox_service,
                 session_factory=session_factory,

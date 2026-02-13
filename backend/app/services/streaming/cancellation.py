@@ -14,12 +14,6 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-class StreamCancelled(Exception):
-    def __init__(self, final_content: str) -> None:
-        super().__init__("Stream cancelled")
-        self.final_content = final_content
-
-
 class _CancelEntry:
     __slots__ = ("event", "expires_at")
 
@@ -30,12 +24,6 @@ class _CancelEntry:
 
 class CancellationHandler:
     _entries: dict[str, _CancelEntry] = {}
-
-    def __init__(self, chat_id: str, event: asyncio.Event | None = None) -> None:
-        self.chat_id = chat_id
-        self._event = event
-        self.was_cancelled = False
-        self.cancel_requested = False
 
     @classmethod
     def register(cls, chat_id: str) -> asyncio.Event:
@@ -80,40 +68,9 @@ class CancellationHandler:
             entry.event.set()
         return True
 
-    async def cancel_stream(self, ai_service: ClaudeAgentService) -> None:
-        if self.cancel_requested:
-            return
-
-        self.cancel_requested = True
+    @staticmethod
+    async def cancel_stream(chat_id: str, ai_service: ClaudeAgentService) -> None:
         try:
             await ai_service.cancel_active_stream()
         except Exception as exc:
-            logger.error("Failed to cancel active stream: %s", exc)
-
-    def create_monitor_task(
-        self,
-        main_task: asyncio.Task[None] | None,
-        ai_service: ClaudeAgentService,
-    ) -> asyncio.Task[None] | None:
-        event = self._event or self.get_event(self.chat_id)
-        if event is None:
-            return None
-
-        return asyncio.create_task(self._watch_cancel(event, main_task, ai_service))
-
-    async def _watch_cancel(
-        self,
-        event: asyncio.Event,
-        main_task: asyncio.Task[None] | None,
-        ai_service: ClaudeAgentService,
-    ) -> None:
-        try:
-            await event.wait()
-        except asyncio.CancelledError:
-            raise
-
-        self.was_cancelled = True
-        await self.cancel_stream(ai_service)
-
-        if main_task:
-            main_task.cancel()
+            logger.error("Failed to cancel active stream for chat %s: %s", chat_id, exc)

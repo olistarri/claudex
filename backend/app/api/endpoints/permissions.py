@@ -19,7 +19,7 @@ from app.models.schemas import (
 )
 from app.services.chat import ChatService
 from app.services.permission_manager import PermissionManager
-from app.services.streaming.protocol import StreamEnvelope
+from app.services.streaming.types import StreamEnvelope
 from app.utils.redis import redis_connection
 
 router = APIRouter()

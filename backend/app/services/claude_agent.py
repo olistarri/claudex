@@ -28,7 +28,7 @@ from app.services.transports import (
     HostSandboxTransport,
     ModalSandboxTransport,
 )
-from app.services.streaming.events import StreamEvent
+from app.services.streaming.types import StreamEvent
 from app.services.streaming.processor import StreamProcessor
 from app.services.tool_handler import ToolHandlerRegistry
 from app.services.user import UserService

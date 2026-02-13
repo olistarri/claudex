@@ -820,11 +820,11 @@ class SandboxService:
             has_resources = (
                 custom_skills or custom_slash_commands or custom_agents
             ) and user_id
-            if has_resources:
+            if has_resources and user_id:
                 tasks.append(
                     self._copy_all_resources_to_sandbox(
                         sandbox_id,
-                        user_id,  # type: ignore[arg-type]
+                        user_id,
                         custom_skills,
                         custom_slash_commands,
                         custom_agents,
