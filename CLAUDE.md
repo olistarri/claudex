@@ -43,7 +43,7 @@
 - Do not call private methods (`_method`) from outside the file where they are defined; if cross-file usage is needed, make the method public and rename it accordingly
 - Do not use inline imports; only allow inline imports when required to avoid circular imports and no cleaner module-level import structure exists
 - Strong typing only: do not use `# type: ignore`, `# pyright: ignore`, `# noqa` to silence typing/import issues; fix the types/usages directly (if absolutely unavoidable, document why in the PR description)
-- Do not define nested/inline functions; use module-level functions for standalone functions (e.g., endpoints) and class methods for classes
+- Do not define nested/inline functions; use module-level functions for standalone functions (e.g., endpoints) and class methods for classes — if a helper is only used by a class, it must be a method (or static method) on that class, not a module-level function
 - Do not add backward compatibility paths, fallback paths, or legacy shims unless explicitly requested
 - Do not create type aliases that add no semantic value (e.g., `StreamKind = str`) — use the base type directly
 

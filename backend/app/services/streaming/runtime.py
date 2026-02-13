@@ -4,7 +4,6 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
-from contextlib import suppress
 from functools import partial
 from typing import Any
 from uuid import UUID, uuid4
@@ -214,50 +213,63 @@ class ChatStreamRuntime:
         stream: AsyncIterator[StreamEvent],
     ) -> None:
         stream_iter = aiter(stream)
-        while True:
-            event = await self._next_or_cancel(stream_iter)
-            if event is None:
-                if self._cancelled:
-                    await CancellationHandler.cancel_stream(self.chat_id, ai_service)
-                break
+        try:
+            while True:
+                event = await self._next_or_cancel(stream_iter)
+                if event is None:
+                    break
 
-            self.event_count += 1
-            kind = str(event.get("type") or "system")
-            payload = {k: v for k, v in event.items() if k != "type"}
-            await self.emit_event(kind, payload)
-            await self._flush_snapshot(force=False)
+                self.event_count += 1
+                kind = str(event.get("type") or "system")
+                payload = {k: v for k, v in event.items() if k != "type"}
+                await self.emit_event(kind, payload)
+                await self._flush_snapshot(force=False)
+        except asyncio.CancelledError:
+            if not (self._cancel_event and self._cancel_event.is_set()):
+                raise
+            self._cancelled = True
+
+        if self._cancelled:
+            await CancellationHandler.cancel_stream(self.chat_id, ai_service)
+
+    @staticmethod
+    def _cancel_task_if_running(
+        task: asyncio.Task[Any] | None, fut: asyncio.Future[Any]
+    ) -> None:
+        if fut.cancelled():
+            return
+        if task and not task.done():
+            task.cancel()
 
     async def _next_or_cancel(
         self, stream_iter: AsyncIterator[StreamEvent]
     ) -> StreamEvent | None:
-        next_coro = anext(stream_iter)
         if not self._cancel_event:
             try:
-                return await next_coro
+                return await anext(stream_iter)
             except StopAsyncIteration:
                 return None
 
-        next_task = asyncio.ensure_future(next_coro)
-        cancel_task = asyncio.ensure_future(self._cancel_event.wait())
-        done, _ = await asyncio.wait(
-            {next_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED
-        )
-        if cancel_task in done:
+        if self._cancel_event.is_set():
             self._cancelled = True
-            next_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await next_task
             return None
 
-        cancel_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await cancel_task
-        exc = next_task.exception()
-        if exc is not None:
-            if isinstance(exc, StopAsyncIteration):
+        current_task = asyncio.current_task()
+        cancel_waiter = asyncio.ensure_future(self._cancel_event.wait())
+        cancel_waiter.add_done_callback(
+            partial(self._cancel_task_if_running, current_task)
+        )
+        try:
+            return await anext(stream_iter)
+        except StopAsyncIteration:
+            return None
+        except asyncio.CancelledError:
+            if self._cancel_event.is_set():
+                self._cancelled = True
                 return None
-            raise exc
-        return next_task.result()
+            raise
+        finally:
+            cancel_waiter.cancel()
 
     async def emit_event(
         self,
