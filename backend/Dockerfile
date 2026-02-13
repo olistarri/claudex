@@ -37,10 +37,10 @@ COPY backend/requirements.lock .
 RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.lock
 
 COPY backend/ /app/
-COPY scripts/start-vnc.sh /usr/local/bin/start-vnc.sh
 
 RUN cp /app/permission_server.py /usr/local/bin/permission_server.py && \
     chmod +x /usr/local/bin/permission_server.py && \
+    cp /app/start-vnc.sh /usr/local/bin/start-vnc.sh && \
     chmod +x /usr/local/bin/start-vnc.sh
 
 RUN chown -R appuser:appuser /app && \
