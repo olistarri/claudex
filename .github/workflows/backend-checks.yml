@@ -6,12 +6,14 @@ on:
     paths:
       - 'backend/**'
       - 'sandbox/**'
+      - 'scripts/**'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main]
     paths:
       - 'backend/**'
       - 'sandbox/**'
+      - 'scripts/**'
       - '.github/workflows/backend-checks.yml'
 
 jobs:

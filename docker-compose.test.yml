@@ -34,8 +34,8 @@ services:
   # Backend test runner
   backend-test:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.test
+      context: .
+      dockerfile: backend/Dockerfile.test
     container_name: claudex-backend-test
     depends_on:
       postgres-test:
