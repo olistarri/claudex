@@ -20,6 +20,7 @@ from app.constants import (
     SANDBOX_DEFAULT_COMMAND_TIMEOUT,
     SANDBOX_HOME_DIR,
     TERMINAL_TYPE,
+    VNC_WEBSOCKET_PORT,
 )
 from app.services.exceptions import SandboxException
 from app.services.sandbox_providers.base import LISTENING_PORTS_COMMAND, SandboxProvider
@@ -179,9 +180,17 @@ class LocalHostProvider(SandboxProvider):
                 f"Command execution timed out after {effective_timeout}s"
             )
 
+        sandbox_dir_str = str(sandbox_dir)
+        stdout_str = stdout.decode("utf-8", errors="replace").replace(
+            sandbox_dir_str, SANDBOX_HOME_DIR
+        )
+        stderr_str = stderr.decode("utf-8", errors="replace").replace(
+            sandbox_dir_str, SANDBOX_HOME_DIR
+        )
+
         return CommandResult(
-            stdout=stdout.decode("utf-8", errors="replace"),
-            stderr=stderr.decode("utf-8", errors="replace"),
+            stdout=stdout_str,
+            stderr=stderr_str,
             exit_code=int(process.returncode or 0),
         )
 
@@ -370,6 +379,13 @@ class LocalHostProvider(SandboxProvider):
         sandbox_dir = self._resolve_sandbox_dir(sandbox_id)
         folder = quote(str(sandbox_dir), safe="/")
         return f"{self._preview_base_url}:{OPENVSCODE_PORT}/?folder={folder}"
+
+    async def get_vnc_url(self, sandbox_id: str) -> str | None:
+        self._resolve_sandbox_dir(sandbox_id)
+        base_url = self._preview_base_url.replace("http://", "ws://").replace(
+            "https://", "wss://"
+        )
+        return f"{base_url}:{VNC_WEBSOCKET_PORT}"
 
     async def cleanup(self) -> None:
         await super().cleanup()

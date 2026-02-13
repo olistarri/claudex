@@ -77,7 +77,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.32 @openai/codex @gongrzhe/server-gmail-autoauth-mcp @playwright/mcp@latest
+    npm install -g @anthropic-ai/claude-code@2.1.41 @openai/codex @gongrzhe/server-gmail-autoauth-mcp @playwright/mcp@latest
 
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
@@ -112,7 +112,7 @@ RUN mkdir -p /home/user/.claude && \
 
 EXPOSE 3000 3001 5000 5900 6080 8000 8080 8765 5173 4200 8888 4321 3030 5500 1234 4000
 
-COPY sandbox/e2b/start-vnc.sh /usr/local/bin/start-vnc.sh
+COPY scripts/start-vnc.sh /usr/local/bin/start-vnc.sh
 RUN sudo chmod +x /usr/local/bin/start-vnc.sh
 
 COPY sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh

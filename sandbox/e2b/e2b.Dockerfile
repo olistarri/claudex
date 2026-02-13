@@ -51,7 +51,7 @@ RUN curl -fsSLO https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.xz 
     && echo '#!/bin/sh\nexec bun x "$@"' > /usr/local/bin/bunx \
     && chmod +x /usr/local/bin/bunx
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.32
+RUN npm install -g @anthropic-ai/claude-code@2.1.41
 
 RUN pip3 install anthropic-bridge==0.1.34
 
@@ -71,7 +71,7 @@ RUN pip3 install --no-cache-dir mcp redis httpx uv
 
 # Copy shared scripts
 COPY backend/permission_server.py /usr/local/bin/permission_server.py
-COPY sandbox/e2b/start-vnc.sh /usr/local/bin/start-vnc.sh
+COPY scripts/start-vnc.sh /usr/local/bin/start-vnc.sh
 RUN chmod +x /usr/local/bin/start-vnc.sh
 
 RUN curl -LO https://go.dev/dl/go1.23.3.linux-amd64.tar.gz \

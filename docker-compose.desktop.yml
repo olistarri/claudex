@@ -48,8 +48,8 @@ services:
 
   api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: claudex-api-desktop
     restart: unless-stopped
     command: ["api"]
@@ -66,6 +66,9 @@ services:
         condition: service_completed_successfully
     ports:
       - "8081:8081"
+      - "${VNC_PORT:-15900}:5900"
+      - "${VNC_WS_PORT:-16080}:6080"
+      - "${OPENVSCODE_PORT:-18765}:8765"
     volumes:
       - ./backend:/app
       - ./storage:/app/storage

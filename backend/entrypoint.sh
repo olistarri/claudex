@@ -17,6 +17,9 @@ ensure_docker_network
 
 WORKERS=1
 
+echo "Starting VNC server..."
+start-vnc.sh &
+
 echo "Starting API server..."
 if [ -S /var/run/docker.sock ]; then
     echo "Docker socket detected, running as current user for Docker access..."
