@@ -15,7 +15,7 @@ from claude_agent_sdk import (
     SystemMessage,
 )
 from app.services.tool_handler import ToolHandlerRegistry
-from app.services.streaming.events import StreamEvent, StreamEventType
+from app.services.streaming.types import StreamEvent, StreamEventType
 
 
 logger = logging.getLogger(__name__)

@@ -776,7 +776,7 @@ class SchedulerService(BaseDbService[ScheduledTask]):
 
             system_prompt = build_system_prompt_for_chat(sandbox_id, user_settings)
 
-            await ChatStreamRuntime.execute_chat_stream(
+            await ChatStreamRuntime.execute_chat(
                 request=ChatStreamRequest(
                     prompt=scheduled_task.prompt_message,
                     system_prompt=system_prompt,

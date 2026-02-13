@@ -30,7 +30,7 @@ class ContextUsagePoller:
         self, ai_service: ClaudeAgentService
     ) -> tuple[asyncio.Task[None] | None, asyncio.Event | None]:
         rt = self._runtime
-        if not rt._redis or not rt.sandbox_id:
+        if not rt.redis or not rt.sandbox_id:
             return None, None
 
         stop_event = asyncio.Event()
@@ -44,7 +44,7 @@ class ContextUsagePoller:
         session_id: str,
     ) -> dict[str, Any] | None:
         rt = self._runtime
-        redis_client = rt._redis
+        redis_client = rt.redis
         if not redis_client:
             return None
         try:
@@ -91,7 +91,7 @@ class ContextUsagePoller:
                     "context_usage": context_data,
                     "chat_id": rt.chat_id,
                 }
-                await rt._emit_event("system", payload, apply_snapshot=False)
+                await rt.emit_event("system", payload, apply_snapshot=False)
 
             return context_data
         except Exception as exc:
@@ -119,7 +119,7 @@ class ContextUsagePoller:
         stop_event: asyncio.Event,
     ) -> None:
         rt = self._runtime
-        if not rt._redis:
+        if not rt.redis:
             return
 
         while not stop_event.is_set():

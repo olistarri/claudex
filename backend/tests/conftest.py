@@ -355,7 +355,7 @@ class TestChatService(ChatService):
             "session_id": chat.session_id,
         }
 
-        await ChatStreamRuntime.execute_chat_stream(
+        await ChatStreamRuntime.execute_chat(
             request=ChatStreamRequest(
                 prompt=prompt,
                 system_prompt=system_prompt,

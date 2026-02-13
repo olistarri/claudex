@@ -7,7 +7,7 @@ from claude_agent_sdk.types import ToolUseBlock
 
 from app.models.db_models import ToolStatus
 from app.models.types import JSONValue
-from app.services.streaming.events import ActiveToolState, StreamEvent
+from app.services.streaming.types import ActiveToolState, StreamEvent
 
 logger = logging.getLogger(__name__)
 
