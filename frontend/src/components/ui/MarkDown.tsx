@@ -1,16 +1,14 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
-import { useMemo, useState, useCallback, memo } from 'react';
+import { useMemo, useState, useCallback, memo, useEffect, lazy, Suspense } from 'react';
 import type { Components } from 'react-markdown';
 import type { AnchorHTMLAttributes, HTMLAttributes, ImgHTMLAttributes } from 'react';
 import { AttachmentViewer } from './';
-import { Mermaid } from './Mermaid';
 import { Button } from './primitives/Button';
 import type { MessageAttachment } from '@/types';
 import { isImageUrl } from '@/utils/fileTypes';
+
+const Mermaid = lazy(() => import('./Mermaid').then((m) => ({ default: m.Mermaid })));
 
 type CommonProps = {
   children?: React.ReactNode;
@@ -38,6 +36,37 @@ const createImageAttachment = (url: string, alt?: string): MessageAttachment => 
 
 function MarkDownInner({ content, className = '' }: { content: string; className?: string }) {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [remarkMathPlugin, setRemarkMathPlugin] = useState<unknown>(null);
+  const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<unknown>(null);
+
+  const needsMath = useMemo(
+    () => /(^|[^\\])(\$[^$\n]+\$|\$\$[\s\S]*?\$\$|\\\(|\\\[)/.test(content),
+    [content],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!needsMath || (remarkMathPlugin && rehypeKatexPlugin)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all([
+      import('remark-math'),
+      import('rehype-katex'),
+      import('katex/dist/katex.min.css'),
+    ]).then(([remarkMathModule, rehypeKatexModule]) => {
+      if (cancelled) return;
+      setRemarkMathPlugin(() => remarkMathModule.default);
+      setRehypeKatexPlugin(() => rehypeKatexModule.default);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needsMath, remarkMathPlugin, rehypeKatexPlugin]);
 
   const handleCopyCode = useCallback((code: string) => {
     navigator.clipboard.writeText(code);
@@ -181,7 +210,19 @@ function MarkDownInner({ content, className = '' }: { content: string; className
 
         const language = match[1];
         if (language === 'mermaid') {
-          return <Mermaid content={codeContent} />;
+          return (
+            <Suspense
+              fallback={
+                <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
+                  <code className="font-mono text-xs text-text-primary dark:text-text-dark-primary">
+                    {codeContent}
+                  </code>
+                </pre>
+              }
+            >
+              <Mermaid content={codeContent} />
+            </Suspense>
+          );
         }
 
         const isCopied = copiedCode === codeContent;
@@ -288,10 +329,22 @@ function MarkDownInner({ content, className = '' }: { content: string; className
     [copiedCode, handleCopyCode],
   );
 
+  const mathPluginsLoading = needsMath && (!remarkMathPlugin || !rehypeKatexPlugin);
+
+  if (mathPluginsLoading) {
+    return (
+      <div
+        className={`whitespace-pre-wrap text-sm text-text-secondary dark:text-text-dark-secondary ${className}`}
+      >
+        {content}
+      </div>
+    );
+  }
+
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
+      remarkPlugins={[remarkGfm, ...(remarkMathPlugin ? [remarkMathPlugin as never] : [])]}
+      rehypePlugins={rehypeKatexPlugin ? ([rehypeKatexPlugin] as never[]) : []}
       className={`text-sm text-text-secondary dark:text-text-dark-secondary ${className}`}
       components={components}
     >

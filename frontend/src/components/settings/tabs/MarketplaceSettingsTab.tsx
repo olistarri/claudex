@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { Input } from '@/components/ui/primitives/Input';
 import { Select } from '@/components/ui/primitives/Select';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -9,8 +9,11 @@ import {
   useRefreshCatalogMutation,
 } from '@/hooks/queries/useMarketplaceQueries';
 import { PluginCard } from './marketplace/PluginCard';
-import { PluginDetailModal } from '../dialogs/PluginDetailModal';
 import type { MarketplacePlugin } from '@/types/marketplace.types';
+
+const PluginDetailModal = lazy(() =>
+  import('../dialogs/PluginDetailModal').then((m) => ({ default: m.PluginDetailModal })),
+);
 
 const CATEGORIES = [
   'all',
@@ -143,11 +146,21 @@ export const MarketplaceSettingsTab: React.FC = () => {
         )}
       </div>
 
-      <PluginDetailModal
-        plugin={selectedPlugin}
-        isOpen={!!selectedPlugin}
-        onClose={() => setSelectedPlugin(null)}
-      />
+      {selectedPlugin && (
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-8">
+              <Spinner size="lg" />
+            </div>
+          }
+        >
+          <PluginDetailModal
+            plugin={selectedPlugin}
+            isOpen={!!selectedPlugin}
+            onClose={() => setSelectedPlugin(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
-import { Button, ListManagementTab } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { ListManagementTab } from '@/components/ui/ListManagementTab';
 import type { CustomEnvVar } from '@/types';
 import { Key, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
@@ -35,9 +36,9 @@ export const EnvVarsSettingsTab: React.FC<EnvVarsSettingsTabProps> = ({
     await onDeleteEnvVar(index);
     if (deletedKey) {
       setRevealedValues((prev) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { [deletedKey]: _, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[deletedKey];
+        return next;
       });
     }
   };

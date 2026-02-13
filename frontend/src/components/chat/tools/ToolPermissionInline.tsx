@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ShieldAlert, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { Button, MarkDown } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
 import type { PermissionRequest } from '@/types';
 
 function formatValue(value: unknown): string {
@@ -79,7 +80,7 @@ export function ToolPermissionInline({
                   {key}
                 </div>
                 <div className="overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs text-text-primary dark:bg-white/5 dark:text-text-dark-primary">
-                  <MarkDown content={formatValue(value)} />
+                  <LazyMarkDown content={formatValue(value)} />
                 </div>
               </div>
             ))}

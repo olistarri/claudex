@@ -1,52 +1,56 @@
+import { lazy } from 'react';
 import type { ToolComponent } from '@/types';
-import { Task } from './Task';
-import { WebSearch } from './WebSearch';
-import { TodoWrite } from './TodoWrite';
-import { MCPTool } from './MCPTool';
-import { WriteTool, ReadTool, EditTool } from './FileOperationTool';
-import { AskUserQuestion } from './AskUserQuestion';
-import { BashTool } from './BashTool';
-import { GlobTool } from './GlobTool';
-import { GrepTool } from './GrepTool';
-import { NotebookEditTool } from './NotebookEditTool';
-import { WebFetchTool } from './WebFetchTool';
-import { LSPTool } from './LSPTool';
-import { TaskOutputTool, BashOutputTool } from './TaskOutputTool';
-import { KillShellTool } from './KillShellTool';
-import { EnterPlanModeTool, ExitPlanModeTool } from './PlanModeTool';
+type ToolModuleLoader = () => Promise<{ default: ToolComponent }>;
 
-export const TOOL_COMPONENTS: Record<string, ToolComponent> = {
-  Task: Task,
-  WebSearch: WebSearch,
-  TodoWrite: TodoWrite,
-  Write: WriteTool,
-  Read: ReadTool,
-  Edit: EditTool,
-  AskUserQuestion: AskUserQuestion,
-  Bash: BashTool,
-  Glob: GlobTool,
-  Grep: GrepTool,
-  NotebookEdit: NotebookEditTool,
-  WebFetch: WebFetchTool,
-  LSP: LSPTool,
-  TaskOutput: TaskOutputTool,
-  BashOutput: BashOutputTool,
-  KillShell: KillShellTool,
-  EnterPlanMode: EnterPlanModeTool,
-  ExitPlanMode: ExitPlanModeTool,
+const toLazy = (loader: ToolModuleLoader): ToolComponent =>
+  lazy(loader) as unknown as ToolComponent;
+
+const toolLoaders: Record<string, ToolModuleLoader> = {
+  Task: () => import('./Task').then((m) => ({ default: m.Task })),
+  WebSearch: () => import('./WebSearch').then((m) => ({ default: m.WebSearch })),
+  TodoWrite: () => import('./TodoWrite').then((m) => ({ default: m.TodoWrite })),
+  Write: () => import('./FileOperationTool').then((m) => ({ default: m.WriteTool })),
+  Read: () => import('./FileOperationTool').then((m) => ({ default: m.ReadTool })),
+  Edit: () => import('./FileOperationTool').then((m) => ({ default: m.EditTool })),
+  AskUserQuestion: () => import('./AskUserQuestion').then((m) => ({ default: m.AskUserQuestion })),
+  Bash: () => import('./BashTool').then((m) => ({ default: m.BashTool })),
+  Glob: () => import('./GlobTool').then((m) => ({ default: m.GlobTool })),
+  Grep: () => import('./GrepTool').then((m) => ({ default: m.GrepTool })),
+  NotebookEdit: () => import('./NotebookEditTool').then((m) => ({ default: m.NotebookEditTool })),
+  WebFetch: () => import('./WebFetchTool').then((m) => ({ default: m.WebFetchTool })),
+  LSP: () => import('./LSPTool').then((m) => ({ default: m.LSPTool })),
+  TaskOutput: () => import('./TaskOutputTool').then((m) => ({ default: m.TaskOutputTool })),
+  BashOutput: () => import('./TaskOutputTool').then((m) => ({ default: m.BashOutputTool })),
+  KillShell: () => import('./KillShellTool').then((m) => ({ default: m.KillShellTool })),
+  EnterPlanMode: () => import('./PlanModeTool').then((m) => ({ default: m.EnterPlanModeTool })),
+  ExitPlanMode: () => import('./PlanModeTool').then((m) => ({ default: m.ExitPlanModeTool })),
+};
+
+const mcpLoader: ToolModuleLoader = () => import('./MCPTool').then((m) => ({ default: m.MCPTool }));
+const webSearchLoader: ToolModuleLoader = () =>
+  import('./WebSearch').then((m) => ({ default: m.WebSearch }));
+
+const lazyToolComponents = new Map<string, ToolComponent>();
+
+const getOrCreateLazy = (key: string, loader: ToolModuleLoader) => {
+  const existing = lazyToolComponents.get(key);
+  if (existing) return existing;
+  const component = toLazy(loader);
+  lazyToolComponents.set(key, component);
+  return component;
 };
 
 export const getToolComponent = (toolName: string): ToolComponent => {
-  if (TOOL_COMPONENTS[toolName]) {
-    return TOOL_COMPONENTS[toolName];
+  if (toolLoaders[toolName]) {
+    return getOrCreateLazy(toolName, toolLoaders[toolName]);
   }
 
   if (
     toolName.startsWith('mcp__web-search-prime__') ||
     toolName.startsWith('mcp__web_search_prime__')
   ) {
-    return WebSearch;
+    return getOrCreateLazy(toolName, webSearchLoader);
   }
 
-  return MCPTool;
+  return getOrCreateLazy(toolName, mcpLoader);
 };

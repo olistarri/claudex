@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { logger } from '@/utils/logger';
 import type { ScheduledTask } from '@/types';
 import { RecurrenceType, TaskStatus } from '@/types';
-import { Button, ConfirmDialog } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Plus,
   CalendarClock,

@@ -20,8 +20,6 @@ export { AttachmentViewer } from './AttachmentViewer';
 export { DrawingModal } from './DrawingModal';
 export { FileUploadDialog } from './FileUploadDialog';
 export { FilePreviewList } from './FilePreviewList';
-export { default as MarkDown } from './MarkDown';
-export { Mermaid } from './Mermaid';
 export { ListManagementTab } from './ListManagementTab';
 export { ViewSwitcher } from './ViewSwitcher';
 export { SplitViewContainer } from './SplitViewContainer';

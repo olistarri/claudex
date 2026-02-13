@@ -1,4 +1,5 @@
-import { Switch, ListManagementTab } from '@/components/ui';
+import { Switch } from '@/components/ui/primitives/Switch';
+import { ListManagementTab } from '@/components/ui/ListManagementTab';
 import type { CustomMcp } from '@/types';
 import { Plug } from 'lucide-react';
 

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Circle } from 'lucide-react';
-import { Button, Switch, ConfirmDialog } from '@/components/ui';
+import { Button } from '@/components/ui/primitives/Button';
+import { Switch } from '@/components/ui/primitives/Switch';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import type { CustomProvider, ProviderType } from '@/types';
 

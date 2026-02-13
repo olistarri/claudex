@@ -1,4 +1,5 @@
-import { Label, Textarea } from '@/components/ui';
+import { Label } from '@/components/ui/primitives/Label';
+import { Textarea } from '@/components/ui/primitives/Textarea';
 import { cn } from '@/utils/cn';
 
 interface InstructionsSettingsTabProps {
