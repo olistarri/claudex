@@ -70,8 +70,8 @@ RUN OPENVSCODE_VERSION="1.105.1" && \
 RUN pip3 install --no-cache-dir mcp redis httpx uv
 
 # Copy shared scripts
-COPY backend/permission_server.py /usr/local/bin/permission_server.py
-COPY scripts/start-vnc.sh /usr/local/bin/start-vnc.sh
+COPY permission_server.py /usr/local/bin/permission_server.py
+COPY start-vnc.sh /usr/local/bin/start-vnc.sh
 RUN chmod +x /usr/local/bin/start-vnc.sh
 
 RUN curl -LO https://go.dev/dl/go1.23.3.linux-amd64.tar.gz \

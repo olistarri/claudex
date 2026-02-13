@@ -76,6 +76,11 @@ jobs:
       - name: Install E2B CLI
         run: npm install -g @e2b/cli
 
+      - name: Copy shared files into E2B build context
+        run: |
+          cp scripts/start-vnc.sh sandbox/e2b/start-vnc.sh
+          cp backend/permission_server.py sandbox/e2b/permission_server.py
+
       - name: Build E2B template
         working-directory: sandbox/e2b
         env:
