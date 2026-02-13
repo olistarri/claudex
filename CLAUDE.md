@@ -36,6 +36,7 @@
 - Do not optimize for no regressions or long-term resilience unless explicitly requested — favor simple, direct changes over defensive scaffolding
 - Don't add comments or docstrings for self-explanatory code
 - Let the code speak for itself - use clear variable/function names instead of comments
+- Do not use decorative section comments (e.g., `# ── Section ──────`) — code structure should be self-evident from class/method organization
 - Avoid no-op pass-through wrappers (e.g., a function that only calls another function with identical args/return)
 - If a wrapper exists, it must add concrete value (validation, transformation, error handling, compatibility boundary, or stable public API surface)
 - Prefer direct imports/calls over indirection when behavior is unchanged
@@ -44,6 +45,22 @@
 - Strong typing only: do not use `# type: ignore`, `# pyright: ignore`, `# noqa` to silence typing/import issues; fix the types/usages directly (if absolutely unavoidable, document why in the PR description)
 - Do not define nested/inline functions; use module-level functions for standalone functions (e.g., endpoints) and class methods for classes
 - Do not add backward compatibility paths, fallback paths, or legacy shims unless explicitly requested
+- Do not create type aliases that add no semantic value (e.g., `StreamKind = str`) — use the base type directly
+
+## Naming Conventions
+
+- Method names should describe intent, not mechanism (`_consume_stream` not `_iterate_events`, `_complete_stream` not `_finalize`)
+- Be concrete, not vague (`_save_final_snapshot` not `_persist_final_state`, `_close_redis` not `_cleanup_redis`)
+- Keep names short when meaning is preserved (`_try_create_checkpoint` not `_create_checkpoint_if_needed`, `_prune_done_tasks` not `_prune_finished_background_tasks`)
+- Don't put implementation details in public method names (`execute_chat` not `execute_chat_with_managed_resources`)
+- Use consistent terminology within a module — don't mix synonyms (e.g., pick "cancel" or "revoke", not both)
+
+## Module Organization
+
+- Keep logic in the module where it belongs — factory methods go on the class they construct (e.g., `Chat.from_dict`, `SandboxService.create_for_user`), not in unrelated callers
+- Group related free functions into a class with static methods rather than leaving them as loose module-level functions (e.g., `StreamEnvelope.build()` + `StreamEnvelope.sanitize_payload()` instead of separate `build_envelope()` + `redact_for_audit()`)
+- Prefer one data structure over two when one can serve both purposes — don't add a second dict/set to handle an edge case that can be folded into the primary structure
+- Do not create multiple overlapping data containers for the same concept — if fields are shared across dataclasses, consolidate into one
 
 ## Frontend UI/UX Guidelines
 

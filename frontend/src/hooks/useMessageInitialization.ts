@@ -53,7 +53,7 @@ export function useMessageInitialization({
         id: msg.id || crypto.randomUUID(),
         chat_id: msg.chat_id,
         content_text: msg.content_text ?? '',
-        content_render: msg.content_render ?? { events: [], segments: [] },
+        content_render: msg.content_render ?? { events: [] },
         last_seq: msg.last_seq ?? 0,
         active_stream_id: msg.active_stream_id ?? null,
         stream_status: msg.stream_status ?? (msg.role === 'assistant' ? 'completed' : undefined),

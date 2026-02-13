@@ -22,7 +22,7 @@ import type { StreamOptions } from '@/services/streamService';
 const STREAM_FLUSH_INTERVAL_MS = 200;
 
 function createEmptyRenderSnapshot(): ContentRenderSnapshot {
-  return { events: [], segments: [] };
+  return { events: [] };
 }
 
 interface UseStreamCallbacksParams {
@@ -492,7 +492,6 @@ export function useStreamCallbacks({
         content_text: data.content,
         content_render: {
           events: [{ type: 'user_text', text: data.content }],
-          segments: [],
         },
         last_seq: 0,
         active_stream_id: null,

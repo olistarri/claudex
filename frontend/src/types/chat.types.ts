@@ -16,7 +16,6 @@ export interface Message {
   content_text: string;
   content_render: {
     events?: AssistantStreamEvent[];
-    segments?: unknown[];
   };
   last_seq: number;
   active_stream_id?: string | null;

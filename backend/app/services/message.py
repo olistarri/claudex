@@ -95,13 +95,12 @@ class MessageService(BaseDbService[Message]):
         async with self.session_factory() as db:
             is_assistant = role == MessageRole.ASSISTANT
             content_text = ""
-            content_render: dict[str, Any] = {"events": [], "segments": []}
+            content_render: dict[str, Any] = {"events": []}
             if not is_assistant:
                 content_text = self._extract_user_text_content(content)
                 if content_text:
                     content_render = {
                         "events": [{"type": "user_text", "text": content_text}],
-                        "segments": [],
                     }
 
             message_kwargs: dict[str, Any] = {
@@ -233,6 +232,56 @@ class MessageService(BaseDbService[Message]):
 
             await db.commit()
             return next_seq
+
+    async def append_events_batch(
+        self,
+        *,
+        chat_id: UUID,
+        message_id: UUID,
+        stream_id: UUID,
+        events: list[tuple[str, dict[str, Any], dict[str, Any] | None]],
+    ) -> int:
+        if not events:
+            return 0
+
+        count = len(events)
+        async with self.session_factory() as db:
+            seq_result = await db.execute(
+                update(Chat)
+                .where(Chat.id == chat_id)
+                .values(last_event_seq=Chat.last_event_seq + count)
+                .returning(Chat.last_event_seq)
+            )
+            end_seq = seq_result.scalar_one_or_none()
+            if end_seq is None:
+                raise MessageException(
+                    "Chat not found",
+                    error_code=ErrorCode.CHAT_NOT_FOUND,
+                    details={"chat_id": str(chat_id)},
+                    status_code=404,
+                )
+            end_seq = int(end_seq)
+            start_seq = end_seq - count + 1
+
+            now = datetime.now(timezone.utc)
+            rows = [
+                {
+                    "id": uuid4(),
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "stream_id": stream_id,
+                    "seq": start_seq + i,
+                    "event_type": event_type,
+                    "render_payload": render_payload,
+                    "audit_payload": audit_payload,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                for i, (event_type, render_payload, audit_payload) in enumerate(events)
+            ]
+            await db.execute(insert(MessageEvent), rows)
+            await db.commit()
+            return end_seq
 
     async def get_chat_messages(
         self, chat_id: UUID, cursor: str | None = None, limit: int = 20
