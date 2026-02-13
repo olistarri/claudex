@@ -13,6 +13,7 @@ from app.constants import (
     DOCKER_STATUS_RUNNING,
     EXCLUDED_PREVIEW_PORTS,
     SANDBOX_DEFAULT_COMMAND_TIMEOUT,
+    SANDBOX_DEFAULT_TIMEOUT,
     SANDBOX_HOME_DIR,
     TERMINAL_TYPE,
     VNC_WEBSOCKET_PORT,
@@ -49,9 +50,14 @@ class LocalDockerProvider(SandboxProvider):
                 import docker
 
                 if self.config.host:
-                    self._docker_client = docker.DockerClient(base_url=self.config.host)
+                    self._docker_client = docker.DockerClient(
+                        base_url=self.config.host,
+                        timeout=SANDBOX_DEFAULT_TIMEOUT,
+                    )
                 else:
-                    self._docker_client = docker.from_env()
+                    self._docker_client = docker.from_env(
+                        timeout=SANDBOX_DEFAULT_TIMEOUT
+                    )
             except ImportError:
                 raise SandboxException(
                     "Docker SDK not installed. Run: pip install docker"
