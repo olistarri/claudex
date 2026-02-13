@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from collections.abc import Callable, Iterable
-from typing import Any, TypeAlias
+from typing import Any
 
 from claude_agent_sdk import (
     TextBlock,
@@ -25,8 +25,6 @@ PROMPT_SUGGESTIONS_PATTERN = re.compile(
     re.DOTALL,
 )
 
-MessageType: TypeAlias = AssistantMessage | UserMessage | ResultMessage | SystemMessage
-
 
 class StreamProcessor:
     def __init__(
@@ -46,7 +44,9 @@ class StreamProcessor:
         if session_id:
             self._session_handler(session_id)
 
-    def emit_events_for_message(self, message: MessageType) -> Iterable[StreamEvent]:
+    def emit_events_for_message(
+        self, message: AssistantMessage | UserMessage | ResultMessage | SystemMessage
+    ) -> Iterable[StreamEvent]:
         if isinstance(message, SystemMessage):
             self._process_session_init(message)
             return
@@ -159,7 +159,9 @@ class StreamProcessor:
     def _emit_tool_start(
         self, block: ToolUseBlock, parent_tool_use_id: str | None
     ) -> Iterable[StreamEvent]:
-        parent_tool_id = self._determine_parent_tool_id(block, parent_tool_use_id)
+        parent_tool_id = parent_tool_use_id or getattr(
+            block, "parent_tool_use_id", None
+        )
         tool_event = self._tool_registry.start_tool(
             block, parent_tool_id=parent_tool_id
         )
@@ -174,15 +176,3 @@ class StreamProcessor:
         )
         if tool_event:
             yield tool_event
-
-    def _determine_parent_tool_id(
-        self, block: ToolUseBlock, default_parent: str | None = None
-    ) -> str | None:
-        if default_parent:
-            return default_parent
-
-        parent_tool_id: str | None = getattr(block, "parent_tool_use_id", None)
-        if parent_tool_id:
-            return parent_tool_id
-
-        return None

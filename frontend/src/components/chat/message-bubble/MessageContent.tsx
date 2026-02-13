@@ -7,7 +7,6 @@ interface MessageContentProps {
   contentText: string;
   contentRender?: {
     events?: AssistantStreamEvent[];
-    segments?: unknown[];
   };
   isBot: boolean;
   attachments?: MessageAttachment[];

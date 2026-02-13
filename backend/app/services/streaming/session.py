@@ -24,10 +24,22 @@ class SessionUpdateCallback:
         self.assistant_message_id = assistant_message_id
         self.session_factory = session_factory
         self.session_container = session_container
+        self._pending_task: asyncio.Task[None] | None = None
 
     def __call__(self, new_session_id: str) -> None:
         self.session_container["session_id"] = new_session_id
-        asyncio.create_task(self._update_session_id(new_session_id))
+        task = asyncio.create_task(self._update_session_id(new_session_id))
+        self._pending_task = task
+        task.add_done_callback(self._on_task_done)
+
+    def _on_task_done(self, task: asyncio.Task[None]) -> None:
+        if self._pending_task is task:
+            self._pending_task = None
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.error("Session ID update task failed: %s", exc)
 
     async def _update_session_id(self, session_id: str) -> None:
         if not self.session_factory:

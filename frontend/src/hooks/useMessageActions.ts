@@ -92,7 +92,7 @@ export function useMessageActions({
           id: messageId,
           chat_id: chatIdOverride ?? chatId ?? '',
           content_text: '',
-          content_render: { events: [], segments: [] },
+          content_render: { events: [] },
           last_seq: 0,
           active_stream_id: null,
           stream_status: 'in_progress',
@@ -164,7 +164,6 @@ export function useMessageActions({
         content_text: prompt,
         content_render: {
           events: [{ type: 'user_text', text: prompt }],
-          segments: [],
         },
         last_seq: 0,
         active_stream_id: null,

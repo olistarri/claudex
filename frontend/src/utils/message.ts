@@ -13,7 +13,6 @@ export function createInitialMessage(
     content_text: prompt,
     content_render: {
       events: [{ type: 'user_text', text: prompt }],
-      segments: [],
     },
     last_seq: 0,
     active_stream_id: null,

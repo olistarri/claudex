@@ -65,6 +65,16 @@ class Chat(Base):
         Index("idx_chats_user_id_updated_at_desc", "user_id", "updated_at"),
     )
 
+    @classmethod
+    def from_dict(cls, data: dict[str, str | None]) -> "Chat":
+        return cls(
+            id=UUID(str(data["id"])),
+            user_id=UUID(str(data["user_id"])),
+            title=str(data["title"]),
+            sandbox_id=data.get("sandbox_id"),
+            session_id=data.get("session_id"),
+        )
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -84,8 +94,8 @@ class Message(Base):
     content_render: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
-        default=lambda: {"segments": []},
-        server_default='{"segments": []}',
+        default=lambda: {"events": []},
+        server_default='{"events": []}',
     )
     last_seq: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0, server_default="0"

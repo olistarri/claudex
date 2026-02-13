@@ -79,7 +79,6 @@ export const parseEventLog = (content: string | null | undefined): AssistantStre
 
 export interface ContentRenderSnapshot {
   events?: AssistantStreamEvent[];
-  segments?: unknown[];
 }
 
 export class StreamingContentAccumulator {
@@ -117,10 +116,7 @@ export class StreamingContentAccumulator {
   }
 
   snapshot(): ContentRenderSnapshot {
-    return {
-      events: [...this.events],
-      segments: [],
-    };
+    return { events: [...this.events] };
   }
 
   serialize(): string {

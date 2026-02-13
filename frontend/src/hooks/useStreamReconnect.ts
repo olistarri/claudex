@@ -93,7 +93,7 @@ export function useStreamReconnect({
                 chat_id: chatId,
                 role: 'assistant',
                 content_text: '',
-                content_render: { events: [], segments: [] },
+                content_render: { events: [] },
                 last_seq: status.last_seq ?? 0,
                 active_stream_id: status.stream_id ?? null,
                 stream_status: 'in_progress',

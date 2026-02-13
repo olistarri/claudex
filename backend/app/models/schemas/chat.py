@@ -39,7 +39,7 @@ class ChatRequest(BaseModel):
 
 class MessageBase(BaseModel):
     content_text: str = ""
-    content_render: dict[str, Any] = Field(default_factory=lambda: {"segments": []})
+    content_render: dict[str, Any] = Field(default_factory=lambda: {"events": []})
     last_seq: int = 0
     active_stream_id: UUID | None = None
     role: MessageRole
