@@ -10,6 +10,9 @@ ensure_docker_network() {
     fi
 }
 
+echo "Ensuring storage directories exist..."
+mkdir -p /app/storage/images /app/storage/pdfs /app/storage/xlsx /app/storage/chrome-profile /app/storage/claude-data
+
 echo "Running database migrations..."
 cd /app && python migrate.py || exit 1
 
