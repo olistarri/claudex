@@ -12,6 +12,7 @@ import { useUIStore, useStreamStore } from '@/store';
 import { useIsMobile } from '@/hooks';
 import { SidebarChatItem } from './SidebarChatItem';
 import { ChatDropdown } from './ChatDropdown';
+import { ProjectSelector } from './ProjectSelector';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
 
 function getDateGroup(dateStr: string): string {
@@ -304,11 +305,12 @@ export function Sidebar({
         )}
       >
         <div className="border-b border-border px-3 py-3 dark:border-border-dark">
+          <ProjectSelector />
           <Button
             onClick={handleNewChat}
             variant="unstyled"
             className={cn(
-              'w-full px-3 py-2',
+              'mt-2 w-full px-3 py-2',
               'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
               'border border-border dark:border-border-dark',
               'text-text-secondary dark:text-text-dark-secondary',

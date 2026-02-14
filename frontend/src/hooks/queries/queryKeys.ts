@@ -7,6 +7,8 @@ export const queryKeys = {
     user: 'auth-user',
     usage: 'auth-usage',
   },
+  projects: 'projects',
+  project: (projectId: string) => ['projects', projectId] as const,
   settings: 'settings',
   sandbox: {
     previewLinks: (sandboxId: string) => ['sandbox', sandboxId, 'preview-links'] as const,

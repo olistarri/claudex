@@ -78,6 +78,12 @@ from .skills import SkillDeleteResponse, SkillResponse
 from .commands import CommandDeleteResponse, CommandResponse, CommandUpdateRequest
 from .agents import AgentDeleteResponse, AgentResponse, AgentUpdateRequest
 from .mcps import McpCreateRequest, McpDeleteResponse, McpResponse, McpUpdateRequest
+from .project import (
+    ProjectCreate,
+    ProjectResponse,
+    ProjectSettingsUpdate,
+    ProjectUpdate,
+)
 from .ai_model import AIModelResponse
 from .errors import HTTPErrorResponse
 from .queue import (
@@ -175,6 +181,11 @@ __all__ = [
     "McpDeleteResponse",
     "McpResponse",
     "McpUpdateRequest",
+    # projects
+    "ProjectCreate",
+    "ProjectResponse",
+    "ProjectSettingsUpdate",
+    "ProjectUpdate",
     # ai_model
     "AIModelResponse",
     # errors

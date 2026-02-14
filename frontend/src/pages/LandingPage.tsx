@@ -6,7 +6,7 @@ import { Input } from '@/components/chat/message-input/Input';
 import { Button } from '@/components/ui';
 import { Globe, BarChart3, Code2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useChatStore, useAuthStore } from '@/store';
+import { useChatStore, useAuthStore, useProjectStore } from '@/store';
 import {
   useInfiniteChatsQuery,
   useCreateChatMutation,
@@ -50,6 +50,7 @@ export function LandingPage() {
   const setAttachedFiles = useChatStore((state) => state.setAttachedFiles);
   const setCurrentChat = useChatStore((state) => state.setCurrentChat);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
   const { selectedModelId, selectModel } = useModelSelection({ enabled: isAuthenticated });
 
   const {
@@ -59,6 +60,7 @@ export function LandingPage() {
     isFetchingNextPage,
   } = useInfiniteChatsQuery({
     enabled: isAuthenticated,
+    projectId: activeProjectId,
   });
 
   const chats = useMemo(() => {
@@ -117,7 +119,11 @@ export function LandingPage() {
       setIsLoading(true);
       try {
         const title = trimmedPrompt.replace(/\s+/g, ' ').slice(0, 80) || 'New Chat';
-        const newChat = await createChat.mutateAsync({ title, model_id: selectedModelId });
+        const newChat = await createChat.mutateAsync({
+          title,
+          model_id: selectedModelId,
+          ...(activeProjectId ? { project_id: activeProjectId } : {}),
+        });
         setMessage('');
         navigate(`/chat/${newChat.id}`, { state: { initialPrompt: trimmedPrompt } });
       } catch (error) {

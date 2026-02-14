@@ -5,6 +5,7 @@ MAX_RESOURCE_NAME_LENGTH: Final[int] = 50
 MIN_RESOURCE_NAME_LENGTH: Final[int] = 2
 MAX_RESOURCES_PER_USER: Final[int] = 10
 MAX_RESOURCE_SIZE_BYTES: Final[int] = 100 * 1024
+MAX_PROJECTS_PER_USER: Final[int] = 20
 
 REDIS_KEY_CHAT_STREAM_LIVE: Final[str] = "chat:{chat_id}:stream:live"
 REDIS_KEY_USER_SETTINGS: Final[str] = "user_settings:{user_id}"

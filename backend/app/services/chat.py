@@ -46,6 +46,7 @@ from app.services.sandbox_providers import (
 )
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest
+from app.services.project import ProjectService
 from app.services.storage import StorageService
 from app.services.user import UserService
 
@@ -70,12 +71,14 @@ class ChatService(BaseDbService[Chat]):
         storage_service: StorageService,
         sandbox_service: SandboxService,
         user_service: UserService,
+        project_service: ProjectService,
         session_factory: SessionFactoryType | None = None,
     ) -> None:
         super().__init__(session_factory)
         self.sandbox_service = sandbox_service
         self.storage_service = storage_service
         self.user_service = user_service
+        self.project_service = project_service
         self.message_service = MessageService(session_factory=self._session_factory)
         self._provider_service = ProviderService()
 
@@ -89,15 +92,20 @@ class ChatService(BaseDbService[Chat]):
         self.message_service.session_factory = value
 
     async def get_user_chats(
-        self, user: User, pagination: PaginationParams | None = None
+        self,
+        user: User,
+        pagination: PaginationParams | None = None,
+        project_id: UUID | None = None,
     ) -> PaginatedChats:
         if pagination is None:
             pagination = PaginationParams()
 
         async with self.session_factory() as db:
-            count_query = select(func.count(Chat.id)).filter(
-                Chat.user_id == user.id, Chat.deleted_at.is_(None)
-            )
+            filters = [Chat.user_id == user.id, Chat.deleted_at.is_(None)]
+            if project_id is not None:
+                filters.append(Chat.project_id == project_id)
+
+            count_query = select(func.count(Chat.id)).filter(*filters)
             count_result = await db.execute(count_query)
             total = count_result.scalar()
 
@@ -105,7 +113,7 @@ class ChatService(BaseDbService[Chat]):
 
             query = (
                 select(Chat)
-                .filter(Chat.user_id == user.id, Chat.deleted_at.is_(None))
+                .filter(*filters)
                 .order_by(Chat.pinned_at.desc().nulls_last(), Chat.updated_at.desc())
                 .offset(offset)
                 .limit(pagination.per_page)
@@ -127,32 +135,33 @@ class ChatService(BaseDbService[Chat]):
         user_settings = await self.user_service.get_user_settings(user.id)
         self._validate_api_keys(user_settings, chat_data.model_id)
 
+        project = None
+        if chat_data.project_id:
+            project = await self.project_service.get_project(
+                chat_data.project_id, user.id
+            )
+
+        merged = ProjectService.merge_settings(user_settings, project)
+
         sandbox_id = await self.sandbox_service.create_sandbox()
 
-        github_token = user_settings.github_personal_access_token
-        custom_env_vars = user_settings.custom_env_vars
-        custom_skills = user_settings.custom_skills
-        custom_slash_commands = user_settings.custom_slash_commands
-        custom_agents = user_settings.custom_agents
-        auto_compact_disabled = user_settings.auto_compact_disabled
-        attribution_disabled = user_settings.attribution_disabled
-        custom_providers = user_settings.custom_providers
-        gmail_oauth_client = user_settings.gmail_oauth_client
-        gmail_oauth_tokens = user_settings.gmail_oauth_tokens
+        if project and project.folder_name and project.folder_name != "default":
+            project_dir = f"{settings.PROJECTS_ROOT_DIR}/{project.folder_name}"
+            await self.sandbox_service.copy_project_folder(sandbox_id, project_dir)
 
         await self.sandbox_service.initialize_sandbox(
             sandbox_id=sandbox_id,
-            github_token=github_token,
-            custom_env_vars=custom_env_vars,
-            custom_skills=custom_skills,
-            custom_slash_commands=custom_slash_commands,
-            custom_agents=custom_agents,
+            github_token=merged.github_personal_access_token,
+            custom_env_vars=merged.custom_env_vars,
+            custom_skills=merged.custom_skills,
+            custom_slash_commands=merged.custom_slash_commands,
+            custom_agents=merged.custom_agents,
             user_id=str(user.id),
-            auto_compact_disabled=auto_compact_disabled,
-            attribution_disabled=attribution_disabled,
-            custom_providers=custom_providers,
-            gmail_oauth_client=gmail_oauth_client,
-            gmail_oauth_tokens=gmail_oauth_tokens,
+            auto_compact_disabled=merged.auto_compact_disabled,
+            attribution_disabled=merged.attribution_disabled,
+            custom_providers=merged.custom_providers,
+            gmail_oauth_client=merged.gmail_oauth_client,
+            gmail_oauth_tokens=merged.gmail_oauth_tokens,
         )
 
         async with self.session_factory() as db:
@@ -160,7 +169,8 @@ class ChatService(BaseDbService[Chat]):
                 title=self._truncate_title(chat_data.title),
                 user_id=user.id,
                 sandbox_id=sandbox_id,
-                sandbox_provider=user_settings.sandbox_provider,
+                sandbox_provider=merged.sandbox_provider,
+                project_id=chat_data.project_id,
             )
 
             db.add(chat)
@@ -619,6 +629,13 @@ class ChatService(BaseDbService[Chat]):
 
         chat = await self.get_chat(request.chat_id, current_user)
 
+        project = None
+        if chat.project_id:
+            project = await self.project_service.get_project(
+                chat.project_id, current_user.id
+            )
+        merged = ProjectService.merge_settings(user_settings, project)
+
         chat_id = chat.id
 
         attachments: list[MessageAttachmentDict] | None = None
@@ -673,9 +690,7 @@ class ChatService(BaseDbService[Chat]):
             selected_prompt_name=request.selected_prompt_name,
         )
         is_custom_prompt = bool(request.selected_prompt_name)
-        custom_instructions = (
-            user_settings.custom_instructions if user_settings else None
-        )
+        custom_instructions = merged.custom_instructions
 
         try:
             await self._enqueue_chat_task(
@@ -792,6 +807,7 @@ class ChatService(BaseDbService[Chat]):
                         sandbox_id=new_sandbox_id,
                         sandbox_provider=SandboxProviderType.DOCKER.value,
                         session_id=target_message.session_id,
+                        project_id=source_chat.project_id,
                     )
                     db.add(new_chat)
                     await db.flush()

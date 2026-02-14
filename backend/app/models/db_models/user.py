@@ -57,6 +57,9 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     )
     daily_message_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
+    projects = relationship(
+        "Project", back_populates="user", cascade="all, delete-orphan"
+    )
     settings = relationship(
         "UserSettings",
         back_populates="user",

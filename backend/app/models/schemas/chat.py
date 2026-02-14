@@ -64,6 +64,7 @@ class ChatBase(BaseModel):
 
 class ChatCreate(ChatBase):
     model_id: str = Field(..., min_length=1, max_length=255)
+    project_id: UUID | None = None
 
 
 class ChatUpdate(BaseModel):
@@ -74,6 +75,7 @@ class ChatUpdate(BaseModel):
 class Chat(ChatBase):
     id: UUID
     user_id: UUID
+    project_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
     sandbox_id: str | None = None

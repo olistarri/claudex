@@ -2,7 +2,7 @@ import { useEffect, useMemo, useCallback, useRef, ReactNode, lazy, Suspense } fr
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { Sidebar, useLayoutSidebar } from '@/components/layout';
-import { useUIStore, useChatStore } from '@/store';
+import { useUIStore, useChatStore, useProjectStore } from '@/store';
 import { ViewSwitcher } from '@/components/ui/ViewSwitcher';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -223,9 +223,14 @@ export function ChatPage() {
     setInitialPromptSent,
   ]);
 
+  const setActiveProjectId = useProjectStore((state) => state.setActiveProjectId);
+
   useEffect(() => {
     setCurrentChat(currentChat || null);
-  }, [currentChat, setCurrentChat]);
+    if (currentChat?.project_id) {
+      setActiveProjectId(currentChat.project_id);
+    }
+  }, [currentChat, setCurrentChat, setActiveProjectId]);
 
   useEffect(() => {
     setInitialPromptSent(false);

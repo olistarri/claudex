@@ -21,6 +21,7 @@ from app.services.marketplace import MarketplaceService
 from app.services.plugin_installer import PluginInstallerService
 from app.services.skill import SkillService
 from app.services.storage import StorageService
+from app.services.project import ProjectService
 from app.services.user import UserService
 
 
@@ -30,6 +31,10 @@ def get_provider_service() -> ProviderService:
 
 def get_user_service() -> UserService:
     return UserService(session_factory=SessionLocal)
+
+
+def get_project_service() -> ProjectService:
+    return ProjectService(session_factory=SessionLocal)
 
 
 def get_refresh_token_service() -> RefreshTokenService:
@@ -172,10 +177,12 @@ async def get_chat_service(
     file_service: StorageService = Depends(get_storage_service),
     sandbox_service: SandboxService = Depends(get_sandbox_service),
     user_service: UserService = Depends(get_user_service),
+    project_service: ProjectService = Depends(get_project_service),
 ) -> AsyncIterator[ChatService]:
     yield ChatService(
         file_service,
         sandbox_service,
         user_service,
+        project_service,
         session_factory=SessionLocal,
     )

@@ -54,7 +54,12 @@ class Chat(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    project_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+
     user = relationship("User", back_populates="chats")
+    project = relationship("Project", back_populates="chats")
     messages = relationship(
         "Message", back_populates="chat", cascade="all, delete-orphan"
     )
@@ -63,6 +68,7 @@ class Chat(Base):
         Index("idx_chats_user_id_sandbox_id", "user_id", "sandbox_id"),
         Index("idx_chats_user_id_deleted_at", "user_id", "deleted_at"),
         Index("idx_chats_user_id_updated_at_desc", "user_id", "updated_at"),
+        Index("idx_chats_project_id", "project_id"),
     )
 
     @classmethod

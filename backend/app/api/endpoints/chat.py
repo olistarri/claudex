@@ -10,6 +10,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     status,
@@ -191,10 +192,13 @@ async def enhance_prompt(
 @router.get("/chats", response_model=PaginatedChats)
 async def get_chats(
     pagination: PaginationParams = Depends(),
+    project_id: UUID | None = Query(None),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> PaginatedChats:
-    return await chat_service.get_user_chats(current_user, pagination)
+    return await chat_service.get_user_chats(
+        current_user, pagination, project_id=project_id
+    )
 
 
 @router.get(

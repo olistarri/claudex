@@ -11,14 +11,19 @@ import type {
 } from '@/types';
 import { queryKeys } from './queryKeys';
 
-export const useInfiniteChatsQuery = (options?: { perPage?: number; enabled?: boolean }) => {
+export const useInfiniteChatsQuery = (options?: {
+  perPage?: number;
+  enabled?: boolean;
+  projectId?: string | null;
+}) => {
   const perPage = options?.perPage ?? 25;
+  const projectId = options?.projectId ?? undefined;
 
   return useInfiniteQuery({
-    queryKey: [queryKeys.chats, 'infinite', perPage] as const,
+    queryKey: [queryKeys.chats, 'infinite', perPage, projectId] as const,
     queryFn: async ({ pageParam }) => {
       const page = pageParam as number;
-      return chatService.listChats({ page, per_page: perPage });
+      return chatService.listChats({ page, per_page: perPage }, projectId);
     },
     getNextPageParam: (lastPage) => {
       const nextPage = lastPage.page + 1;

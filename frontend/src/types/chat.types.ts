@@ -58,6 +58,7 @@ export interface Chat {
   sandbox_id?: string;
   context_token_usage?: number;
   pinned_at?: string | null;
+  project_id?: string | null;
 }
 
 export interface ForkChatResponse {
@@ -78,6 +79,7 @@ export interface ChatRequest {
 export interface CreateChatRequest {
   title: string;
   model_id: string;
+  project_id?: string;
 }
 
 export interface PreviewLinksResponse {

@@ -24,6 +24,7 @@ from app.api.endpoints import (
     mcps,
     marketplace,
     integrations,
+    projects,
 )
 from app.api.endpoints import settings as settings_router
 from app.core.config import get_settings
@@ -41,6 +42,7 @@ from app.admin.views import (
     MessageAdmin,
     MessageAttachmentAdmin,
     UserSettingsAdmin,
+    ProjectAdmin,
 )
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -179,6 +181,11 @@ def create_application() -> FastAPI:
         prefix=f"{settings.API_V1_STR}/integrations",
         tags=["Integrations"],
     )
+    application.include_router(
+        projects.router,
+        prefix=f"{settings.API_V1_STR}/projects",
+        tags=["Projects"],
+    )
     application.openapi = lambda: custom_openapi(application)
 
     admin = create_admin(application, engine, SessionLocal)
@@ -188,6 +195,7 @@ def create_application() -> FastAPI:
     admin.add_view(MessageAdmin)
     admin.add_view(MessageAttachmentAdmin)
     admin.add_view(UserSettingsAdmin)
+    admin.add_view(ProjectAdmin)
 
     @application.get("/health")
     async def health_check() -> dict[str, str]:

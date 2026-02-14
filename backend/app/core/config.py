@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     STORAGE_PATH: str = "/app/storage"
+    PROJECTS_ROOT_DIR: str = "/app/projects"
 
     ALLOWED_ORIGINS: str | list[str] = [
         "http://localhost:3000",

@@ -8,6 +8,7 @@ from app.models.db_models import (
     Message,
     MessageAttachment,
     UserSettings,
+    Project,
 )
 from wtforms import PasswordField, SelectField
 from app.models.db_models.enums import (
@@ -356,3 +357,31 @@ class UserSettingsAdmin(ModelView, model=UserSettings):
     name = "User Settings"
     name_plural = "User Settings"
     icon = "fa-solid fa-gear"
+
+
+class ProjectAdmin(ModelView, model=Project):
+    column_list = [
+        "id",
+        "user_id",
+        "name",
+        "folder_name",
+        "is_default",
+        "created_at",
+        "updated_at",
+    ]
+    column_searchable_list = ["name", "folder_name"]
+    column_sortable_list = ["name", "created_at", "updated_at", "is_default"]
+    column_default_sort = [("created_at", True)]
+
+    column_formatters = {
+        "created_at": lambda m, _: (
+            m.created_at.strftime("%Y-%m-%d %H:%M:%S") if m.created_at else ""
+        ),
+        "updated_at": lambda m, _: (
+            m.updated_at.strftime("%Y-%m-%d %H:%M:%S") if m.updated_at else ""
+        ),
+    }
+
+    name = "Project"
+    name_plural = "Projects"
+    icon = "fa-solid fa-folder"

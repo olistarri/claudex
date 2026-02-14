@@ -121,9 +121,18 @@ async function getMessages(
   });
 }
 
-async function listChats(pagination?: PaginationParams): Promise<PaginatedChats> {
+async function listChats(
+  pagination?: PaginationParams,
+  projectId?: string,
+): Promise<PaginatedChats> {
   return serviceCall(async () => {
-    const queryString = buildQueryString(pagination as unknown as Record<string, number>);
+    const params: Record<string, string | number> = {
+      ...(pagination as unknown as Record<string, number>),
+    };
+    if (projectId) {
+      params.project_id = projectId;
+    }
+    const queryString = buildQueryString(params);
     const endpoint = `/chat/chats${queryString}`;
 
     const response = await apiClient.get<PaginatedChats>(endpoint);

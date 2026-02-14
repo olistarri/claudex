@@ -188,6 +188,50 @@ class SandboxService:
     async def create_sandbox(self) -> str:
         return await self.provider.create_sandbox()
 
+    async def copy_project_folder(self, sandbox_id: str, source_path: str) -> None:
+        project_dir = Path(source_path)
+        if not project_dir.exists() or not project_dir.is_dir():
+            logger.warning("Project folder not found: %s", source_path)
+            return
+
+        files = [
+            f for f in project_dir.rglob("*")
+            if f.is_file() and "node_modules" not in f.parts and ".git" not in f.parts
+        ]
+        if not files:
+            return
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for file_path in files:
+                arcname = str(file_path.relative_to(project_dir))
+                zf.write(file_path, arcname)
+
+        zip_buffer.seek(0)
+        encoded_content = base64.b64encode(zip_buffer.getvalue()).decode("utf-8")
+
+        remote_zip_path = f"{SANDBOX_HOME_DIR}/_project_{uuid.uuid4().hex[:8]}.zip"
+        temp_b64_path = f"{remote_zip_path}.b64tmp"
+
+        try:
+            await self.write_file(sandbox_id, temp_b64_path, encoded_content)
+            decode_and_extract_cmd = (
+                f"base64 -d {shlex.quote(temp_b64_path)} > {shlex.quote(remote_zip_path)} && "
+                f"unzip -q -o {shlex.quote(remote_zip_path)} -d {SANDBOX_HOME_DIR} && "
+                f"rm -f {shlex.quote(remote_zip_path)} {shlex.quote(temp_b64_path)}"
+            )
+            await self.execute_command(sandbox_id, decode_and_extract_cmd)
+            logger.info(
+                "Copied project folder %s (%d files) to sandbox %s",
+                source_path,
+                len(files),
+                sandbox_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to copy project folder to sandbox %s", sandbox_id
+            )
+
     async def delete_sandbox(self, sandbox_id: str) -> None:
         if not sandbox_id:
             return

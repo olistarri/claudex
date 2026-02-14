@@ -16,11 +16,12 @@ import {
   ScrollText,
   CalendarClock,
   ChevronLeft,
+  FolderOpen,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { UserSettings, UserSettingsUpdate } from '@/types';
 import {
   queryKeys,
@@ -136,12 +137,18 @@ const TasksSettingsTab = lazy(() =>
     default: m.TasksSettingsTab,
   })),
 );
+const ProjectsSettingsTab = lazy(() =>
+  import('@/components/settings/tabs/ProjectsSettingsTab').then((m) => ({
+    default: m.ProjectsSettingsTab,
+  })),
+);
 
 type TabKey =
   | 'general'
   | 'providers'
   | 'integrations'
   | 'marketplace'
+  | 'projects'
   | 'mcp'
   | 'agents'
   | 'skills'
@@ -191,6 +198,7 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
   providers: ['custom_providers'],
   integrations: [],
   marketplace: [],
+  projects: [],
   mcp: ['custom_mcps'],
   agents: ['custom_agents'],
   skills: ['custom_skills'],
@@ -220,6 +228,7 @@ const SETTINGS_NAV: SettingsNavGroup[] = [
       { id: 'providers', label: 'Providers', icon: Layers },
       { id: 'integrations', label: 'Integrations', icon: Link2 },
       { id: 'marketplace', label: 'Marketplace', icon: Store },
+      { id: 'projects', label: 'Projects', icon: FolderOpen },
     ],
   },
   {
@@ -254,8 +263,12 @@ const tabLoadingFallback = (
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabKey>('general');
+  const tabParam = searchParams.get('tab') as TabKey | null;
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    tabParam && tabParam in TAB_FIELDS ? tabParam : 'general',
+  );
   const { data: models = [] } = useModelsQuery({ enabled: activeTab === 'tasks' });
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -579,10 +592,18 @@ const SettingsPage: React.FC = () => {
   const errorMessage =
     getErrorMessage(fetchError) ?? getErrorMessage(manualUpdateMutation.error) ?? null;
 
-  const handleTabChange = useCallback((tab: TabKey) => {
-    setActiveTab(tab);
-    setMobileNavOpen(false);
-  }, []);
+  const handleTabChange = useCallback(
+    (tab: TabKey) => {
+      setActiveTab(tab);
+      setMobileNavOpen(false);
+      if (tab === 'general') {
+        setSearchParams({}, { replace: true });
+      } else {
+        setSearchParams({ tab }, { replace: true });
+      }
+    },
+    [setSearchParams],
+  );
 
   if (loading) {
     return (
@@ -940,6 +961,14 @@ const SettingsPage: React.FC = () => {
                         onAddTask={taskManagement.handleAddTask}
                         onEditTask={taskManagement.handleEditTask}
                       />
+                    </Suspense>
+                  </div>
+                )}
+
+                {activeTab === 'projects' && (
+                  <div role="tabpanel" id="projects-panel" aria-labelledby="projects-tab">
+                    <Suspense fallback={tabLoadingFallback}>
+                      <ProjectsSettingsTab />
                     </Suspense>
                   </div>
                 )}

@@ -1,5 +1,6 @@
 export * from './chat.types';
 export * from './file-system.types';
+export * from './project.types';
 export * from './user.types';
 export * from './tools.types';
 export * from './scheduler.types';

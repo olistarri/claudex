@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useInfiniteChatsQuery, useInfiniteMessagesQuery, useChatQuery } from '@/hooks/queries';
+import { useProjectStore } from '@/store';
 import type { Chat as ChatSummary, Message } from '@/types';
 
 interface UseChatDataResult {
@@ -16,7 +17,8 @@ interface UseChatDataResult {
 }
 
 export function useChatData(chatId: string | undefined): UseChatDataResult {
-  const chatsQuery = useInfiniteChatsQuery();
+  const activeProjectId = useProjectStore((state) => state.activeProjectId);
+  const chatsQuery = useInfiniteChatsQuery({ projectId: activeProjectId });
   const messagesQuery = useInfiniteMessagesQuery(chatId || '');
 
   const chats = useMemo(
