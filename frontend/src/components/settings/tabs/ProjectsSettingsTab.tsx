@@ -46,6 +46,26 @@ function getOverrideCount(project: Project): number {
   return count;
 }
 
+const textareaClasses = cn(
+  'w-full rounded-lg border border-border/50 bg-surface px-3 py-2',
+  'text-xs text-text-primary placeholder:text-text-quaternary',
+  'focus:border-border-hover focus:outline-none focus:ring-1 focus:ring-text-quaternary/30',
+  'dark:border-border-dark/50 dark:bg-surface-dark dark:text-text-dark-primary',
+  'dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover',
+  'dark:focus:ring-text-dark-quaternary/30',
+  'transition-colors duration-200',
+);
+
+const inputClasses = cn(
+  'w-full rounded-lg border border-border/50 bg-surface px-3 py-1.5',
+  'text-xs text-text-primary placeholder:text-text-quaternary',
+  'focus:border-border-hover focus:outline-none focus:ring-1 focus:ring-text-quaternary/30',
+  'dark:border-border-dark/50 dark:bg-surface-dark dark:text-text-dark-primary',
+  'dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover',
+  'dark:focus:ring-text-dark-quaternary/30',
+  'transition-colors duration-200',
+);
+
 function ProjectSettingsPanel({
   project,
   onSave,
@@ -56,15 +76,34 @@ function ProjectSettingsPanel({
   isSaving: boolean;
 }) {
   const [instructions, setInstructions] = useState(project.custom_instructions ?? '');
+  const [gitRepoUrl, setGitRepoUrl] = useState(project.git_repo_url ?? '');
+  const [gitBranch, setGitBranch] = useState(project.git_branch ?? '');
+  const [setupCommandsText, setSetupCommandsText] = useState(
+    (project.setup_commands ?? []).join('\n'),
+  );
   const [dirty, setDirty] = useState(false);
 
-  const handleInstructionsChange = (value: string) => {
-    setInstructions(value);
-    setDirty(true);
-  };
+  const markDirty = () => setDirty(true);
 
   const handleSave = () => {
-    onSave({ custom_instructions: instructions || null });
+    const cmds = setupCommandsText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    onSave({
+      custom_instructions: instructions || null,
+      git_repo_url: gitRepoUrl.trim() || null,
+      git_branch: gitBranch.trim() || null,
+      setup_commands: cmds.length > 0 ? cmds : null,
+    });
+    setDirty(false);
+  };
+
+  const handleDiscard = () => {
+    setInstructions(project.custom_instructions ?? '');
+    setGitRepoUrl(project.git_repo_url ?? '');
+    setGitBranch(project.git_branch ?? '');
+    setSetupCommandsText((project.setup_commands ?? []).join('\n'));
     setDirty(false);
   };
 
@@ -82,18 +121,13 @@ function ProjectSettingsPanel({
             </label>
             <textarea
               value={instructions}
-              onChange={(e) => handleInstructionsChange(e.target.value)}
+              onChange={(e) => {
+                setInstructions(e.target.value);
+                markDirty();
+              }}
               placeholder="Add project-specific instructions..."
               rows={4}
-              className={cn(
-                'w-full rounded-lg border border-border/50 bg-surface px-3 py-2',
-                'text-xs text-text-primary placeholder:text-text-quaternary',
-                'focus:border-border-hover focus:outline-none focus:ring-1 focus:ring-text-quaternary/30',
-                'dark:border-border-dark/50 dark:bg-surface-dark dark:text-text-dark-primary',
-                'dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover',
-                'dark:focus:ring-text-dark-quaternary/30',
-                'transition-colors duration-200',
-              )}
+              className={textareaClasses}
             />
           </div>
 
@@ -117,17 +151,71 @@ function ProjectSettingsPanel({
         </div>
       </div>
 
+      <div>
+        <h4 className="mb-3 text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
+          Sandbox Setup
+        </h4>
+        <p className="mb-3 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+          Configures how new sandboxes are initialized when creating threads in this project.
+        </p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-xs text-text-secondary dark:text-text-dark-secondary">
+              Git Repository URL
+            </label>
+            <input
+              type="text"
+              value={gitRepoUrl}
+              onChange={(e) => {
+                setGitRepoUrl(e.target.value);
+                markDirty();
+              }}
+              placeholder="https://github.com/org/repo.git"
+              className={cn(inputClasses, 'font-mono')}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs text-text-secondary dark:text-text-dark-secondary">
+              Branch
+            </label>
+            <input
+              type="text"
+              value={gitBranch}
+              onChange={(e) => {
+                setGitBranch(e.target.value);
+                markDirty();
+              }}
+              placeholder="main (default: repo default branch)"
+              className={cn(inputClasses, 'font-mono')}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs text-text-secondary dark:text-text-dark-secondary">
+              Setup Commands
+            </label>
+            <textarea
+              value={setupCommandsText}
+              onChange={(e) => {
+                setSetupCommandsText(e.target.value);
+                markDirty();
+              }}
+              placeholder={"npm install\ndocker compose up -d"}
+              rows={3}
+              className={cn(textareaClasses, 'font-mono')}
+            />
+            <p className="mt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              One command per line. Runs inside the sandbox after creation.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {dirty && (
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            onClick={() => {
-              setInstructions(project.custom_instructions ?? '');
-              setDirty(false);
-            }}
-            variant="outline"
-            size="sm"
-          >
+          <Button type="button" onClick={handleDiscard} variant="outline" size="sm">
             Discard
           </Button>
           <Button

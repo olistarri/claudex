@@ -20,6 +20,9 @@ export interface Project {
   custom_skills: CustomSkill[] | null;
   custom_slash_commands: CustomCommand[] | null;
   custom_prompts: CustomPrompt[] | null;
+  git_repo_url: string | null;
+  git_branch: string | null;
+  setup_commands: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,4 +44,7 @@ export interface ProjectSettingsUpdate {
   custom_skills?: CustomSkill[] | null;
   custom_slash_commands?: CustomCommand[] | null;
   custom_prompts?: CustomPrompt[] | null;
+  git_repo_url?: string | null;
+  git_branch?: string | null;
+  setup_commands?: string[] | null;
 }

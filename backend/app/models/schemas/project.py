@@ -34,6 +34,9 @@ class ProjectSettingsUpdate(BaseModel):
     custom_skills: list[CustomSkill] | None = None
     custom_slash_commands: list[CustomSlashCommand] | None = None
     custom_prompts: list[CustomPrompt] | None = None
+    git_repo_url: str | None = Field(None, max_length=512)
+    git_branch: str | None = Field(None, max_length=128)
+    setup_commands: list[str] | None = None
 
     class Config:
         from_attributes = True
@@ -52,6 +55,9 @@ class ProjectResponse(BaseModel):
     custom_skills: list[CustomSkill] | None = None
     custom_slash_commands: list[CustomSlashCommand] | None = None
     custom_prompts: list[CustomPrompt] | None = None
+    git_repo_url: str | None = None
+    git_branch: str | None = None
+    setup_commands: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 

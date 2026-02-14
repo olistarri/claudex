@@ -149,6 +149,9 @@ class ChatService(BaseDbService[Chat]):
             project_dir = f"{settings.PROJECTS_ROOT_DIR}/{project.folder_name}"
             await self.sandbox_service.copy_project_folder(sandbox_id, project_dir)
 
+        if project and project.git_repo_url:
+            await self._clone_project_repo(sandbox_id, project)
+
         await self.sandbox_service.initialize_sandbox(
             sandbox_id=sandbox_id,
             github_token=merged.github_personal_access_token,
@@ -163,6 +166,9 @@ class ChatService(BaseDbService[Chat]):
             gmail_oauth_client=merged.gmail_oauth_client,
             gmail_oauth_tokens=merged.gmail_oauth_tokens,
         )
+
+        if project and project.setup_commands:
+            await self._run_setup_commands(sandbox_id, project.setup_commands)
 
         async with self.session_factory() as db:
             chat = Chat(
@@ -879,6 +885,44 @@ class ChatService(BaseDbService[Chat]):
             )
             result = await db.execute(query)
             return bool(result.scalar())
+
+    async def _clone_project_repo(
+        self, sandbox_id: str, project: Any
+    ) -> None:
+        branch_flag = f" -b {project.git_branch}" if project.git_branch else ""
+        cmd = f"git clone{branch_flag} {project.git_repo_url} ."
+        try:
+            result = await self.sandbox_service.execute_command(
+                sandbox_id, cmd, timeout=120
+            )
+            if result.exit_code != 0:
+                logger.warning(
+                    "Git clone failed for project %s: %s",
+                    project.id,
+                    result.stderr,
+                )
+        except Exception:
+            logger.exception("Git clone error for project %s", project.id)
+
+    async def _run_setup_commands(
+        self, sandbox_id: str, commands: list[str]
+    ) -> None:
+        for cmd in commands:
+            if not cmd.strip():
+                continue
+            try:
+                result = await self.sandbox_service.execute_command(
+                    sandbox_id, cmd, timeout=300
+                )
+                if result.exit_code != 0:
+                    logger.warning(
+                        "Setup command failed (exit %d): %s — %s",
+                        result.exit_code,
+                        cmd,
+                        result.stderr,
+                    )
+            except Exception:
+                logger.exception("Setup command error: %s", cmd)
 
     def _truncate_title(self, title: str) -> str:
         if len(title) <= CHAT_TITLE_MAX_LENGTH:

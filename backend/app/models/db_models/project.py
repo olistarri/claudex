@@ -61,6 +61,9 @@ class Project(Base):
     custom_prompts: Mapped[list[CustomPromptDict] | None] = mapped_column(
         JSON, nullable=True
     )
+    git_repo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    git_branch: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    setup_commands: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     user = relationship("User", back_populates="projects")
     chats = relationship("Chat", back_populates="project")
