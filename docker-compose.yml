@@ -73,11 +73,6 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - HOST_PERMISSION_API_URL=http://api:8080
-    labels:
-      - traefik.docker.network=dokploy-network
-    networks:
-      - dokploy-network
-      - default
 
   frontend:
     build:
@@ -94,11 +89,6 @@ services:
     environment:
       - VITE_API_BASE_URL=/api/v1
       - VITE_WS_URL=/api/v1/ws
-    labels:
-      - traefik.docker.network=dokploy-network
-    networks:
-      - dokploy-network
-      - default
 
 volumes:
   postgres_data:
@@ -106,6 +96,3 @@ volumes:
   redis_data:
     driver: local
 
-networks:
-  dokploy-network:
-    external: true
