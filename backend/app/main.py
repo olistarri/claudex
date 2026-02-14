@@ -106,7 +106,7 @@ def create_application() -> FastAPI:
 
     try:
         storage_path = Path(settings.STORAGE_PATH)
-        storage_path.mkdir(exist_ok=True)
+        storage_path.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         logger.warning(
             "Failed to create storage directory at %s: %s", settings.STORAGE_PATH, e
