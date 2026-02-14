@@ -255,12 +255,13 @@ class SandboxService:
         sandbox_id: str,
         command: str,
         background: bool = False,
+        timeout: int | None = None,
     ) -> CommandResult:
         sandbox_secrets = await self.provider.get_secrets(sandbox_id)
         envs = {s.key: s.value for s in sandbox_secrets}
 
         return await self.provider.execute_command(
-            sandbox_id, command, background=background, envs=envs
+            sandbox_id, command, background=background, envs=envs, timeout=timeout
         )
 
     async def write_file(self, sandbox_id: str, file_path: str, content: str) -> None:
