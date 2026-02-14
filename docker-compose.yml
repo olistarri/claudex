@@ -73,6 +73,8 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - HOST_PERMISSION_API_URL=http://api:8080
+    labels:
+      - traefik.docker.network=dokploy-network
     networks:
       - dokploy-network
       - default
@@ -92,6 +94,8 @@ services:
     environment:
       - VITE_API_BASE_URL=/api/v1
       - VITE_WS_URL=/api/v1/ws
+    labels:
+      - traefik.docker.network=dokploy-network
     networks:
       - dokploy-network
       - default
