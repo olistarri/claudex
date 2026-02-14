@@ -2,6 +2,7 @@ import asyncio
 import errno
 import json
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
@@ -24,7 +25,7 @@ from app.core.security import get_user_from_token
 from app.db.session import SessionLocal
 from sqlalchemy import select
 
-from app.models.db_models import Chat, User
+from app.models.db_models import Chat, Project, User
 from app.services.exceptions import UserException
 from app.services.sandbox_providers import (
     SandboxProviderType,
@@ -271,6 +272,141 @@ async def terminal_websocket(
         await session.detach()
     except Exception as e:
         logger.error("Error in terminal websocket: %s", e, exc_info=True)
+    finally:
+        if session.active_websocket is websocket and session.pty_id:
+            await session.detach()
+        try:
+            await websocket.close()
+        except OSError as exc:
+            if exc.errno != errno.EPIPE:
+                logger.error("Failed to close websocket cleanly: %s", exc)
+
+
+@router.websocket("/project/{project_id}/terminal")
+async def project_terminal_websocket(
+    websocket: WebSocket,
+    project_id: str,
+) -> None:
+    await websocket.accept()
+
+    user, _, _, _ = await _wait_for_auth(websocket)
+    if not user:
+        await websocket.close(code=WS_CLOSE_AUTH_FAILED, reason="Authentication failed")
+        return
+
+    async with SessionLocal() as db:
+        query = select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+        )
+        result = await db.execute(query)
+        project = result.scalar_one_or_none()
+        if not project:
+            await websocket.close(
+                code=WS_CLOSE_SANDBOX_NOT_FOUND, reason="Project not found"
+            )
+            return
+        folder_name = project.folder_name
+
+    projects_root = Path(settings.PROJECTS_ROOT_DIR)
+    project_dir = projects_root / folder_name
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    terminal_id = websocket.query_params.get("terminalId") or "terminal-1"
+    session = await terminal_session_registry.get_or_create(
+        user_id=str(user.id),
+        sandbox_id=folder_name,
+        terminal_id=terminal_id,
+        provider_type=SandboxProviderType.HOST,
+        api_key=None,
+        host_base_dir=str(projects_root),
+    )
+
+    try:
+        while True:
+            try:
+                message = await asyncio.wait_for(websocket.receive(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": WS_MSG_PING}))
+                continue
+
+            if "bytes" in message:
+                session.enqueue_input(message["bytes"])
+                continue
+
+            if "text" not in message:
+                continue
+
+            text_payload = message["text"]
+            if not isinstance(text_payload, str):
+                continue
+
+            try:
+                data = json.loads(text_payload)
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            data_type = data.get("type")
+            if not isinstance(data_type, str):
+                continue
+
+            if data_type == WS_MSG_INIT:
+                rows = _parse_dimension(
+                    data.get("rows"),
+                    default=DEFAULT_PTY_ROWS,
+                    min_value=1,
+                    max_value=500,
+                )
+                cols = _parse_dimension(
+                    data.get("cols"),
+                    default=DEFAULT_PTY_COLS,
+                    min_value=1,
+                    max_value=500,
+                )
+
+                size = await session.ensure_started(rows, cols)
+                await session.attach(websocket)
+
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": WS_MSG_INIT,
+                            "id": session.pty_id,
+                            "rows": size["rows"],
+                            "cols": size["cols"],
+                        }
+                    )
+                )
+
+            elif data_type == WS_MSG_RESIZE:
+                rows = _parse_dimension(
+                    data.get("rows"),
+                    default=0,
+                    min_value=0,
+                    max_value=500,
+                )
+                cols = _parse_dimension(
+                    data.get("cols"),
+                    default=0,
+                    min_value=0,
+                    max_value=500,
+                )
+                if rows > 0 and cols > 0:
+                    await session.resize(rows, cols)
+            elif data_type == WS_MSG_CLOSE:
+                await session.kill_tmux_session()
+                await session.close()
+                break
+            elif data_type == WS_MSG_DETACH:
+                await session.detach()
+                break
+    except WebSocketDisconnect:
+        await session.detach()
+    except Exception as e:
+        logger.error("Error in project terminal websocket: %s", e, exc_info=True)
     finally:
         if session.active_websocket is websocket and session.pty_id:
             await session.detach()

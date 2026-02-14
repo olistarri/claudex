@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, Plus, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { FolderOpen, Plus, Loader2, Edit2, Trash2, Terminal } from 'lucide-react';
 import { Button, ConfirmDialog } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@/hooks/queries';
 import type { Project, ProjectSettingsUpdate } from '@/types';
 import { ProjectDialog } from '@/components/settings/dialogs/ProjectDialog';
+import { ProjectTerminalModal } from '@/components/settings/ProjectTerminalModal';
 import toast from 'react-hot-toast';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 
@@ -158,6 +159,7 @@ export function ProjectsSettingsTab() {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [pendingDeleteProject, setPendingDeleteProject] = useState<Project | null>(null);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [terminalProject, setTerminalProject] = useState<Project | null>(null);
 
   const handleAdd = () => {
     setEditingProject(null);
@@ -329,6 +331,16 @@ export function ProjectsSettingsTab() {
                   <div className="ml-3 flex items-center gap-0.5">
                     <Button
                       type="button"
+                      onClick={() => setTerminalProject(project)}
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+                      aria-label="Open terminal"
+                    >
+                      <Terminal className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
                       onClick={() => handleEdit(project)}
                       variant="ghost"
                       size="icon"
@@ -395,6 +407,15 @@ export function ProjectsSettingsTab() {
         confirmLabel="Delete"
         cancelLabel="Cancel"
       />
+
+      {terminalProject && (
+        <ProjectTerminalModal
+          isOpen={!!terminalProject}
+          projectId={terminalProject.id}
+          projectName={terminalProject.name}
+          onClose={() => setTerminalProject(null)}
+        />
+      )}
     </div>
   );
 }

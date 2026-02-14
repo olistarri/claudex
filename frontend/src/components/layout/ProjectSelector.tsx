@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Settings2, FolderOpen } from 'lucide-react';
+import { ChevronDown, Settings2, FolderOpen, Terminal } from 'lucide-react';
+import { ProjectTerminalModal } from '@/components/settings/ProjectTerminalModal';
 import { cn } from '@/utils/cn';
 import { useProjectStore } from '@/store';
 import { useProjectsQuery } from '@/hooks/queries';
@@ -14,6 +15,7 @@ export function ProjectSelector() {
   const setActiveProjectId = useProjectStore((state) => state.setActiveProjectId);
 
   const { data: projects } = useProjectsQuery();
+  const [terminalProject, setTerminalProject] = useState<Project | null>(null);
 
   const activeProject = projects?.find((p) => p.id === activeProjectId);
 
@@ -102,6 +104,23 @@ export function ProjectSelector() {
           </div>
 
           <div className="border-t border-border/50 p-1 dark:border-border-dark/50">
+            {activeProject && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  setTerminalProject(activeProject);
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5',
+                  'text-xs text-text-secondary dark:text-text-dark-secondary',
+                  'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
+                  'transition-colors duration-200',
+                )}
+              >
+                <Terminal className="h-3 w-3" />
+                Open terminal
+              </button>
+            )}
             <button
               onClick={handleManageProjects}
               className={cn(
@@ -116,6 +135,15 @@ export function ProjectSelector() {
             </button>
           </div>
         </div>
+      )}
+
+      {terminalProject && (
+        <ProjectTerminalModal
+          isOpen={!!terminalProject}
+          projectId={terminalProject.id}
+          projectName={terminalProject.name}
+          onClose={() => setTerminalProject(null)}
+        />
       )}
     </div>
   );

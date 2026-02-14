@@ -169,6 +169,7 @@ class TerminalSessionRegistry:
         terminal_id: str,
         provider_type: SandboxProviderType,
         api_key: str | None,
+        host_base_dir: str | None = None,
     ) -> TerminalSessionRecord:
         key = build_terminal_session_key(user_id, sandbox_id, terminal_id)
         async with self._lock:
@@ -176,7 +177,12 @@ class TerminalSessionRegistry:
             if existing:
                 return existing
 
-            provider = create_sandbox_provider(provider_type, api_key)
+            if host_base_dir and provider_type == SandboxProviderType.HOST:
+                from app.services.sandbox_providers.host_provider import LocalHostProvider
+
+                provider = LocalHostProvider(base_dir=host_base_dir)
+            else:
+                provider = create_sandbox_provider(provider_type, api_key)
             service = SandboxService(provider)
 
             record = TerminalSessionRecord(
