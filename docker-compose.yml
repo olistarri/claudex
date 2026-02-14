@@ -63,7 +63,7 @@ services:
       - "127.0.0.1:${OPENVSCODE_PORT:-8765}:8765"
     volumes:
       - ./backend:/app
-      - ./storage:/app/storage
+      - storage_data:/app/storage
       - /app/__pycache__
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -104,6 +104,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  storage_data:
     driver: local
 
 networks:
