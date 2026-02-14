@@ -24,9 +24,9 @@ class StorageService:
 
         self.storage_path = Path(settings.STORAGE_PATH)
 
-        self.storage_path.mkdir(parents=True, exist_ok=True)
+        os.makedirs(self.storage_path, exist_ok=True)
         for subdir in ["images", "pdfs", "xlsx"]:
-            (self.storage_path / subdir).mkdir(exist_ok=True)
+            os.makedirs(self.storage_path / subdir, exist_ok=True)
 
     async def save_file(
         self,

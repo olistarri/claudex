@@ -1,7 +1,7 @@
 import logging
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Response, status
@@ -105,8 +105,7 @@ def create_application() -> FastAPI:
         logger.debug("Static files directory not found, skipping mount: %s", e)
 
     try:
-        storage_path = Path(settings.STORAGE_PATH)
-        storage_path.mkdir(parents=True, exist_ok=True)
+        os.makedirs(settings.STORAGE_PATH, exist_ok=True)
     except Exception as e:
         logger.warning(
             "Failed to create storage directory at %s: %s", settings.STORAGE_PATH, e
