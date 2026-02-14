@@ -16,6 +16,17 @@ interface TokenResponse {
 
 export type { ApiStreamResponse as StreamResponse } from '@/types/stream.types';
 
+const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
+
+const resolveHttpBaseUrl = (rawUrl: string): string =>
+  trimTrailingSlash(new URL(rawUrl, window.location.origin).toString());
+
+const resolveWsBaseUrl = (rawUrl: string): string => {
+  const normalized = new URL(rawUrl, window.location.origin);
+  normalized.protocol = ['https:', 'wss:'].includes(normalized.protocol) ? 'wss:' : 'ws:';
+  return trimTrailingSlash(normalized.toString());
+};
+
 const getAuthHeaders = (includeContentType = true): Record<string, string> => {
   const token = authStorage.getToken();
   return {
@@ -200,7 +211,8 @@ class APIClient {
   }
 }
 
-export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL;
-export const WS_BASE_URL: string = import.meta.env.VITE_WS_URL;
+export const API_BASE_URL: string = resolveHttpBaseUrl(import.meta.env.VITE_API_BASE_URL);
+export const WS_BASE_URL: string = resolveWsBaseUrl(import.meta.env.VITE_WS_URL);
+export const API_ORIGIN: string = new URL(API_BASE_URL).origin;
 
 export const apiClient = new APIClient(API_BASE_URL);

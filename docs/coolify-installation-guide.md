@@ -36,18 +36,16 @@ Before starting, ensure you have:
 ### Additional Requirements
 
 - **Domain name** with DNS configured (A records pointing to your VPS IP)
-  - Main domain: `yourdomain.com` (frontend)
-  - API subdomain: `api.yourdomain.com` (backend)
+  - Main domain: `yourdomain.com` (frontend and API path routing)
 - **Coolify installed** on your VPS ([Installation Guide](https://coolify.io/docs/installation))
 - **GitHub account** with access to your Claudex repository fork
 
 ### DNS Configuration
 
-Create the following DNS A records pointing to your VPS IP:
+Create this DNS A record pointing to your VPS IP:
 
 ```
-yourdomain.com      →  YOUR_VPS_IP
-api.yourdomain.com  →  YOUR_VPS_IP
+yourdomain.com  →  YOUR_VPS_IP
 ```
 
 ---
@@ -176,7 +174,7 @@ Navigate to the **General** tab and configure:
 ### Step 3: Configure Domain
 
 1. Navigate to the **Domains** section
-2. Add your API domain: `api.yourdomain.com`
+2. Add your API domain with path prefix: `yourdomain.com/api`
 3. Enable **HTTPS** (Coolify will auto-provision SSL via Let's Encrypt)
 
 ### Step 4: Configure Docker Options (Required for Sandbox)
@@ -199,12 +197,12 @@ ENVIRONMENT=production
 SECRET_KEY=your-secure-secret-key-minimum-32-characters
 DATABASE_URL=postgresql+asyncpg://postgres:YOUR_POSTGRES_PASSWORD@postgres:5432/postgres
 REDIS_URL=redis://redis:6379/0
-BASE_URL=https://api.yourdomain.com
+BASE_URL=https://yourdomain.com
 FRONTEND_URL=https://yourdomain.com
 ALLOWED_ORIGINS=https://yourdomain.com
 SANDBOX_PROVIDER=docker
+DOCKER_PREVIEW_BASE_URL=https://yourdomain.com
 DOCKER_TRAEFIK_NETWORK=YOUR_COOLIFY_NETWORK
-DOCKER_SANDBOX_DOMAIN=yourdomain.com
 DOCKER_PERMISSION_API_URL=http://api:8080
 REQUIRE_EMAIL_VERIFICATION=false
 TRUSTED_PROXY_HOSTS=*
@@ -223,7 +221,7 @@ TRUSTED_PROXY_HOSTS=*
 | `ALLOWED_ORIGINS` | CORS allowed origins (frontend URL) |
 | `SANDBOX_PROVIDER` | Set to `docker` to enable Docker-based sandbox execution |
 | `DOCKER_TRAEFIK_NETWORK` | Coolify's Docker network name (find in Docker networks) |
-| `DOCKER_SANDBOX_DOMAIN` | Base domain for sandbox containers |
+| `DOCKER_PREVIEW_BASE_URL` | Public base URL used for sandbox preview path routing |
 | `DOCKER_PERMISSION_API_URL` | Internal API URL for sandbox permission checks |
 | `REQUIRE_EMAIL_VERIFICATION` | Set to `false` to skip email verification |
 | `TRUSTED_PROXY_HOSTS` | Trust proxy headers (set to `*` behind Coolify's Traefik) |
@@ -295,8 +293,8 @@ Enable the following options:
 ### Step 5: Configure Environment Variables
 
 ```env
-VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
-VITE_WS_URL=wss://api.yourdomain.com/api/v1/ws
+VITE_API_BASE_URL=/api/v1
+VITE_WS_URL=/api/v1/ws
 ```
 
 | Variable | Description |
@@ -320,7 +318,7 @@ Your production environment should now have the following resources:
 |---------|------|--------|
 | postgres | Database | (internal) |
 | redis | Database | (internal) |
-| api | Application | api.yourdomain.com |
+| api | Application | yourdomain.com/api |
 | frontend | Application | yourdomain.com |
 
 ### Step 2: Deploy in Order
@@ -338,7 +336,7 @@ All services should show green health indicators:
 
 ### Step 4: Check API Health and Readiness
 
-Visit `https://api.yourdomain.com/health` to verify liveness:
+Visit `https://yourdomain.com/health` to verify liveness:
 
 ```json
 {
@@ -346,7 +344,7 @@ Visit `https://api.yourdomain.com/health` to verify liveness:
 }
 ```
 
-Visit `https://api.yourdomain.com/api/v1/readyz` to verify dependency readiness:
+Visit `https://yourdomain.com/api/v1/readyz` to verify dependency readiness:
 
 ```json
 {
@@ -538,14 +536,14 @@ DATABASE_URL=postgresql+asyncpg://postgres:PASSWORD@postgres:5432/postgres
 REDIS_URL=redis://redis:6379/0
 
 # URLs
-BASE_URL=https://api.yourdomain.com
+BASE_URL=https://yourdomain.com
 FRONTEND_URL=https://yourdomain.com
 ALLOWED_ORIGINS=https://yourdomain.com
 
 # Docker/Sandbox
 SANDBOX_PROVIDER=docker
+DOCKER_PREVIEW_BASE_URL=https://yourdomain.com
 DOCKER_TRAEFIK_NETWORK=coolify-network-name
-DOCKER_SANDBOX_DOMAIN=yourdomain.com
 DOCKER_PERMISSION_API_URL=http://api:8080
 
 # Authentication
@@ -556,8 +554,8 @@ TRUSTED_PROXY_HOSTS=*
 ### Complete Frontend Environment Variables
 
 ```env
-VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
-VITE_WS_URL=wss://api.yourdomain.com/api/v1/ws
+VITE_API_BASE_URL=/api/v1
+VITE_WS_URL=/api/v1/ws
 ```
 
 ## Optional Environment Variables
@@ -623,7 +621,7 @@ DOCKER_TRAEFIK_ENTRYPOINT=https
 | `DOCKER_TRAEFIK_ENTRYPOINT` | `https` | Traefik entrypoint for sandbox routing |
 | `SANDBOX_PROVIDER` | `docker` | Sandbox provider (`docker` or `e2b`) |
 
-> **Note**: `DOCKER_TRAEFIK_NETWORK`, `DOCKER_SANDBOX_DOMAIN`, and `DOCKER_PERMISSION_API_URL` are documented in the main configuration section above as they're typically required for Coolify deployments.
+> **Note**: `DOCKER_PREVIEW_BASE_URL`, `DOCKER_TRAEFIK_NETWORK`, and `DOCKER_PERMISSION_API_URL` are documented in the main configuration section above as they're typically required for Coolify deployments.
 
 ### E2B Sandbox Configuration (Alternative)
 

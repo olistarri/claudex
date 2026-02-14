@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { integrationsService, type GmailStatus } from '@/services/integrationsService';
-import { API_BASE_URL } from '@/lib/api';
+import { API_ORIGIN } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 const GMAIL_STATUS_KEY = ['integrations', 'gmail', 'status'] as const;
@@ -56,7 +56,7 @@ export const useGmailIntegration = () => {
         return;
       }
 
-      const expectedOrigin = new URL(API_BASE_URL).origin;
+      const expectedOrigin = API_ORIGIN;
 
       const handleMessage = (event: MessageEvent) => {
         if (event.origin !== expectedOrigin) return;
