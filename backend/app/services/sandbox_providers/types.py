@@ -74,7 +74,6 @@ class DockerConfig:
     preview_base_url: str = "http://localhost"
     user_home: str = "/home/user"
     openvscode_port: int = 8765
-    sandbox_domain: str = ""
     traefik_network: str = ""
     traefik_entrypoint: str = "https"
 

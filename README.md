@@ -197,6 +197,7 @@ docker compose -p claudex-web -f docker-compose.yml logs -f    # Web logs
 ## Deployment
 
 For production deployment on a VPS, see the [Coolify Installation Guide](docs/coolify-installation-guide.md).
+Production routing uses a single domain with path prefixes: frontend at `/` and API at `/api/*`.
 
 ## API & Admin
 

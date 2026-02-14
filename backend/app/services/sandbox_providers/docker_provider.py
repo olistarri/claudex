@@ -7,6 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from app.constants import (
     DOCKER_AVAILABLE_PORTS,
@@ -68,40 +69,53 @@ class LocalDockerProvider(SandboxProvider):
 
     def _build_traefik_labels(self, sandbox_id: str) -> dict[str, str]:
         """
-        Generate Traefik labels so sandbox containers can be accessed via HTTPS subdomains.
+        Generate Traefik labels so sandbox containers can be accessed on one host via path routing.
 
         Problem: Main app uses HTTPS, but sandbox containers run on random HTTP ports.
         Browsers block HTTP iframes inside HTTPS pages (mixed content).
 
-        Solution: Use Traefik to route subdomains to container ports over HTTPS.
-        Example: https://sandbox-abc123-8765.sandbox.example.com -> container port 8765
+        Solution: Use Traefik to route path prefixes to container ports over HTTPS.
+        Example: https://app.example.com/sandbox/abc123/8765 -> container port 8765
 
         Setup required:
-        - DNS: *.sandbox.example.com -> your server IP
-        - SSL: Wildcard certificate for *.sandbox.example.com
-        - Env: DOCKER_SANDBOX_DOMAIN=sandbox.example.com
+        - DNS: app.example.com -> your server IP
+        - SSL: Certificate for app.example.com
+        - Env: DOCKER_PREVIEW_BASE_URL=https://app.example.com
         - Env: DOCKER_TRAEFIK_NETWORK=coolify (your Traefik network name)
 
-        If not configured, returns empty dict and falls back to http://localhost:port URLs.
+        If not configured, returns empty dict and falls back to direct host port URLs.
         """
-        if not self.config.sandbox_domain or not self.config.traefik_network:
+        parsed_base = urlparse(self.config.preview_base_url)
+        preview_host = parsed_base.hostname
+        if not preview_host or not self.config.traefik_network:
             return {}
 
         labels: dict[str, str] = {
             "traefik.enable": "true",
             "traefik.docker.network": self.config.traefik_network,
         }
+        if parsed_base.scheme == "https":
+            use_tls = "true"
+        else:
+            use_tls = "false"
         all_ports = list(DOCKER_AVAILABLE_PORTS)
 
         for port in all_ports:
             router_name = f"sandbox-{sandbox_id}-{port}"
-            subdomain = f"{router_name}.{self.config.sandbox_domain}"
-            labels[f"traefik.http.routers.{router_name}.rule"] = f"Host(`{subdomain}`)"
+            route_prefix = f"/sandbox/{sandbox_id}/{port}"
+            middleware_name = f"{router_name}-strip"
+            labels[f"traefik.http.routers.{router_name}.rule"] = (
+                f"Host(`{preview_host}`) && PathPrefix(`{route_prefix}`)"
+            )
             labels[f"traefik.http.routers.{router_name}.entrypoints"] = (
                 self.config.traefik_entrypoint
             )
-            labels[f"traefik.http.routers.{router_name}.tls"] = "true"
+            labels[f"traefik.http.routers.{router_name}.tls"] = use_tls
+            labels[f"traefik.http.routers.{router_name}.middlewares"] = middleware_name
             labels[f"traefik.http.routers.{router_name}.service"] = router_name
+            labels[
+                f"traefik.http.middlewares.{middleware_name}.stripprefix.prefixes"
+            ] = route_prefix
             labels[f"traefik.http.services.{router_name}.loadbalancer.server.port"] = (
                 str(port)
             )
@@ -568,16 +582,20 @@ class LocalDockerProvider(SandboxProvider):
 
         port_map = self._port_mappings.get(sandbox_id, {})
         mapped_ports = {p for p in listening_ports if p in port_map}
+        has_path_routing = bool(
+            self.config.traefik_network
+            and urlparse(self.config.preview_base_url).hostname
+        )
 
         return self._build_preview_links(
             listening_ports=mapped_ports,
             url_builder=(
                 (
                     lambda port: (
-                        f"https://sandbox-{sandbox_id}-{port}.{self.config.sandbox_domain}"
+                        f"{self.config.preview_base_url.rstrip('/')}/sandbox/{sandbox_id}/{port}"
                     )
                 )
-                if self.config.sandbox_domain
+                if has_path_routing
                 else (lambda port: f"{self.config.preview_base_url}:{port_map[port]}")
             ),
             excluded_ports=EXCLUDED_PREVIEW_PORTS,
@@ -644,9 +662,13 @@ class LocalDockerProvider(SandboxProvider):
         return container
 
     async def get_ide_url(self, sandbox_id: str) -> str | None:
-        if self.config.sandbox_domain:
-            subdomain = f"sandbox-{sandbox_id}-{self.config.openvscode_port}"
-            return f"https://{subdomain}.{self.config.sandbox_domain}/?folder={SANDBOX_HOME_DIR}"
+        has_path_routing = bool(
+            self.config.traefik_network
+            and urlparse(self.config.preview_base_url).hostname
+        )
+        if has_path_routing:
+            base_url = self.config.preview_base_url.rstrip("/")
+            return f"{base_url}/sandbox/{sandbox_id}/{self.config.openvscode_port}/?folder={SANDBOX_HOME_DIR}"
 
         await self.connect_sandbox(sandbox_id)
         port_map = self._port_mappings.get(sandbox_id, {})
@@ -656,9 +678,17 @@ class LocalDockerProvider(SandboxProvider):
         return f"{self.config.preview_base_url}:{host_port}/?folder={SANDBOX_HOME_DIR}"
 
     async def get_vnc_url(self, sandbox_id: str) -> str | None:
-        if self.config.sandbox_domain:
-            subdomain = f"sandbox-{sandbox_id}-{VNC_WEBSOCKET_PORT}"
-            return f"wss://{subdomain}.{self.config.sandbox_domain}"
+        has_path_routing = bool(
+            self.config.traefik_network
+            and urlparse(self.config.preview_base_url).hostname
+        )
+        if has_path_routing:
+            base_url = (
+                self.config.preview_base_url.rstrip("/")
+                .replace("http://", "ws://", 1)
+                .replace("https://", "wss://", 1)
+            )
+            return f"{base_url}/sandbox/{sandbox_id}/{VNC_WEBSOCKET_PORT}"
 
         await self.connect_sandbox(sandbox_id)
         port_map = self._port_mappings.get(sandbox_id, {})
